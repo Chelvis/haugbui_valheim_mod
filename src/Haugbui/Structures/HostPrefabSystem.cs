@@ -158,7 +158,22 @@ namespace Haugbui.Structures
 
             int firstBreak = __result.IndexOf('\n');
             string actions = firstBreak >= 0 ? __result.Substring(firstBreak) : string.Empty;
-            __result = Localization.instance.Localize($"$haugbui_piece_tomb\n{structure.LevelLine()}") + actions;
+            var controller = __instance.GetComponent<Creature.TombController>();
+            string status = controller != null ? "\n" + controller.StatusLine() : "";
+            __result = Localization.instance.Localize($"$haugbui_piece_tomb\n{structure.LevelLine()}{status}") + actions +
+                       Localization.instance.Localize("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_panel_open");
+        }
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(Container), nameof(Container.Interact))]
+        private static bool TombPanelOnAltInteract(Container __instance, bool hold, bool alt, ref bool __result)
+        {
+            if (!alt || hold) return true;
+            var controller = __instance.GetComponent<Creature.TombController>();
+            if (controller == null) return true;
+            UI.TombPanel.Open(controller);
+            __result = true;
+            return false;
         }
     }
 }

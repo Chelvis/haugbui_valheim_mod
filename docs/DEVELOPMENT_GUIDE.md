@@ -131,7 +131,7 @@ Most in-game checks are automated. Use a throwaway test world: the suites build,
 15 m around the player and remove everything they created.
 
 - **Manual run:** in the world, `devcommands`, then `haugbui_selftest` (all suites) or
-  `haugbui_selftest basics structures flight transfers`. Stand still for about a minute.
+  `haugbui_selftest basics structures flight transfers haugbui`. Stand still for about a minute.
 - **Unattended run:** in r2modman, *Settings → Set launch parameters*:
   `-console -haugbui-autotest "<character>" "<world>" -haugbui-autotest-quit`, then *Start modded*. The mod picks the
   character and world from the main menu, waits for the spawn, runs every suite, writes the report and quits.
@@ -145,6 +145,7 @@ What the suites cover:
 | structures | bed/spacing/upgrade rules and their results, ZDO saved as the vanilla host, tomb state, levels 1→6 in any order, abilities, combat warning, tomb storage, reload of every structure (look, refund, level, items), **mod-missing simulation** (tomb loads as a plain chest with items and keys, then comes back), removing an upgrade, rebinding to a rebuilt tomb |
 | flight | non-persistent flyer crosses a wall back and forth for 25 s, never stuck, stays above ground, takes damage |
 | transfers | 10 s of random destination-first moves between two chests with forced saves, totals unchanged, also after reload |
+| haugbui | creature prefab (not saved, no drops, tamed, purple material copies, aura parts), dormant at noon / emerges at night / returns inside the dawn lead (fake clock, so no `tod` needed), movement (arrival ≤ 1 m, max speed, no jumps), one creature after a tomb reload, deposit on entering and overflow with full storage, Rest toggle, death (items to storage, cooldown, countdown label, waits for night, resurrects), Altar (works at noon, dark aura on/off, returns when removed), toggle gating and persistence, tomb destruction (carried + overflow dropped, creature gone) |
 
 Not covered by the self-test (still manual, once per release): a real quit/reload from disk and loading the world
 with the DLL removed (§4.5 step 7), and judging how the structures look (use the pictures).
@@ -185,6 +186,13 @@ must show only the `Harvest` feature disabled.
    `haugbui_spike_fly go` and watch it loop for ~10 minutes.
 4. Hit it a few times (it must take damage), then `haugbui_spike_fly report`: send the line (stuck events must be 0).
 5. `haugbui_spike_fly despawn`. Quit and reload: no Wraith may remain (it is never saved).
+
+### 4.4.2 M3 Haugbui manual checks (once per release, after the self-test passes)
+
+Only what the self-test cannot judge: `Shift+E` on the tomb opens the panel (Esc/E closes it, toggles survive a real
+quit/reload); the creature looks purple and the smoke aura shows only with the Altar; the countdown label above a
+tomb after a death keeps its remaining time across quit/restart. Send screenshots of the creature by night and
+with the Altar.
 
 ### 4.5 M2 structures (Debug or Release build)
 

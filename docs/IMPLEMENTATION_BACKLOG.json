@@ -763,7 +763,7 @@
         {
           "id": "HB-T-027",
           "title": "Haugbui creature prefab",
-          "description": "Wraith clone (CreatureManager) with spectral materials, no CharacterDrop, no spawn configs, non-persistent ZNetView, tamed flag set on spawn, custom name token, idle sounds at low frequency.",
+          "description": "Wraith clone (CreatureManager) with spectral materials, no CharacterDrop, no spawn configs, non-persistent ZNetView, tamed flag set on spawn, custom name token, idle sounds at low frequency. PO decision 2026-10-13: tinted purple (StructureDefinitions.HaugbuiPurple) on material copies, never the shared Wraith materials.",
           "priority": "P0",
           "dependencies": [
             "HB-T-008"
@@ -1176,7 +1176,7 @@
         {
           "id": "HB-T-038",
           "title": "Altar of Darkness dark appearance",
-          "description": "While the Altar is bound: dark aura, subtle purple particles, bone-pile-style smoke on the creature; no damage resistance added.",
+          "description": "While the Altar is bound (TombAbilities.FullTime, same condition as daytime work): the Wraith's own smoke/fog aura particles are shown, purple-tinted; hidden otherwise (PO decision 2026-10-13). No damage resistance added.",
           "priority": "P1",
           "dependencies": [
             "HB-T-037",

@@ -22,6 +22,7 @@ namespace Haugbui.Core.GameApi
         public const string Harvest = "Harvest";
         public const string RemoteWork = "RemoteWork";
         public const string Structures = "Structures";
+        public const string Creature = "Creature";
     }
 
     public sealed class ApiMember
@@ -128,6 +129,22 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "WarningPopup", null, MemberKind.Type, Features.Structures),
             M(Valheim, "IPlaced", null, MemberKind.Type, Features.Structures),
             M(Valheim, "StationExtension", "m_connectionPrefab", MemberKind.Field, Features.Structures),
+
+            M(Valheim, "BaseAI", "UpdateAI", MemberKind.Method, Features.Creature, "System.Single"),
+            M(Valheim, "Character", "m_tamed", MemberKind.Field, Features.Creature),
+            M(Valheim, "Character", "m_onDeath", MemberKind.Field, Features.Creature),
+            M(Valheim, "Character", "m_deathEffects", MemberKind.Field, Features.Creature),
+            M(Valheim, "Character", "m_flyFastSpeed", MemberKind.Field, Features.Creature),
+            M(Valheim, "Character", "m_flySlowSpeed", MemberKind.Field, Features.Creature),
+            M(Valheim, "Character", "SetMaxHealth", MemberKind.Method, Features.Creature),
+            M(Valheim, "Character", "SetHealth", MemberKind.Method, Features.Creature),
+            M(Valheim, "Character", "SetMoveDir", MemberKind.Method, Features.Creature),
+            M(Valheim, "Container", "Interact", MemberKind.Method, Features.Creature),
+            M(Valheim, "WearNTear", "m_onDestroyed", MemberKind.Field, Features.Creature),
+            M(Valheim, "Inventory", "CanAddItem", MemberKind.Method, Features.Creature),
+            M(Valheim, "Inventory", "FindFreeStackSpace", MemberKind.Method, Features.Creature),
+            M(Valheim, "ItemDrop", "DropItem", MemberKind.Method, Features.Creature),
+            M(Valheim, "Billboard", null, MemberKind.Type, Features.Creature),
         };
 
         public static IEnumerable<string> FeaturesOf(IEnumerable<ApiMember> members) =>

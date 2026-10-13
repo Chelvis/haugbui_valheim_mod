@@ -22,7 +22,7 @@ namespace Haugbui
         public const string PluginGuid = "com.kelvinmarques.haugbui";
         public const string PluginName = "Haugbui";
         // Keep in sync with HaugbuiVersion in Directory.Build.props.
-        public const string PluginVersion = "0.0.2";
+        public const string PluginVersion = "0.0.3";
 
         private Harmony _harmony;
         private bool _piecesRegistered;
@@ -54,6 +54,10 @@ namespace Haugbui
             _harmony.PatchAll(typeof(HaugbuiPlugin).Assembly);
 
             PrefabManager.OnVanillaPrefabsAvailable += OnVanillaPrefabsAvailable;
+            if (GameApiSelfCheck.IsAvailable(Core.GameApi.Features.Creature)) Creature.CreaturePrefab.Register();
+            else Log.Error("Haugbui creature disabled: required game members are missing.");
+            ApplyEffectsQuality();
+            Settings.EffectsQuality.SettingChanged += (_, __) => ApplyEffectsQuality();
 
             CommandManager.Instance.AddConsoleCommand(new StatusCommand());
             CommandManager.Instance.AddConsoleCommand(new DumpPrefabsCommand());
@@ -75,6 +79,7 @@ namespace Haugbui
         {
             Scheduler.Update(Time.timeAsDouble);
             StructureRegistry.Update();
+            UI.TombPanel.Update();
         }
 
         private void OnDestroy()
@@ -91,6 +96,8 @@ namespace Haugbui
             if (GameApiSelfCheck.IsAvailable(Core.GameApi.Features.Structures)) HostPrefabSystem.RegisterPieces();
             else Log.Error("Haugbui structures disabled: required game members are missing.");
         }
+
+        private void ApplyEffectsQuality() => Creature.CreatureVisuals.LowQuality = Settings.EffectsQuality.Value == "Low";
 
         private void ApplyConstructionSettings()
         {

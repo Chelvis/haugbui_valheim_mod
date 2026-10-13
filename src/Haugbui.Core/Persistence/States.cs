@@ -33,6 +33,17 @@ namespace Haugbui.Core.Persistence
         /// <summary>Display cache for when upgrades are unloaded; the real level is recomputed from upgrades.</summary>
         public int LevelCache { get; set; } = 1;
 
+        /// <summary>Persisted creature state: Dormant, Idle (out) or Dead (see HaugbuiStateMachine.Persisted).</summary>
+        public int CreatureState { get; set; }
+
+        /// <summary>Last known creature position while out; NaN X when unknown.</summary>
+        public float PositionX { get; set; } = float.NaN;
+        public float PositionY { get; set; }
+        public float PositionZ { get; set; }
+
+        /// <summary>World time when <see cref="Health"/> was recorded, so dormant regeneration covers unloaded time.</summary>
+        public double HealthTime { get; set; } = double.NaN;
+
         public bool Has(TombToggles toggle) => (Toggles & toggle) == toggle;
 
         public void Set(TombToggles toggle, bool on) => Toggles = on ? Toggles | toggle : Toggles & ~toggle;
@@ -42,23 +53,35 @@ namespace Haugbui.Core.Persistence
     {
         public static readonly TombStateSerializer Instance = new TombStateSerializer();
 
-        public int CurrentVersion => 1;
+        public int CurrentVersion => 2;
 
         public void Write(TombState value, BlobWriter writer)
         {
             writer.Write(value.Guid).Write(value.OwnerId).Write((int)value.Toggles).Write(value.Health)
-                .Write(value.DeathTime).Write(value.LevelCache);
+                .Write(value.DeathTime).Write(value.LevelCache)
+                .Write(value.CreatureState).Write(value.PositionX).Write(value.PositionY).Write(value.PositionZ)
+                .Write(value.HealthTime);
         }
 
-        public TombState Read(BlobReader reader) => new TombState
+        public TombState Read(BlobReader reader)
         {
-            Guid = reader.ReadString(),
-            OwnerId = reader.ReadLong(),
-            Toggles = (TombToggles)reader.ReadInt(),
-            Health = reader.ReadFloat(),
-            DeathTime = reader.ReadDouble(),
-            LevelCache = reader.ReadInt(),
-        };
+            var state = new TombState
+            {
+                Guid = reader.ReadString(),
+                OwnerId = reader.ReadLong(),
+                Toggles = (TombToggles)reader.ReadInt(),
+                Health = reader.ReadFloat(),
+                DeathTime = reader.ReadDouble(),
+                LevelCache = reader.ReadInt(),
+            };
+            if (reader.SchemaVersion < 2) return state;
+            state.CreatureState = reader.ReadInt();
+            state.PositionX = reader.ReadFloat();
+            state.PositionY = reader.ReadFloat();
+            state.PositionZ = reader.ReadFloat();
+            state.HealthTime = reader.ReadDouble();
+            return state;
+        }
     }
 
     public sealed class DeliveryRequest

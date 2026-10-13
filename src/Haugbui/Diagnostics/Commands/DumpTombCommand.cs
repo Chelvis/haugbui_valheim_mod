@@ -33,12 +33,26 @@ namespace Haugbui.Diagnostics.Commands
                 ? "  state: none or unreadable"
                 : $"  owner {state.OwnerId}, toggles {state.Toggles}, health {state.Health}, death {state.DeathTime}, level cache {state.LevelCache}");
 
+            var controller = tomb.GetComponent<Creature.TombController>();
+            if (controller != null)
+            {
+                Print($"  creature {controller.Machine.State}, out {controller.Creature != null}, cooldown {controller.CooldownRemaining:0}s");
+                Print("  carried: " + Stacks(controller.Carried.Stacks));
+                Print("  overflow: " + Stacks(controller.Overflow));
+            }
+
             foreach (HaugbuiStructure upgrade in StructureRegistry.Upgrades.Where(u => u.BoundTombGuid == tomb.Guid))
             {
                 float distance = Vector3.Distance(upgrade.transform.position, tomb.transform.position);
                 Print($"  upgrade {upgrade.Kind} {upgrade.Guid} at {distance:0.0} m" +
                       (distance > StructureRegistry.UpgradeRange ? " (out of range, not counted)" : ""));
             }
+        }
+
+        private static string Stacks(System.Collections.Generic.IEnumerable<Core.Creature.ItemStack> stacks)
+        {
+            string text = string.Join(", ", stacks.Select(s => $"{s.Prefab} x{s.Amount}"));
+            return text.Length == 0 ? "empty" : text;
         }
     }
 }

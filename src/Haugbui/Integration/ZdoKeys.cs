@@ -9,6 +9,8 @@ namespace Haugbui.Integration
         public static readonly int Version = "haugbui_ver".GetStableHashCode();
         public static readonly int Guid = "haugbui_guid".GetStableHashCode();
         public static readonly int TombGuid = "haugbui_tomb_guid".GetStableHashCode();
+        public static readonly int CreatureState = "haugbui_state".GetStableHashCode();
+        public static readonly int DarkAura = "haugbui_dark".GetStableHashCode();
 
         public const string TombState = "haugbui_tomb";
         public const string Carried = "haugbui_carried";

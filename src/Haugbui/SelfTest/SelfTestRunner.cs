@@ -17,7 +17,7 @@ namespace Haugbui.SelfTest
     /// </summary>
     internal static class SelfTestRunner
     {
-        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers" };
+        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui" };
 
         public static string OutputFolder => Path.Combine(BepInEx.Paths.BepInExRootPath, "haugbui_selftest");
 
@@ -49,12 +49,14 @@ namespace Haugbui.SelfTest
                     case "structures": body = new StructureSuite(context).Run(); break;
                     case "flight": body = new FlightSuite(context).Run(); break;
                     case "transfers": body = new TransferSuite(context).Run(); break;
+                    case "haugbui": body = new HaugbuiSuite(context).Run(); break;
                     default:
                         context.Suite = suite;
                         context.Fail("unknown suite", suite);
                         continue;
                 }
                 yield return Guard(context, suite, body);
+                Integration.TimeSource.Override = null;
                 context.Cleanup();
                 yield return SelfTestContext.WaitFrames(5);
             }
