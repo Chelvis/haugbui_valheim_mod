@@ -38,6 +38,7 @@ namespace Haugbui.SelfTest
             if (Directory.Exists(OutputFolder)) Directory.Delete(OutputFolder, true);
             var context = new SelfTestContext(OutputFolder);
             Log.Info($"Self-test started: {string.Join(", ", suites)}");
+            Player.m_localPlayer?.Message(MessageHud.MessageType.Center, "Haugbui self-test running…");
 
             foreach (string suite in suites)
             {
@@ -60,7 +61,11 @@ namespace Haugbui.SelfTest
 
             context.WriteReport(stopwatch.Elapsed);
             int failed = context.Results.Count(r => r.Status == TestStatus.Fail);
-            Log.Info($"Self-test finished: {(failed == 0 ? "PASS" : $"FAIL ({failed})")}. Report: {Path.Combine(OutputFolder, "report.txt")}");
+            int passed = context.Results.Count(r => r.Status == TestStatus.Pass);
+            string summary = $"Haugbui self-test finished: {(failed == 0 ? "PASS" : "FAIL")} ({passed} passed, {failed} failed)";
+            Log.Info($"{summary}. Report: {Path.Combine(OutputFolder, "report.txt")}");
+            Console.instance?.Print($"{summary}. Report: BepInEx/haugbui_selftest/report.txt");
+            Player.m_localPlayer?.Message(MessageHud.MessageType.Center, summary);
             Running = false;
             Finished?.Invoke(context);
         }
@@ -110,7 +115,7 @@ namespace Haugbui.SelfTest
         {
             IEnumerable<string> suites = args.Length == 0 || args.Contains("all") ? SelfTestRunner.Suites : args;
             Print(SelfTestRunner.Start(suites)
-                ? "Self-test running; do not move until it finishes (about a minute)."
+                ? "Self-test running; stand still until the result appears on screen (1–2 minutes)."
                 : "Self-test already running or no player.");
         }
     }
