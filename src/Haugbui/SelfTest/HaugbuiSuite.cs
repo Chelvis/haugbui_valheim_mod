@@ -171,8 +171,9 @@ namespace Haugbui.SelfTest
             Inventory storage = _tomb.GetComponent<Container>().GetInventory();
             storage.AddItem(ObjectDB.instance.GetItemPrefab("Stone"), 1000);
             while (storage.GetEmptySlots() > 0) storage.AddItem(ObjectDB.instance.GetItemPrefab("Stone"), 50);
-            int total = Count("Wood") + 30;
-            _tomb.Carried.Restore(new[] { Stack("Wood", 30) });
+            // More than the free room of the existing Wood stack, so some must overflow.
+            int total = Count("Wood") + 100;
+            _tomb.Carried.Restore(new[] { Stack("Wood", 100) });
             _tomb.DepositCarried();
             int overflow = _tomb.Overflow.Where(s => s.Prefab == "Wood").Sum(s => s.Amount);
             _t.Check("full storage: rest goes to overflow, totals kept", Count("Wood") + overflow == total && overflow > 0,
@@ -210,6 +211,7 @@ namespace Haugbui.SelfTest
             yield return new WaitForSeconds(1.2f);
             CountdownLabel label = _tomb.GetComponent<CountdownLabel>();
             _t.Check("countdown label shown", label != null && label.Shown.Length > 0, label?.Shown);
+            _t.Check("countdown label has a font", label != null && label.HasFont);
             _t.Check("death time saved", !double.IsNaN(_tomb.State.DeathTime));
 
             _tomb.TickNow();
@@ -225,16 +227,18 @@ namespace Haugbui.SelfTest
         {
             HaugbuiStructure altar = Place(StructureKind.Altar, SelfTestContext.OnGround(_arena + new Vector3(3, 0, 0)));
             if (!_t.Check("Altar placed", altar != null)) yield break;
+            yield return SelfTestContext.WaitFrames(3);
             yield return SetTime(Noon);
+            yield return WaitFor(() => _tomb.Machine.State == HaugbuiState.Idle, 10f);
             yield return new WaitForSeconds(0.5f);
-            _t.Check("Altar: out at noon", _tomb.Creature != null && _tomb.Machine.IsOut, _tomb.Machine.State.ToString());
+            _t.Check("Altar: out at noon", _tomb.Creature != null && _tomb.Machine.State == HaugbuiState.Idle, _tomb.Machine.State.ToString());
             _t.Check("Altar: dark aura on", _tomb.Creature != null && _tomb.Creature.Visuals.DarkAuraShown,
                 $"{_tomb.Creature?.Visuals?.AuraParts} aura parts");
 
             ZNetScene.instance.Destroy(altar.gameObject);
             yield return SelfTestContext.WaitFrames(3);
             _tomb.TickNow();
-            _t.Check("Altar removed at noon: returns", _tomb.Machine.State == HaugbuiState.Returning || !_tomb.Machine.IsOut,
+            _t.Check("Altar removed at noon: returns", _tomb.Machine.State == HaugbuiState.Returning,
                 _tomb.Machine.State.ToString());
             if (_tomb.Creature != null)
             {

@@ -18,12 +18,16 @@ namespace Haugbui.Creature
         private TextMeshPro _text;
         private float _next;
 
+        internal bool HasFont => _text != null && _text.font != null;
+
         internal string Shown => _text != null && _text.gameObject.activeSelf ? _text.text : string.Empty;
 
         private void Start()
         {
             _tomb = GetComponent<TombController>();
             var go = new GameObject("haugbui_countdown");
+            // Inactive until the font is set; otherwise TMP looks for its default font, which Valheim does not ship.
+            go.SetActive(false);
             go.transform.SetParent(transform, false);
             go.transform.localPosition = Vector3.up * 2.4f;
             go.AddComponent<Billboard>();
@@ -34,7 +38,6 @@ namespace Haugbui.Creature
             _text.fontSize = 4f;
             _text.alignment = TextAlignmentOptions.Center;
             _text.color = new Color(0.85f, 0.7f, 1f);
-            go.SetActive(false);
         }
 
         private void Update()

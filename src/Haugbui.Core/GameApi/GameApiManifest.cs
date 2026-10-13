@@ -132,6 +132,8 @@ namespace Haugbui.Core.GameApi
 
             M(Valheim, "BaseAI", "UpdateAI", MemberKind.Method, Features.Creature, "System.Single"),
             M(Valheim, "Character", "m_tamed", MemberKind.Field, Features.Creature),
+            M(Valheim, "Character", "ApplyRootMotion", MemberKind.Method, Features.Creature),
+            M(Valheim, "Character", "m_rootMotion", MemberKind.Field, Features.Creature),
             M(Valheim, "Character", "m_onDeath", MemberKind.Field, Features.Creature),
             M(Valheim, "Character", "m_deathEffects", MemberKind.Field, Features.Creature),
             M(Valheim, "Character", "m_flyFastSpeed", MemberKind.Field, Features.Creature),

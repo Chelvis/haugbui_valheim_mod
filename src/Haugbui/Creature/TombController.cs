@@ -168,6 +168,8 @@ namespace Haugbui.Creature
                     break;
                 case PresenceDecision.StayOut:
                     if (Machine.ReturnPending) Machine.CancelReturn();
+                    // E.g. the Altar was built or Rest turned off while it flew home.
+                    if (Machine.State == HaugbuiState.Returning && Machine.TryEnter(HaugbuiState.Idle)) Creature?.Stop();
                     break;
             }
 

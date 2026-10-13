@@ -20,6 +20,7 @@ namespace Haugbui.Creature
         private const float MinFlySpeed = 0.05f;
 
         private static readonly List<HaugbuiCreature> Instances = new List<HaugbuiCreature>();
+        private static readonly HashSet<Character> Characters = new HashSet<Character>();
 
         private ZNetView _view;
         private Character _character;
@@ -57,9 +58,16 @@ namespace Haugbui.Creature
             Visuals = gameObject.AddComponent<CreatureVisuals>();
             _lastPosition = transform.position;
             Instances.Add(this);
+            Characters.Add(_character);
         }
 
-        private void OnDestroy() => Instances.Remove(this);
+        private void OnDestroy()
+        {
+            Instances.Remove(this);
+            Characters.Remove(_character);
+        }
+
+        internal static bool IsHaugbui(Character character) => Characters.Contains(character);
 
         internal static HaugbuiCreature Find(string tombGuid)
         {
@@ -160,6 +168,19 @@ namespace Haugbui.Creature
         {
             if (__instance.GetComponent<HaugbuiCreature>() == null) return true;
             __result = false;
+            return false;
+        }
+
+        /// <summary>
+        /// The Wraith's flight animation has root motion, and Character.ApplyRootMotion replaces the commanded velocity
+        /// whenever the animation's is larger, so the level speed cap would not hold.
+        /// </summary>
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(Character), nameof(Character.ApplyRootMotion))]
+        private static bool SkipRootMotion(Character __instance)
+        {
+            if (!HaugbuiCreature.IsHaugbui(__instance)) return true;
+            __instance.m_rootMotion = Vector3.zero;
             return false;
         }
     }

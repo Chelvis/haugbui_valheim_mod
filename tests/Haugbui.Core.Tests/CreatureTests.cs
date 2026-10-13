@@ -150,6 +150,15 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void Returning_can_turn_back_when_it_should_stay_out()
+        {
+            HaugbuiStateMachine sm = Machine(HaugbuiState.Idle);
+            sm.RequestReturn();
+            Assert.That(sm.TryEnter(HaugbuiState.Idle), Is.True);
+            Assert.That(sm.TryEnter(HaugbuiState.Traveling), Is.True);
+        }
+
+        [Test]
         public void Illegal_transitions_are_refused()
         {
             HaugbuiStateMachine sm = Machine();

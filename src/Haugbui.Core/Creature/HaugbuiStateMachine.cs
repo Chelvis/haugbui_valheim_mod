@@ -32,7 +32,7 @@ namespace Haugbui.Core.Creature
             [HaugbuiState.Interacting] = new[] { HaugbuiState.Idle, HaugbuiState.Traveling, HaugbuiState.Returning },
             [HaugbuiState.Combat] = new[] { HaugbuiState.Idle, HaugbuiState.Fleeing, HaugbuiState.Returning },
             [HaugbuiState.Fleeing] = new[] { HaugbuiState.Idle, HaugbuiState.Returning },
-            [HaugbuiState.Returning] = new[] { HaugbuiState.Entering, HaugbuiState.Combat },
+            [HaugbuiState.Returning] = new[] { HaugbuiState.Entering, HaugbuiState.Combat, HaugbuiState.Idle },
             [HaugbuiState.Entering] = new[] { HaugbuiState.Dormant },
             [HaugbuiState.Dead] = new[] { HaugbuiState.Dormant },
         };
