@@ -36,6 +36,7 @@ namespace Haugbui.Structures
             if (stored != 0) m_kind = stored;
             if (m_kind == 0) m_kind = (int)(StructureDefinitions.ForPieceId(Utils.GetPrefabName(gameObject))?.Kind ?? StructureKind.None);
             if (Kind == StructureKind.Tomb) LoadTombState();
+            else if (TombProgression.IsUpgrade(Kind)) gameObject.AddComponent<UpgradeBeam>();
             StructureRegistry.Register(this);
         }
 

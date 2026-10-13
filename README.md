@@ -16,8 +16,8 @@ harvest your fields and keep your smelters running — while you go adventuring.
 </div>
 
 > [!WARNING]
-> **Pre-alpha — not playable yet.** Version 0.0.1 contains the project foundation (build, configuration,
-> localization, diagnostics) and the technical spikes that de-risk the design. The gameplay described below is the
+> **Pre-alpha — not playable yet.** Version 0.0.2 contains the project foundation, the tomb and its five upgrades
+> (with placeholder looks) and an in-game self-test. The gameplay described below is the
 > planned design, not shipped features.
 
 ---
@@ -73,8 +73,8 @@ anything Haugbui-related is missing.
 | Milestone | Scope | Status |
 |---|---|---|
 | M1 | Foundation, configuration, localization, diagnostics, technical spikes | ✅ (0.0.1) |
-| M2 | Tomb, upgrades, levels, persistence | 🔨 in progress |
-| M3 | The servant: flight, day/night, death and resurrection | ⏳ |
+| M2 | Tomb, upgrades, levels, persistence | ✅ (0.0.2) |
+| M3 | The servant: flight, day/night, death and resurrection | 🔨 next (0.0.3) |
 | M4–M6 | Storage sorting, Collection/Delivery chests, ground items, harvesting | ⏳ |
 | M7 | Production automation, sleep fast mode | ⏳ |
 | M8–M11 | Combat, world safety, full UI, performance, release | ⏳ |

@@ -127,6 +127,7 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "UnifiedPopup", "Pop", MemberKind.Method, Features.Structures),
             M(Valheim, "WarningPopup", null, MemberKind.Type, Features.Structures),
             M(Valheim, "IPlaced", null, MemberKind.Type, Features.Structures),
+            M(Valheim, "StationExtension", "m_connectionPrefab", MemberKind.Field, Features.Structures),
         };
 
         public static IEnumerable<string> FeaturesOf(IEnumerable<ApiMember> members) =>

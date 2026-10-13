@@ -30,7 +30,7 @@ namespace Haugbui.SelfTest
         {
             _t.Suite = "Structures";
             Player player = _t.Player;
-            _arena = SelfTestContext.FindDryArena(player.transform.position + player.transform.forward * 15f);
+            _arena = SelfTestContext.FindDryArena(player.transform.position + player.transform.forward * 9f);
 
             if (!StructureDefinitions.All.All(d => HostPrefabSystem.IsRegistered(d.Kind)))
             {
@@ -117,6 +117,11 @@ namespace Haugbui.SelfTest
             _t.Check("all upgrades: combat and full-time", _tomb.Progress.Has(TombAbilities.Combat | TombAbilities.FullTime));
             ExpectRule("duplicate upgrade refused", StructureKind.Offering, _arena + new Vector3(0, 0, -2), PlacementResult.UpgradeExists);
             _t.Check("tomb level cache saved", _tomb.TombState != null && _tomb.TombState.LevelCache == 6);
+            yield return new WaitForSeconds(1f);
+            List<HaugbuiStructure> near = _upgrades.Where(u => Vector3.Distance(u.transform.position, _t.Player.transform.position) <= 10f).ToList();
+            if (near.Count == 0) _t.Skip("beams shown near the player", "test spot is more than 10 m from the player");
+            else _t.Check("beams shown near the player", near.All(u => u.GetComponent<UpgradeBeam>()?.IsShown == true),
+                $"{near.Count(u => u.GetComponent<UpgradeBeam>()?.IsShown == true)}/{near.Count}");
         }
 
         private IEnumerator Storage()
@@ -135,6 +140,10 @@ namespace Haugbui.SelfTest
                 yield return Screenshots.Capture(_t.OutputFolder, upgrade.Kind.ToString(), upgrade.transform.position, 2f);
             yield return Screenshots.Capture(_t.OutputFolder, "tomb_and_upgrades", _arena, 7f);
             _t.Check("visual parts all found", StructureVisuals.MissingParts.Count == 0, string.Join(", ", StructureVisuals.MissingParts));
+            foreach (KeyValuePair<string, string> tint in StructureVisuals.MaterialDiagnostics)
+                _t.Check($"glow recoloured: {tint.Key}", true, tint.Value);
+            if (StructureVisuals.MaterialDiagnostics.Count == 0)
+                _t.Fail("glow recoloured", "no tinted material had an _EmissionColor property");
             foreach (StructureDefinition definition in StructureDefinitions.All)
             {
                 foreach (VisualPart part in definition.Parts)

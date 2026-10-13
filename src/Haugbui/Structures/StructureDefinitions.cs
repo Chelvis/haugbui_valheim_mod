@@ -9,12 +9,13 @@ namespace Haugbui.Structures
     /// <summary>A vanilla prefab whose meshes are copied into a structure's look.</summary>
     internal readonly struct VisualPart
     {
-        public VisualPart(string prefab, Vector3 offset, Vector3 euler, float scale = 1f)
+        public VisualPart(string prefab, Vector3 offset, Vector3 euler, float scale = 1f, Color? emission = null)
         {
             Prefab = prefab;
             Offset = offset;
             Euler = euler;
             Scale = scale;
+            Emission = emission;
         }
 
         public string Prefab { get; }
@@ -23,6 +24,9 @@ namespace Haugbui.Structures
         public Vector3 Offset { get; }
         public Vector3 Euler { get; }
         public float Scale { get; }
+
+        /// <summary>Replaces the hue of the part's glow, keeping its brightness; null keeps the original.</summary>
+        public Color? Emission { get; }
     }
 
     internal sealed class StructureDefinition
@@ -47,6 +51,8 @@ namespace Haugbui.Structures
     /// </summary>
     internal static class StructureDefinitions
     {
+        public static readonly Color HaugbuiPurple = new Color(0.62f, 0.2f, 1f);
+
         private static readonly string[] TableHosts = { "piece_table", "piece_table_oak", "piece_bench01", "piece_chest_wood" };
 
         public static readonly IReadOnlyList<StructureDefinition> All = new[]
@@ -58,7 +64,7 @@ namespace Haugbui.Structures
                 HideHost = true,
                 Parts = new[]
                 {
-                    new VisualPart("Player_tombstone", Vector3.zero, Vector3.zero),
+                    new VisualPart("Player_tombstone", Vector3.zero, Vector3.zero, emission: HaugbuiPurple),
                     new VisualPart("TrophySkeleton", new Vector3(0.45f, 0.05f, 0.35f), new Vector3(0, 200, 0)),
                     new VisualPart("BoneFragments", new Vector3(-0.45f, 0.05f, 0.3f), Vector3.zero),
                 },

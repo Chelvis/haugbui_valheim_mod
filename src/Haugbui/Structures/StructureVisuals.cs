@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Haugbui.Diagnostics;
 using Jotunn.Managers;
 using UnityEngine;
@@ -49,7 +50,7 @@ namespace Haugbui.Structures
                 holder.transform.localPosition = anchor + part.Offset;
                 holder.transform.localRotation = Quaternion.Euler(part.Euler);
                 holder.transform.localScale = Vector3.one * part.Scale;
-                copied += CopyMeshes(source, holder.transform, definition.PieceId + "/" + part.Prefab);
+                copied += CopyMeshes(source, holder.transform, definition.PieceId + "/" + part.Prefab, part.Emission);
             }
 
             if (copied == 0 && definition.HideHost)
@@ -80,10 +81,10 @@ namespace Haugbui.Structures
         }
 
         /// <summary>
-        /// Copies only static meshes. Instantiating the source prefab would create a networked object, and item prefabs
-        /// also carry an "attach" model for when they are equipped, which must be skipped.
+        /// Copies static and skinned meshes as plain meshes. Instantiating the source prefab would create a networked
+        /// object. Item prefabs keep their world model under "attach"; inactive children are alternate models.
         /// </summary>
-        private static int CopyMeshes(GameObject source, Transform parent, string diagnosticsKey)
+        private static int CopyMeshes(GameObject source, Transform parent, string diagnosticsKey, Color? emission)
         {
             int count = 0;
             var skipped = new List<string>();
@@ -109,7 +110,9 @@ namespace Haugbui.Structures
                 copy.transform.localRotation = Quaternion.Inverse(source.transform.rotation) * renderer.transform.rotation;
                 copy.transform.localScale = renderer.transform.lossyScale;
                 copy.AddComponent<MeshFilter>().sharedMesh = mesh;
-                copy.AddComponent<MeshRenderer>().sharedMaterials = renderer.sharedMaterials;
+                copy.AddComponent<MeshRenderer>().sharedMaterials = emission.HasValue
+                    ? renderer.sharedMaterials.Select(m => Tinted(m, emission.Value, diagnosticsKey)).ToArray()
+                    : renderer.sharedMaterials;
                 count++;
             }
 
@@ -117,6 +120,38 @@ namespace Haugbui.Structures
                 PartDiagnostics[diagnosticsKey] = $"copied {count}" + (skipped.Count > 0 ? "; skipped " + string.Join(", ", skipped) : "");
             return count;
         }
+
+        private static readonly Dictionary<(Material, Color), Material> TintCache = new Dictionary<(Material, Color), Material>();
+
+        /// <summary>"pieceId/part" → shader and emission data of tinted materials; read by the self-test.</summary>
+        internal static readonly Dictionary<string, string> MaterialDiagnostics = new Dictionary<string, string>();
+
+        /// <summary>
+        /// Works on a copy: the source material is shared with every vanilla object using it (e.g. all player
+        /// tombstones), so editing it in place would recolour them too.
+        /// </summary>
+        private static Material Tinted(Material source, Color hue, string diagnosticsKey)
+        {
+            if (source == null || !source.HasProperty(EmissionColor)) return source;
+            if (TintCache.TryGetValue((source, hue), out Material cached)) return cached;
+
+            Color original = source.GetColor(EmissionColor);
+            float intensity = Mathf.Max(original.r, original.g, original.b);
+            var copy = new Material(source) { name = source.name + " (Haugbui)" };
+            copy.SetColor(EmissionColor, hue * (intensity > 0f ? intensity : 1f));
+            copy.EnableKeyword("_EMISSION");
+            TintCache[(source, hue)] = copy;
+
+            Texture map = source.HasProperty(EmissionMap) ? source.GetTexture(EmissionMap) : null;
+            string line = $"{source.name}: shader {source.shader.name}, emission {original}, map {(map != null ? map.name : "none")}";
+            MaterialDiagnostics[diagnosticsKey] = MaterialDiagnostics.TryGetValue(diagnosticsKey, out string previous)
+                ? previous + "; " + line
+                : line;
+            return copy;
+        }
+
+        private static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
+        private static readonly int EmissionMap = Shader.PropertyToID("_EmissionMap");
 
         private static string PathOf(Transform node, Transform root)
         {
@@ -130,7 +165,6 @@ namespace Haugbui.Structures
             for (Transform t = node; t != null && t != root; t = t.parent)
             {
                 if (!t.gameObject.activeSelf) return "inactive " + t.name;
-                if (t.name.ToLowerInvariant().Contains("attach")) return "equip model";
             }
             return null;
         }

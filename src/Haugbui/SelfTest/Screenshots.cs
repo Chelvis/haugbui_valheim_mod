@@ -10,6 +10,23 @@ namespace Haugbui.SelfTest
     {
         private const int Width = 1024;
         private const int Height = 768;
+        private const float Pitch = 50f;
+
+        private static readonly int Blockers = LayerMask.GetMask("Default", "static_solid", "Default_small", "terrain", "vehicle");
+
+        /// <summary>First of eight directions, looking down at 50°, with nothing between the camera and the target.</summary>
+        private static Vector3 ClearViewpoint(Vector3 look, float distance)
+        {
+            Vector3 fallback = Vector3.zero;
+            for (int i = 0; i < 8; i++)
+            {
+                Quaternion direction = Quaternion.Euler(Pitch, 45f + i * 45f, 0);
+                Vector3 position = look - direction * Vector3.forward * distance;
+                if (i == 0) fallback = position;
+                if (!Physics.Linecast(look, position, Blockers)) return position;
+            }
+            return fallback;
+        }
 
         public static IEnumerator Capture(string folder, string name, Vector3 target, float distance = 3f)
         {
@@ -26,7 +43,7 @@ namespace Haugbui.SelfTest
             if (main != null) camera.CopyFrom(main);
             camera.enabled = false;
             Vector3 look = target + Vector3.up * 0.7f;
-            holder.transform.position = look + new Vector3(distance, distance * 0.6f, -distance);
+            holder.transform.position = ClearViewpoint(look, distance);
             holder.transform.LookAt(look);
 
             var texture = new RenderTexture(Width, Height, 24);

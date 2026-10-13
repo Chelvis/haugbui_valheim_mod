@@ -5,7 +5,8 @@
   "conventions": {
     "priority": "P0 = blocks the milestone / release; P1 = required for v1; P2 = nice to have",
     "testing": "automated = NUnit tests in tests/Haugbui.Core.Tests (no game required); manual = in-game validation steps in DEVELOPMENT_GUIDE.md checklist format",
-    "requirements": "HB-xxx ids from PRODUCT_REQUIREMENTS.md covered by the ticket"
+    "requirements": "HB-xxx ids from PRODUCT_REQUIREMENTS.md covered by the ticket",
+    "versioning": "Each completed milestone bumps the version: M1 = 0.0.1, M2 = 0.0.2, M3 = 0.0.3, … (HaugbuiVersion in Directory.Build.props and HaugbuiPlugin.PluginVersion), tagged vX.Y.Z on main."
   },
   "milestones": [
     {
@@ -2532,6 +2533,44 @@
           },
           "requirements": [
             "HB-163"
+          ]
+        },
+        {
+          "id": "HB-T-099",
+          "title": "Structure looks from vanilla models (kitbash)",
+          "description": "Replace the first-pass looks (items on tables) with richer kitbashes of vanilla pieces and item models, tuned with self-test pictures. Product-owner ideas (2026-10-13): Offering = the 'Whole Roasted Meadow Boar' feast (FeastMeadows) with honey and a mead mug; Personal Treasure = an open dungeon treasure chest with coins, rubies and amber spilling out; Silver Bracelets = several 'Bracelets of the Brave' models tinted silver (material colour/MaterialPropertyBlock) in different positions on a thin beech stump; Fallen King's Longsword = Krom (THSwordKrom, black-metal greatsword) planted in a stone base or wall-mounted; Altar of Darkness = Mistlands black-marble pieces with an eitr crystal and purple glow; Tomb = burial mound: tombstone, stones, bones, skull. Verify prefab names (bracelets item, beech stump, chest, marble pieces) from haugbui_dump_prefabs. Custom 3D models via an asset bundle stay an optional later step. Colour and effect ideas (2026-10-13): tomb tombstone glow purple instead of red (implemented in M2 via a tinted material copy, never the shared material — check the self-test picture); Krom emits an aura like the Draugr Fang bow's (item BowDraugrFang — copy its glow/particle effect onto the sword); altar combines a dark-purple eitr crystal with a small purple wisp hovering over it (tinted vanilla wisp/demister light effect, one particle system and one light, capped by EffectsQuality).",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-019",
+            "HB-T-020",
+            "HB-T-021",
+            "HB-T-015"
+          ],
+          "acceptance_criteria": [
+            "Each structure recognisable at 5 m in the self-test pictures",
+            "Product owner approves the looks",
+            "Host hidden where the look replaces it; colliders still match roughly",
+            "Tinted parts never change the vanilla shared materials (other tombstones keep their red glow)"
+          ],
+          "components": [
+            "Structures",
+            "StructureVisuals"
+          ],
+          "testing": {
+            "automated": [
+              "Self-test: every visual part copied"
+            ],
+            "manual": [
+              "Review self-test pictures"
+            ]
+          },
+          "requirements": [
+            "HB-002",
+            "HB-020",
+            "HB-021",
+            "HB-022",
+            "HB-023",
+            "HB-024"
           ]
         }
       ]

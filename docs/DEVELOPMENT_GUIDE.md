@@ -293,6 +293,9 @@ No change to the planner, job model or UI should be necessary.
 - Comments in English, only where the code cannot express the reason.
 - Game access only through `Integration/` adapters; Harmony patches stay thin and delegate.
 - Every behaviour change updates the relevant document in `docs/`.
+- Each completed milestone bumps the version (M1 = 0.0.1, M2 = 0.0.2, M3 = 0.0.3, …) in `Directory.Build.props` and
+  `HaugbuiPlugin.PluginVersion`, and is tagged `vX.Y.Z` on `main`.
+- Every in-game feature gets checks in a `haugbui_selftest` suite (`src/Haugbui/SelfTest`).
 - Never commit `.reference/`, game DLLs, publicized assemblies or `Environment.props`.
 - The plugin namespace for game adapters is `Haugbui.Integration`: a `Haugbui.Game` namespace would hide Valheim's
   global `Game` class.
