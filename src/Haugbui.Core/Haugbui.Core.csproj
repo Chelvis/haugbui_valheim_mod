@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Haugbui.Core</RootNamespace>
+    <AssemblyName>Haugbui.Core</AssemblyName>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <Target Name="ForbidGameReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('@(Reference);@(PackageReference)', '(UnityEngine|assembly_|JotunnLib|BepInEx)'))"
+           Text="Haugbui.Core must not reference Unity, Valheim, Jötunn or BepInEx assemblies." />
+  </Target>
+</Project>

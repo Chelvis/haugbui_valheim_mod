@@ -1,0 +1,9 @@
+<Project>
+  <!-- Copy to Environment.props (git-ignored) and adjust. -->
+  <PropertyGroup>
+    <VALHEIM_INSTALL>C:\Program Files (x86)\Steam\steamapps\common\Valheim</VALHEIM_INSTALL>
+    <!-- r2modman profile example; leave MOD_DEPLOYPATH empty to skip deployment. -->
+    <BEPINEX_PATH>$(APPDATA)\r2modmanPlus-local\Valheim\profiles\HaugbuiDev\BepInEx</BEPINEX_PATH>
+    <MOD_DEPLOYPATH>$(BEPINEX_PATH)\plugins\Haugbui</MOD_DEPLOYPATH>
+  </PropertyGroup>
+</Project>

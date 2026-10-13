@@ -1,0 +1,2860 @@
+{
+  "project": "Haugbui",
+  "version": "0.2-planning",
+  "game_version": "Valheim 1.0.17 (Windows)",
+  "conventions": {
+    "priority": "P0 = blocks the milestone / release; P1 = required for v1; P2 = nice to have",
+    "testing": "automated = NUnit tests in tests/Haugbui.Core.Tests (no game required); manual = in-game validation steps in DEVELOPMENT_GUIDE.md checklist format",
+    "requirements": "HB-xxx ids from PRODUCT_REQUIREMENTS.md covered by the ticket"
+  },
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "Project foundation, mod loading and technical spikes",
+      "goal": "Buildable plugin that loads on 1.0.17, test project, and de-risking spikes for the three highest technical risks.",
+      "tickets": [
+        {
+          "id": "HB-T-001",
+          "title": "Create solution from JotunnModStub with pinned versions",
+          "description": "Create Haugbui.sln from JotunnModStub; rename; target net48; reference JotunnLib 2.30.2 (NuGet) and BepInExPack_Valheim 5.4.2351; enable publicizer (DoPrebuild.props ExecutePrebuild=true); Environment.props template (git-ignored) with VALHEIM_INSTALL/BEPINEX_PATH/MOD_DEPLOYPATH; Debug build deploys dll+mdb to the plugins folder.",
+          "priority": "P0",
+          "dependencies": [],
+          "acceptance_criteria": [
+            "`dotnet build` / Visual Studio build succeeds on the Windows dev machine",
+            "Debug build copies Haugbui.dll to <BepInEx>/plugins/Haugbui/",
+            "No game assemblies are committed (gitignore verified)"
+          ],
+          "components": [
+            "HaugbuiPlugin",
+            "Build"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Build from clean clone following DEVELOPMENT_GUIDE §2"
+            ]
+          },
+          "requirements": []
+        },
+        {
+          "id": "HB-T-002",
+          "title": "Add Haugbui.Core library and NUnit test project",
+          "description": "Create src/Haugbui.Core (netstandard2.0, no Unity/Valheim references) and tests/Haugbui.Core.Tests (NUnit). Plugin references Core; Core DLL ships next to the plugin.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-001"
+          ],
+          "acceptance_criteria": [
+            "`dotnet test` runs on Windows and macOS without the game",
+            "Build fails if Core references UnityEngine or assembly_valheim"
+          ],
+          "components": [
+            "Haugbui.Core"
+          ],
+          "testing": {
+            "automated": [
+              "Sample test passes in CI-less local run"
+            ],
+            "manual": []
+          },
+          "requirements": []
+        },
+        {
+          "id": "HB-T-003",
+          "title": "Plugin bootstrap and load smoke test on 1.0.17",
+          "description": "HaugbuiPlugin with [BepInPlugin], [BepInDependency(Jotunn)], [NetworkCompatibility(EveryoneMustHaveMod, Minor)], Harmony instance, structured logger with debug toggle.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-001"
+          ],
+          "acceptance_criteria": [
+            "LogOutput.log shows Haugbui loaded with version, Jötunn version and Valheim version",
+            "Main menu and a local world load without errors or exceptions attributed to Haugbui"
+          ],
+          "components": [
+            "HaugbuiPlugin"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Launch game, load world, inspect BepInEx/LogOutput.log"
+            ]
+          },
+          "requirements": []
+        },
+        {
+          "id": "HB-T-004",
+          "title": "Configuration skeleton with progression defaults",
+          "description": "HaugbuiConfig binding sections General, Progression, Timing, Death, Production, Construction, Combat, Advanced. Per-level arrays bound as CSV strings parsed by Core ProgressionTable with validation and fallback to defaults (spec table).",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-002",
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "Fresh install generates BepInEx/config/<guid>.cfg with spec defaults",
+            "Invalid CSV logs a warning and uses defaults",
+            "Admin-only attributes set on gameplay values (future sync)"
+          ],
+          "components": [
+            "HaugbuiConfiguration",
+            "HaugbuiAttributes"
+          ],
+          "testing": {
+            "automated": [
+              "ProgressionTable parses defaults and rejects wrong length/negative values"
+            ],
+            "manual": [
+              "Edit cfg, reload game, values applied"
+            ]
+          },
+          "requirements": [
+            "HB-030",
+            "HB-180"
+          ]
+        },
+        {
+          "id": "HB-T-005",
+          "title": "Localization skeleton and key-parity test",
+          "description": "Translations/English/haugbui.json and Translations/Portuguese_Brazilian/haugbui.json loaded by Jötunn; L.T helper for $haugbui_* tokens; unit test asserting both files have identical key sets and no empty values.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-002",
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "A test token renders in pt-BR when the game language is Portuguese_Brazilian and in English otherwise",
+            "Key-parity test fails when a key is missing in either file"
+          ],
+          "components": [
+            "HaugbuiLocalization"
+          ],
+          "testing": {
+            "automated": [
+              "Key parity test"
+            ],
+            "manual": [
+              "Switch game language and check a token"
+            ]
+          },
+          "requirements": [
+            "HB-190",
+            "HB-191"
+          ]
+        },
+        {
+          "id": "HB-T-006",
+          "title": "Game API self-check",
+          "description": "At startup, reflect over every private member, method signature and RPC name the mod depends on (list in Haugbui.Core/GameApi/GameApiManifest.cs). Missing items log an error and disable the dependent feature flags instead of crashing.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "Self-check passes on 1.0.17 and logs the checked member count",
+            "Renaming a checked member in a test build disables its feature and logs which one"
+          ],
+          "components": [
+            "Game adapters"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Run with debug flag that injects a fake missing member"
+            ]
+          },
+          "requirements": [
+            "HB-175"
+          ]
+        },
+        {
+          "id": "HB-T-007",
+          "title": "SPIKE: host-prefab persistence strategy",
+          "description": "Prove the strategy in TECHNICAL_FEASIBILITY §9.2 with a test piece: Jötunn placeholder piece replaced on placement by vanilla piece_chest_wood carrying haugbui_kind/guid; Awake postfix re-attaches a test component on load; deconstruction refund patch; then remove the plugin, load and save the world, re-add the plugin and confirm the object, items and keys survive. Also measure the fallback (custom prefab) being destroyed.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "Written findings appended to TECHNICAL_FEASIBILITY.md §9 (verified/failed)",
+            "Go/no-go decision recorded in ARCHITECTURE.md §8.1",
+            "If no-go: fallback plan tickets created"
+          ],
+          "components": [
+            "HaugbuiPersistenceManager",
+            "HostPrefabSystem"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Missing-mod round trip on a copy of a test world"
+            ]
+          },
+          "requirements": [
+            "HB-172",
+            "HB-174"
+          ]
+        },
+        {
+          "id": "HB-T-008",
+          "title": "SPIKE: incorporeal kinematic flight with a cloned Wraith",
+          "description": "Clone Wraith via Jötunn CreatureManager (no spawns, no drops), neutralise MonsterAI, move it kinematically through a wooden house, stone walls and terrain bumps using collider/rigidbody excludeLayers. Verify it remains hittable, never triggers UnderWorldCheck, and replicates via ZSyncTransform.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "Creature passes through walls/doors/chests without getting stuck over a 10-minute test path",
+            "Player can hit it; it never falls below terrain",
+            "Findings recorded in TECHNICAL_FEASIBILITY §5"
+          ],
+          "components": [
+            "HaugbuiMovementController",
+            "HaugbuiController"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Scripted debug path through a test base"
+            ]
+          },
+          "requirements": [
+            "HB-051"
+          ]
+        },
+        {
+          "id": "HB-T-009",
+          "title": "SPIKE: single-frame transfer vs world save",
+          "description": "Confirm that ZDO-backed container edits done in one frame are captured consistently by ZNet save (save snapshot taken on main thread). Run a debug command that moves items in a tight loop while forcing `save`; verify totals after reload.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "1000 forced saves during transfers produce zero total-count drift after reload",
+            "Findings recorded in ARCHITECTURE §1 principle 5"
+          ],
+          "components": [
+            "TransferService",
+            "HaugbuiPersistenceManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Debug stress command + reload + count check"
+            ]
+          },
+          "requirements": [
+            "HB-175"
+          ]
+        },
+        {
+          "id": "HB-T-010",
+          "title": "Debug console commands framework",
+          "description": "Jötunn ConsoleCommand base with haugbui_status, haugbui_dump_tomb, haugbui_reservations, haugbui_plan (dry run: prints the next planned tasks without executing them), haugbui_cleanup (removes orphan Haugbui creatures with no tomb), haugbui_kill, haugbui_cooldown_skip (cheat-gated).",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "Commands listed by `help` and produce log output",
+            "State-changing commands require devcommands",
+            "haugbui_plan never modifies any inventory or ZDO"
+          ],
+          "components": [
+            "Diagnostics"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Run each command in a test world"
+            ]
+          },
+          "requirements": []
+        },
+        {
+          "id": "HB-T-011",
+          "title": "Tick scheduler with staggering",
+          "description": "Central scheduler that runs registered owner-only ticks at configured intervals with per-instance random phase; exposes timing stats in debug mode.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "No Haugbui system uses its own Update loop for planning",
+            "Two tombs never tick in the same frame by default"
+          ],
+          "components": [
+            "HaugbuiController",
+            "Performance"
+          ],
+          "testing": {
+            "automated": [
+              "Scheduler phase distribution test in Core"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-200"
+          ]
+        },
+        {
+          "id": "HB-T-012",
+          "title": "Startup validation of recipe items and crafting stations",
+          "description": "After ObjectDB/ZNetScene are ready, validate every recipe ingredient prefab and crafting station name used by Haugbui pieces (including unverified GreydwarfEye, SurtlingCore, WolfPelt, TrophyDraugrElite, piece_magetable). Missing → disable that piece, log error.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "Validation report logged on world load",
+            "A deliberately wrong name disables only its piece"
+          ],
+          "components": [
+            "Structures",
+            "Game adapters"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Inject wrong name in debug build"
+            ]
+          },
+          "requirements": [
+            "HB-001",
+            "HB-020",
+            "HB-021",
+            "HB-022",
+            "HB-023",
+            "HB-024",
+            "HB-070",
+            "HB-080"
+          ]
+        },
+        {
+          "id": "HB-T-090",
+          "title": "SPIKE: away mode on world data",
+          "description": "With the player far from a test base, edit a chest's s_items and a smelter's queue/fuel keys directly on unloaded ZDOs (Inventory Load/Save, same keys as Smelter.QueueOre/SetFuel). Save, walk back, confirm the station processes the queue and contents match. Measure cost of scanning container ZDOs by prefab hash.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-003",
+            "HB-T-009"
+          ],
+          "acceptance_criteria": [
+            "Edits on unloaded ZDOs persist after save/reload",
+            "Smelter processes the remotely queued ore on return",
+            "Go/no-go recorded in TECHNICAL_FEASIBILITY §9.4.1"
+          ],
+          "components": [
+            "RemoteWorkerService",
+            "Game adapters"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Remote edit round trip on a test world"
+            ]
+          },
+          "requirements": [
+            "HB-125"
+          ]
+        },
+        {
+          "id": "HB-T-091",
+          "title": "Prefab data dump command",
+          "description": "haugbui_dump_prefabs writes BepInEx/haugbui_prefabs.json with every station's conversions, fuel, capacities and times, CraftingStation recipes (cauldron), item prefab names/types/weights and the names used by Haugbui recipes. Used to replace unverified data in the docs with values from the installed game.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-010"
+          ],
+          "acceptance_criteria": [
+            "File generated on Windows with 1.0.17",
+            "Unverified names in PRD §4.2 confirmed or corrected from the dump"
+          ],
+          "components": [
+            "Debug tools"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Run on a new world and inspect the file"
+            ]
+          },
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "name": "Persistence foundation, custom structures and tomb progression",
+      "goal": "Tomb and five upgrades buildable with correct rules; level computed and persisted.",
+      "tickets": [
+        {
+          "id": "HB-T-013",
+          "title": "ZdoStore: typed keys and versioned blobs",
+          "description": "Game-side ZdoStore with namespaced haugbui_* keys, typed accessors, ZPackage blobs with schema version, read-returns-null-if-missing, write-only-after-successful-read guard. Core-side serializers for TombState, DeliveryRequests, StationJob with migration hooks.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-002",
+            "HB-T-007"
+          ],
+          "acceptance_criteria": [
+            "Round-trip serialization of every blob type",
+            "Unknown future schema version is read-only and warns",
+            "Missing blob never results in a default being written over existing data"
+          ],
+          "components": [
+            "HaugbuiPersistenceManager"
+          ],
+          "testing": {
+            "automated": [
+              "Serializer round-trip and migration tests"
+            ],
+            "manual": [
+              "Save/reload a tomb and dump keys"
+            ]
+          },
+          "requirements": [
+            "HB-170",
+            "HB-171"
+          ]
+        },
+        {
+          "id": "HB-T-014",
+          "title": "HostPrefabSystem (or fallback) generic implementation",
+          "description": "Generalise the spike result: register Haugbui piece definitions (kind, host prefab, placeholder, visuals, recipe); handle placement swap, Awake augmentation, hover/interact override, deconstruct refunds. If the spike was no-go, implement plain Jötunn custom pieces with the same definition API.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-007",
+            "HB-T-013"
+          ],
+          "acceptance_criteria": [
+            "A new structure kind is added by one definition entry",
+            "Reload restores behaviour for all placed structures"
+          ],
+          "components": [
+            "HostPrefabSystem",
+            "HaugbuiTomb"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Place, reload, deconstruct each kind"
+            ]
+          },
+          "requirements": [
+            "HB-172"
+          ]
+        },
+        {
+          "id": "HB-T-015",
+          "title": "Tomb piece: definition, kitbashed visual, TombComponent, identity",
+          "description": "Build piece in a Haugbui hammer category with recipe HB-001 (Workbench required), visual = tombstone mesh + stones/bones; TombComponent assigns GUID and owner (creator) on first placement; hover shows name and level.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-014",
+            "HB-T-012"
+          ],
+          "acceptance_criteria": [
+            "Tomb appears in the hammer menu with localized name/description",
+            "GUID and owner persist across reload",
+            "Vanilla TombStone component is not present"
+          ],
+          "components": [
+            "HaugbuiTomb"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Build tomb, reload, inspect haugbui_dump_tomb"
+            ]
+          },
+          "requirements": [
+            "HB-001",
+            "HB-002",
+            "HB-005",
+            "HB-006"
+          ]
+        },
+        {
+          "id": "HB-T-016",
+          "title": "Placement rule: own claimed bed within 50 m",
+          "description": "Postfix on Player.UpdatePlacementGhost for tomb pieces: invalid unless a Bed with ZDO owner == placing player ID is within ConstructionBedDistance (default 50). Show $haugbui_msg_need_bed; block TryPlacePiece.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-015"
+          ],
+          "acceptance_criteria": [
+            "Ghost red and message shown with no bed / other player's bed / bed at 51 m",
+            "Valid at 49 m with own bed"
+          ],
+          "components": [
+            "PlacementRules"
+          ],
+          "testing": {
+            "automated": [
+              "Distance/owner rule function in Core"
+            ],
+            "manual": [
+              "Test bed at 49/51 m, unclaimed bed"
+            ]
+          },
+          "requirements": [
+            "HB-003"
+          ]
+        },
+        {
+          "id": "HB-T-017",
+          "title": "Placement rule: minimum spacing between tombs",
+          "description": "Tomb placement invalid within ConstructionTombSpacing (default 5 m) of another tomb; message $haugbui_msg_tomb_too_close.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-015"
+          ],
+          "acceptance_criteria": [
+            "Second tomb blocked at 4 m and allowed at 6 m"
+          ],
+          "components": [
+            "PlacementRules"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Place two tombs"
+            ]
+          },
+          "requirements": [
+            "HB-004"
+          ]
+        },
+        {
+          "id": "HB-T-018",
+          "title": "Tomb storage container (10 slots)",
+          "description": "Tomb host container used as death/rest/overflow storage; opened via the vanilla request-open flow; excluded from sorting destinations and sources.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-015"
+          ],
+          "acceptance_criteria": [
+            "Owner can open and use it",
+            "Haugbui never deposits sorted items into it"
+          ],
+          "components": [
+            "HaugbuiTomb",
+            "HaugbuiStorageManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Open storage, put items, reload"
+            ]
+          },
+          "requirements": [
+            "HB-007",
+            "HB-066"
+          ]
+        },
+        {
+          "id": "HB-T-019",
+          "title": "Upgrade pieces: Offering and Personal Treasure",
+          "description": "Definitions, kitbashed visuals (meat+mead plate; iron chest with coins/rubies/amber), recipes HB-020/HB-021, icons via RenderManager.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-014",
+            "HB-T-012"
+          ],
+          "acceptance_criteria": [
+            "Both buildable with exact recipes",
+            "Visuals readable at 5 m"
+          ],
+          "components": [
+            "HaugbuiUpgradeManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Build each with nocost off"
+            ]
+          },
+          "requirements": [
+            "HB-020",
+            "HB-021",
+            "HB-025"
+          ]
+        },
+        {
+          "id": "HB-T-020",
+          "title": "Upgrade pieces: Silver Bracelets and Fallen King's Longsword",
+          "description": "Definitions, visuals (stand with silver rings; black-metal two-handed sword on wall mount), recipes HB-022/HB-023.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-014",
+            "HB-T-012"
+          ],
+          "acceptance_criteria": [
+            "Both buildable with exact recipes",
+            "Longsword can be wall-mounted"
+          ],
+          "components": [
+            "HaugbuiUpgradeManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Build each"
+            ]
+          },
+          "requirements": [
+            "HB-022",
+            "HB-023",
+            "HB-025"
+          ]
+        },
+        {
+          "id": "HB-T-021",
+          "title": "Upgrade piece: Altar of Darkness",
+          "description": "Definition, visual (black marble altar, purple glow, bone-pile style smoke, capped particles), recipe HB-024 at the Galdr table.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-014",
+            "HB-T-012"
+          ],
+          "acceptance_criteria": [
+            "Buildable with exact recipe",
+            "Particle count within effects budget"
+          ],
+          "components": [
+            "HaugbuiUpgradeManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Build, check FPS impact"
+            ]
+          },
+          "requirements": [
+            "HB-024",
+            "HB-025"
+          ]
+        },
+        {
+          "id": "HB-T-022",
+          "title": "Upgrade binding, level and ability computation",
+          "description": "Core rule: level = 1 + number of distinct upgrade kinds bound to the tomb within UpgradeRange (default 8 m), any order; abilities computed separately (Longsword → combat, Altar → full-time). Game: bind upgrade to nearest tomb at placement (haugbui_tomb_guid), recompute on place/destroy/load, cache level and abilities for UI.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-015",
+            "HB-T-019"
+          ],
+          "acceptance_criteria": [
+            "Any build order reaches the same level for the same set of upgrades",
+            "Longsword alone at a level-2 tomb grants combat; Altar alone grants full-time",
+            "Removing an upgrade lowers the level by one and removes its ability",
+            "Level and abilities correct after reload"
+          ],
+          "components": [
+            "HaugbuiUpgradeManager"
+          ],
+          "testing": {
+            "automated": [
+              "Level/ability tests for all 32 upgrade subsets, duplicates and out-of-range upgrades"
+            ],
+            "manual": [
+              "Build/destroy sequence"
+            ]
+          },
+          "requirements": [
+            "HB-010",
+            "HB-011",
+            "HB-013"
+          ]
+        },
+        {
+          "id": "HB-T-023",
+          "title": "Upgrade placement rule: tomb in range, one per kind",
+          "description": "Upgrade placeable only within UpgradeRange of a tomb that does not already have that upgrade kind. Messages $haugbui_msg_need_tomb, $haugbui_msg_upgrade_exists.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-022"
+          ],
+          "acceptance_criteria": [
+            "Placement without a tomb in range blocked with message",
+            "Duplicate kind blocked",
+            "Any order allowed"
+          ],
+          "components": [
+            "PlacementRules",
+            "HaugbuiUpgradeManager"
+          ],
+          "testing": {
+            "automated": [
+              "Rule function tests"
+            ],
+            "manual": [
+              "Try all invalid cases"
+            ]
+          },
+          "requirements": [
+            "HB-010",
+            "HB-011"
+          ]
+        },
+        {
+          "id": "HB-T-024",
+          "title": "Workbench-like connection beam and level hover",
+          "description": "Spectral beam from each bound upgrade to its tomb while the player is near (like StationExtension connection), hover text 'Level n/6' on tomb and upgrades.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-022"
+          ],
+          "acceptance_criteria": [
+            "Beam visible within 10 m of player, hidden otherwise",
+            "Hover shows correct level"
+          ],
+          "components": [
+            "HaugbuiUpgradeManager",
+            "UI"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Visual check"
+            ]
+          },
+          "requirements": [
+            "HB-012"
+          ]
+        },
+        {
+          "id": "HB-T-026",
+          "title": "Combat warning popup on Longsword binding",
+          "description": "When the Longsword binds to a tomb, show a localized UnifiedPopup warning about defending at all costs and collateral damage; combat stays OFF.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-022",
+            "HB-T-005"
+          ],
+          "acceptance_criteria": [
+            "Popup appears once per binding",
+            "Combat toggle remains OFF afterwards"
+          ],
+          "components": [
+            "UI",
+            "HaugbuiCombatManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Build longsword"
+            ]
+          },
+          "requirements": [
+            "HB-026"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M3",
+      "name": "Haugbui entity, movement, state machine, day/night, death",
+      "goal": "A Haugbui that emerges at night, idles, returns at dawn, dies and resurrects with persistent state; basic tomb panel with toggles. Includes carried inventory and tomb destruction handling (moved here for dependency order).",
+      "tickets": [
+        {
+          "id": "HB-T-027",
+          "title": "Haugbui creature prefab",
+          "description": "Wraith clone (CreatureManager) with spectral materials, no CharacterDrop, no spawn configs, non-persistent ZNetView, tamed flag set on spawn, custom name token, idle sounds at low frequency.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-008"
+          ],
+          "acceptance_criteria": [
+            "Spawned creature is not saved (absent after reload until the tomb respawns it)",
+            "No drops on death",
+            "Never spawns naturally"
+          ],
+          "components": [
+            "HaugbuiController"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Spawn via tomb debug command, save, reload"
+            ]
+          },
+          "requirements": [
+            "HB-050"
+          ]
+        },
+        {
+          "id": "HB-T-028",
+          "title": "Neutralise MonsterAI and create HaugbuiController",
+          "description": "Harmony skip of MonsterAI.UpdateAI (and despawn logic) for Haugbui instances; controller wires state machine, movement, visuals; owner-only execution.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-027"
+          ],
+          "acceptance_criteria": [
+            "Vanilla AI never moves or targets with the Haugbui",
+            "Non-owner peers run no logic"
+          ],
+          "components": [
+            "HaugbuiController"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Observe creature stays idle with no commands"
+            ]
+          },
+          "requirements": [
+            "HB-051"
+          ]
+        },
+        {
+          "id": "HB-T-030",
+          "title": "Attributes from level",
+          "description": "HaugbuiAttributes snapshot from ProgressionTable for current level: carry capacity, speed, radius, slots, HP; applied on spawn and on level change (HP scaled proportionally).",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-004",
+            "HB-T-022"
+          ],
+          "acceptance_criteria": [
+            "All six levels match the spec table with default config",
+            "Level change applies without respawn"
+          ],
+          "components": [
+            "HaugbuiAttributes"
+          ],
+          "testing": {
+            "automated": [
+              "Table lookups and HP scaling"
+            ],
+            "manual": [
+              "Upgrade during the night and inspect panel"
+            ]
+          },
+          "requirements": [
+            "HB-030",
+            "HB-013"
+          ]
+        },
+        {
+          "id": "HB-T-029",
+          "title": "HaugbuiMovement: smooth incorporeal flight and 1 m arrival",
+          "description": "Kinematic flight from the spike: acceleration/deceleration to level max speed, altitude above ground, slow idle hover, arrival when within InteractionMaxDistance (1.0 m) of the target's nearest collider point, no teleporting.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-028",
+            "HB-T-030"
+          ],
+          "acceptance_criteria": [
+            "Never exceeds level max speed (logged)",
+            "Arrival distance ≤ 1.0 m for chests, stations, pickables",
+            "No position jumps > 1 m per frame"
+          ],
+          "components": [
+            "HaugbuiMovementController"
+          ],
+          "testing": {
+            "automated": [
+              "Steering math (accel, clamp) in Core"
+            ],
+            "manual": [
+              "Speed measurement per level",
+              "Arrival distance logging"
+            ]
+          },
+          "requirements": [
+            "HB-032",
+            "HB-034",
+            "HB-051"
+          ]
+        },
+        {
+          "id": "HB-T-031",
+          "title": "HaugbuiStateMachine core",
+          "description": "Core state machine with states Dormant, Emerging, Idle, Traveling, Interacting, Combat, Fleeing, Returning, Entering, Dead; interrupt priority Combat > Returning > tasks; atomic-step completion rule; persisted subset.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-002"
+          ],
+          "acceptance_criteria": [
+            "Transition table covered by tests",
+            "Only the state machine issues movement/interaction commands"
+          ],
+          "components": [
+            "HaugbuiStateMachine"
+          ],
+          "testing": {
+            "automated": [
+              "Transition and interrupt tests"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-043",
+            "HB-142"
+          ]
+        },
+        {
+          "id": "HB-T-040",
+          "title": "ItemRules and CarriedInventory",
+          "description": "Core ItemRules.IsTransportable from item type + equipable flag; CarriedInventory with slot and weight limits serialised into tomb ZDO on every change.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-013",
+            "HB-T-030"
+          ],
+          "acceptance_criteria": [
+            "All equipable types rejected; Material/Consumable/Trophy/Misc/Fish/AmmoNonEquipable accepted",
+            "Weight and slot caps enforced",
+            "Carried items survive reload"
+          ],
+          "components": [
+            "HaugbuiInventory"
+          ],
+          "testing": {
+            "automated": [
+              "Classification matrix over every ItemType",
+              "Weight/slot capacity tests"
+            ],
+            "manual": [
+              "Reload with items carried"
+            ]
+          },
+          "requirements": [
+            "HB-031",
+            "HB-060",
+            "HB-061"
+          ]
+        },
+        {
+          "id": "HB-T-032",
+          "title": "Tomb lifecycle: emerge, recall, enter",
+          "description": "TombComponent tick decides creature presence; spawns at tomb with emergence VFX/SFX, recalls and despawns with entering VFX; resumes from saved position on load (at tomb if invalid).",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-031",
+            "HB-T-029",
+            "HB-T-013"
+          ],
+          "acceptance_criteria": [
+            "Exactly one creature per tomb at any time, including after reload",
+            "Emergence/enter VFX play"
+          ],
+          "components": [
+            "HaugbuiTomb",
+            "HaugbuiController"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Reload during night with creature out"
+            ]
+          },
+          "requirements": [
+            "HB-052"
+          ]
+        },
+        {
+          "id": "HB-T-033",
+          "title": "Day/night policy",
+          "description": "ITimeSource over EnvMan.IsNight/IsDay/GetDayFraction and ZNet time; without the Altar emerge only at night and begin returning DawnReturnLead before day; full-time while the Altar is bound; never uses IsDaylight.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-032"
+          ],
+          "acceptance_criteria": [
+            "`tod` tests: emerges at night, returns before dawn, dormant at noon (no Altar)",
+            "With the Altar it works at noon; removing the Altar at noon sends it back",
+            "`env` storm/always-dark weathers do not change behaviour"
+          ],
+          "components": [
+            "HaugbuiTomb",
+            "TimeSource"
+          ],
+          "testing": {
+            "automated": [
+              "Policy function tests with fake time source"
+            ],
+            "manual": [
+              "tod 0.2/0.24/0.5/0.8 at L1 and L6; env ThunderStorm, Misty, Darklands"
+            ]
+          },
+          "requirements": [
+            "HB-040",
+            "HB-041",
+            "HB-042",
+            "HB-043"
+          ]
+        },
+        {
+          "id": "HB-T-034",
+          "title": "HP persistence, regeneration and Rest toggle",
+          "description": "HP saved to tomb ZDO on change; regenerates while dormant (config); Rest toggle recalls and keeps the Haugbui dormant.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-032"
+          ],
+          "acceptance_criteria": [
+            "Damaged HP survives reload",
+            "Rest makes it return and stay inside until disabled"
+          ],
+          "components": [
+            "HaugbuiTomb"
+          ],
+          "testing": {
+            "automated": [
+              "Regen math"
+            ],
+            "manual": [
+              "Damage, reload, rest toggle"
+            ]
+          },
+          "requirements": [
+            "HB-035",
+            "HB-161",
+            "HB-130"
+          ]
+        },
+        {
+          "id": "HB-T-035",
+          "title": "Death handling and inventory recovery",
+          "description": "On death: death VFX, creature removed, death time + cooldown stored, carried items moved to tomb storage destination-first in the same frame, remainder to overflow blob; nothing destroyed. The deposit routine is shared with HB-T-093.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-032",
+            "HB-T-040",
+            "HB-T-018"
+          ],
+          "acceptance_criteria": [
+            "Item totals identical before and after death with full tomb storage",
+            "Overflow visible via dump command"
+          ],
+          "components": [
+            "HaugbuiTomb",
+            "HaugbuiInventory"
+          ],
+          "testing": {
+            "automated": [
+              "Overflow split logic"
+            ],
+            "manual": [
+              "Kill with full carried inventory and full tomb storage"
+            ]
+          },
+          "requirements": [
+            "HB-131",
+            "HB-175"
+          ]
+        },
+        {
+          "id": "HB-T-093",
+          "title": "Enter-tomb deposit to tomb storage",
+          "description": "Whenever the Haugbui enters its tomb (dawn, Rest, tomb unloading) its carried items go to tomb storage destination-first, remainder to overflow; shares the routine with death handling (HB-T-035).",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-035",
+            "HB-T-033",
+            "HB-T-034"
+          ],
+          "acceptance_criteria": [
+            "Carried inventory empty after every entry",
+            "Item totals identical before and after entry with full tomb storage",
+            "Player can take the items from tomb storage during the day"
+          ],
+          "components": [
+            "HaugbuiTomb",
+            "HaugbuiInventory"
+          ],
+          "testing": {
+            "automated": [
+              "Deposit split logic shared with death"
+            ],
+            "manual": [
+              "Fill carried inventory, skip to dawn, open tomb storage"
+            ]
+          },
+          "requirements": [
+            "HB-044",
+            "HB-175"
+          ]
+        },
+        {
+          "id": "HB-T-025",
+          "title": "Deconstruction and destruction handling",
+          "description": "Refund Haugbui recipe for host-based pieces; on tomb removal/destruction drop carried, overflow and tomb storage items at the tomb, despawn creature, unbind upgrades.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-018",
+            "HB-T-022",
+            "HB-T-040"
+          ],
+          "acceptance_criteria": [
+            "No item lost when tomb is destroyed while the Haugbui carries items",
+            "Refund equals recipe for every piece"
+          ],
+          "components": [
+            "HaugbuiTomb",
+            "HostPrefabSystem"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Deconstruct with full inventories; damage-destroy with devcommands"
+            ]
+          },
+          "requirements": [
+            "HB-008",
+            "HB-009",
+            "HB-025"
+          ]
+        },
+        {
+          "id": "HB-T-036",
+          "title": "Resurrection cooldown and countdown label",
+          "description": "Cooldown (default 3600 world seconds, world time only) from tomb ZDO; countdown TMP label with Billboard above tomb (1 Hz, distance culled) and in hover; resurrection rules for night/day/Altar.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-035",
+            "HB-T-033"
+          ],
+          "acceptance_criteria": [
+            "Countdown survives save/exit/restart and does not advance while the game is closed",
+            "Ends at day without Altar → waits for night",
+            "With Altar emerges immediately"
+          ],
+          "components": [
+            "HaugbuiTomb",
+            "UI"
+          ],
+          "testing": {
+            "automated": [
+              "Cooldown math on world time incl. sleep skips"
+            ],
+            "manual": [
+              "Exit mid-cooldown, restart, verify remaining",
+              "skiptime past cooldown at noon without vs with Altar"
+            ]
+          },
+          "requirements": [
+            "HB-132",
+            "HB-133",
+            "HB-134",
+            "HB-135"
+          ]
+        },
+        {
+          "id": "HB-T-037",
+          "title": "State visual feedback",
+          "description": "Cheap feedback per state: working glow, pickup/deposit sparkle, station-operation vanilla effects, alert sound, effects quality setting.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-032"
+          ],
+          "acceptance_criteria": [
+            "Each listed state has a distinct cue",
+            "Low quality halves particle emission"
+          ],
+          "components": [
+            "HaugbuiController",
+            "Visuals"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Observe each state"
+            ]
+          },
+          "requirements": [
+            "HB-052",
+            "HB-054"
+          ]
+        },
+        {
+          "id": "HB-T-038",
+          "title": "Altar of Darkness dark appearance",
+          "description": "While the Altar is bound: dark aura, subtle purple particles, bone-pile-style smoke on the creature; no damage resistance added.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-037",
+            "HB-T-022"
+          ],
+          "acceptance_criteria": [
+            "Appearance switches on when the Altar binds and off when it is removed",
+            "Damage taken unchanged"
+          ],
+          "components": [
+            "Visuals"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Build/remove altar"
+            ]
+          },
+          "requirements": [
+            "HB-053"
+          ]
+        },
+        {
+          "id": "HB-T-039",
+          "title": "Tomb panel v1: status and toggles",
+          "description": "Jötunn panel on tomb interact: level, HP, state, activity, cooldown, toggles (Ground, Harvest, Combat [Longsword], Production [ProductionUnlockLevel], Rest), open tomb storage; commands validated and written by TombComponent.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-032",
+            "HB-T-005"
+          ],
+          "acceptance_criteria": [
+            "Toggles persist across reload",
+            "Gated toggles disabled with tooltip explaining the requirement",
+            "Tomb storage can be opened while the Haugbui is dormant",
+            "Input blocked while open, closes with Esc/E"
+          ],
+          "components": [
+            "UI",
+            "HaugbuiTomb"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Toggle each, reload"
+            ]
+          },
+          "requirements": [
+            "HB-160",
+            "HB-161",
+            "HB-162",
+            "HB-163"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M4",
+      "name": "Inventory, transfers and storage",
+      "goal": "Safe item movement and storage sorting with the existing-item rule and multi-Haugbui reservations.",
+      "tickets": [
+        {
+          "id": "HB-T-041",
+          "title": "WorldRegistry with spatial index",
+          "description": "Harmony postfixes on Awake/OnDestroy for Container, Smelter, Fermenter, CookingStation, ShieldGenerator, Pickable, Beehive, SapCollector, Bed, Character; ItemDrop via s_instances; 16 m spatial hash; query by tomb radius.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-003"
+          ],
+          "acceptance_criteria": [
+            "Registry counts match a brute-force scan in debug mode",
+            "No per-frame allocations in queries"
+          ],
+          "components": [
+            "Registry"
+          ],
+          "testing": {
+            "automated": [
+              "Spatial hash tests"
+            ],
+            "manual": [
+              "Debug compare command in a large base"
+            ]
+          },
+          "requirements": [
+            "HB-200"
+          ]
+        },
+        {
+          "id": "HB-T-042",
+          "title": "Single-player access policy",
+          "description": "IAccessPolicy: ward check via PrivateArea.CheckAccess(point,0,false) for local owner; container privacy; excluded container kinds (tombstones, wagons, obliterator, autoDestroyEmpty, non-player-built, Haugbui special chests by role).",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-041"
+          ],
+          "acceptance_criteria": [
+            "Containers inside a ward the owner is not permitted on are ignored",
+            "Private chest of another creator ignored",
+            "Excluded kinds never used"
+          ],
+          "components": [
+            "AccessPolicy"
+          ],
+          "testing": {
+            "automated": [
+              "Exclusion rule table"
+            ],
+            "manual": [
+              "Ward with/without permission using a second profile's ward via debug"
+            ]
+          },
+          "requirements": [
+            "HB-066",
+            "HB-150",
+            "HB-151"
+          ]
+        },
+        {
+          "id": "HB-T-043",
+          "title": "TransferService (destination-first, atomic, owner-checked)",
+          "description": "Move items between containers, carried inventory, stations and ground drops in a single frame: validate, add to the destination first, then remove from the source; roll back the add if the removal fails. Preserve ItemData (quality, worldLevel, cheated, customData); never dropIfFullInv; debug ledger.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-040",
+            "HB-T-042",
+            "HB-T-009"
+          ],
+          "acceptance_criteria": [
+            "Total item counts conserved in 10k randomized transfers, including injected failures between add and remove",
+            "Containers in use are never modified",
+            "Cheated flag preserved"
+          ],
+          "components": [
+            "TransferService",
+            "HaugbuiInventory"
+          ],
+          "testing": {
+            "automated": [
+              "Conservation property tests with fake inventories"
+            ],
+            "manual": [
+              "Ledger review during play"
+            ]
+          },
+          "requirements": [
+            "HB-045",
+            "HB-061",
+            "HB-175",
+            "HB-200"
+          ]
+        },
+        {
+          "id": "HB-T-044",
+          "title": "StorageSelector (existing-item rule)",
+          "description": "Core selector: candidate containers that contain ≥1 same prefab/quality, rank by full-stack fit, fragmentation, distance; capacity respect; distribution across multiple matches.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-002"
+          ],
+          "acceptance_criteria": [
+            "Empty chest never chosen",
+            "Wood never goes to a stone-only chest",
+            "Overflow split across matching chests without exceeding capacity"
+          ],
+          "components": [
+            "HaugbuiStorageManager"
+          ],
+          "testing": {
+            "automated": [
+              "Selector scenarios from PRD §8.1"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-062",
+            "HB-063"
+          ]
+        },
+        {
+          "id": "HB-T-045",
+          "title": "TaskPlanner and ReservationService",
+          "description": "Planner collecting candidates from providers, priority ordering, lease-based reservations (30 s, renewed, released on completion/death/despawn, cleared on load), plan execution steps.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-031",
+            "HB-T-011"
+          ],
+          "acceptance_criteria": [
+            "Two Haugbuis never target the same reserved key",
+            "Leases expire when a Haugbui dies mid-task"
+          ],
+          "components": [
+            "Coordination",
+            "HaugbuiStateMachine"
+          ],
+          "testing": {
+            "automated": [
+              "Reservation table tests: conflicts, expiry, release"
+            ],
+            "manual": [
+              "Two tombs with overlapping radius"
+            ]
+          },
+          "requirements": [
+            "HB-004",
+            "HB-170",
+            "HB-155",
+            "HB-156",
+            "HB-157"
+          ]
+        },
+        {
+          "id": "HB-T-046",
+          "title": "Storage task: deposit carried items with retry",
+          "description": "Provider that deposits carried items into selected containers; tomb storage is the first source sorted after emerging; keeps items with exponential backoff (max 60 s) when no destination; marks item types without destination so sources skip them.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-043",
+            "HB-T-044",
+            "HB-T-045"
+          ],
+          "acceptance_criteria": [
+            "Items with destination deposited within one cycle",
+            "No destination → kept, retried, no busy loop",
+            "Items deposited in tomb storage at dawn are sorted first the next night"
+          ],
+          "components": [
+            "HaugbuiStorageManager"
+          ],
+          "testing": {
+            "automated": [
+              "Backoff schedule"
+            ],
+            "manual": [
+              "Remove the only matching chest, then re-add it"
+            ]
+          },
+          "requirements": [
+            "HB-063",
+            "HB-064",
+            "HB-065"
+          ]
+        },
+        {
+          "id": "HB-T-047",
+          "title": "Loaded-area awareness",
+          "description": "Treat unloaded targets as unavailable (never empty); compute effective radius vs loaded zones; panel hint when the operational radius is partially unloaded.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-041",
+            "HB-T-039"
+          ],
+          "acceptance_criteria": [
+            "Lowest simulation distance shows hint and no errors",
+            "No task targets an unloaded object"
+          ],
+          "components": [
+            "Registry",
+            "UI"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Graphics setting 0 vs 2 with 100 m radius"
+            ]
+          },
+          "requirements": [
+            "HB-033"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M5",
+      "name": "Collection and Delivery chests",
+      "goal": "Players can feed the Haugbui through the Collection Chest and request items through Delivery Chests.",
+      "tickets": [
+        {
+          "id": "HB-T-048",
+          "title": "Collection Chest structure",
+          "description": "10-slot chest (host piece_chest_wood or custom), distinct visual, recipe HB-070, role marker.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-014"
+          ],
+          "acceptance_criteria": [
+            "Exactly 10 slots",
+            "Recipe more expensive than wood chest",
+            "Visually distinct"
+          ],
+          "components": [
+            "HaugbuiCollectionManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Build and open"
+            ]
+          },
+          "requirements": [
+            "HB-070"
+          ]
+        },
+        {
+          "id": "HB-T-049",
+          "title": "Collection task provider",
+          "description": "Periodically take eligible items with a valid destination from Collection Chests in radius and distribute them; leave equipment untouched.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-048",
+            "HB-T-046"
+          ],
+          "acceptance_criteria": [
+            "Wood/stone/resin sorted to matching chests",
+            "Equipment remains",
+            "Items without destination remain in the chest"
+          ],
+          "components": [
+            "HaugbuiCollectionManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Mixed chest content scenario"
+            ]
+          },
+          "requirements": [
+            "HB-071",
+            "HB-072",
+            "HB-065"
+          ]
+        },
+        {
+          "id": "HB-T-050",
+          "title": "Delivery Chest structure",
+          "description": "10-slot chest, distinct visual, recipe HB-080, E opens chest, Shift+E opens request editor.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-014"
+          ],
+          "acceptance_criteria": [
+            "Exactly 10 slots",
+            "Alt-interact hint shown on hover"
+          ],
+          "components": [
+            "HaugbuiDeliveryManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Build, E and Shift+E"
+            ]
+          },
+          "requirements": [
+            "HB-080",
+            "HB-081"
+          ]
+        },
+        {
+          "id": "HB-T-051",
+          "title": "DeliveryLedger and request persistence",
+          "description": "Core ledger of lines {item, requested, delivered}; edit/cancel/complete semantics; remaining; reservation totals for production; persisted on chest ZDO.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-013"
+          ],
+          "acceptance_criteria": [
+            "Never delivers above requested",
+            "Edits below delivered complete the line",
+            "Survives reload"
+          ],
+          "components": [
+            "HaugbuiDeliveryManager"
+          ],
+          "testing": {
+            "automated": [
+              "Ledger semantics tests"
+            ],
+            "manual": [
+              "Reload mid-delivery"
+            ]
+          },
+          "requirements": [
+            "HB-082",
+            "HB-083",
+            "HB-085",
+            "HB-086",
+            "HB-088"
+          ]
+        },
+        {
+          "id": "HB-T-052",
+          "title": "Delivery request editor UI",
+          "description": "Panel listing lines with requested/delivered/remaining, item picker of discovered transportable items, quantity input, cancel/clear completed.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-050",
+            "HB-T-051",
+            "HB-T-005"
+          ],
+          "acceptance_criteria": [
+            "Example from spec (100 Wood, 200 Stone, 50 Resin, 30 Iron) can be entered",
+            "Equipment not selectable"
+          ],
+          "components": [
+            "UI",
+            "HaugbuiDeliveryManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Enter, edit, cancel lines"
+            ]
+          },
+          "requirements": [
+            "HB-082",
+            "HB-085"
+          ]
+        },
+        {
+          "id": "HB-T-053",
+          "title": "Delivery task provider",
+          "description": "Fetch remaining quantities from storage containers and Collection Chests in radius (never other Delivery Chests or tomb storage), deliver, update ledger; partial fulfilment; chest-full handling.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-051",
+            "HB-T-046"
+          ],
+          "acceptance_criteria": [
+            "Never removes more than remaining",
+            "Insufficient stock → delivers what exists and keeps line open",
+            "Two Delivery Chests served independently"
+          ],
+          "components": [
+            "HaugbuiDeliveryManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Spec example with shortages; two chests; two Haugbuis"
+            ]
+          },
+          "requirements": [
+            "HB-083",
+            "HB-084",
+            "HB-086",
+            "HB-088"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M6",
+      "name": "Ground item collection and harvesting",
+      "goal": "Independent toggles for ground items and harvesting using vanilla mechanics.",
+      "tickets": [
+        {
+          "id": "HB-T-054",
+          "title": "Ground item collection",
+          "description": "Provider over ItemDrop registry: transportable, in radius, has destination, older than 10 s, no player within 3 m, not piece items, reserved per drop; pickup via ownership + TransferService.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-046",
+            "HB-T-039"
+          ],
+          "acceptance_criteria": [
+            "Toggle OFF → no ground pickups",
+            "Fresh player drops not taken",
+            "Equipment never taken",
+            "Two Haugbuis never chase the same drop"
+          ],
+          "components": [
+            "HaugbuiCollectionManager"
+          ],
+          "testing": {
+            "automated": [
+              "Eligibility rule tests"
+            ],
+            "manual": [
+              "Drop items with toggle on/off, near player"
+            ]
+          },
+          "requirements": [
+            "HB-090",
+            "HB-091",
+            "HB-092"
+          ]
+        },
+        {
+          "id": "HB-T-055",
+          "title": "Harvest mature crops",
+          "description": "Targets cultivated Pickables (m_harvestable, not picked); invoke RPC_Pick at ≤1 m, then collect resulting drops (independent of ground toggle).",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-054"
+          ],
+          "acceptance_criteria": [
+            "Mature carrots/turnips/barley harvested",
+            "Growing plants ignored",
+            "No replanting"
+          ],
+          "components": [
+            "HaugbuiHarvestManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Mixed mature/immature field"
+            ]
+          },
+          "requirements": [
+            "HB-101",
+            "HB-103",
+            "HB-104",
+            "HB-093"
+          ]
+        },
+        {
+          "id": "HB-T-056",
+          "title": "Extract beehives and birds' nests",
+          "description": "Targets Beehive components (piece_beehive, piece_birdnest) with ZDO level ≥ 1; RPC_Extract at ≤1 m; collect drops.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-054"
+          ],
+          "acceptance_criteria": [
+            "Full hive → honey collected",
+            "Empty hive ignored",
+            "Bird nest yields feathers",
+            "Hive/nest never destroyed"
+          ],
+          "components": [
+            "HaugbuiHarvestManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "skiptime to fill hives/nests"
+            ]
+          },
+          "requirements": [
+            "HB-102",
+            "HB-103",
+            "HB-104"
+          ]
+        },
+        {
+          "id": "HB-T-057",
+          "title": "Harvest toggle and options",
+          "description": "Harvest toggle gating crops/hives/nests; config for wild pickables (off) and sap collectors (off).",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-055",
+            "HB-T-056"
+          ],
+          "acceptance_criteria": [
+            "Toggle OFF stops all harvesting",
+            "Wild berries untouched by default"
+          ],
+          "components": [
+            "HaugbuiHarvestManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Toggle and config checks"
+            ]
+          },
+          "requirements": [
+            "HB-100",
+            "HB-101",
+            "HB-105"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M7",
+      "name": "Production automation",
+      "goal": "Per-station automation with finite/infinite jobs through extensible adapters.",
+      "tickets": [
+        {
+          "id": "HB-T-058",
+          "title": "Station adapter contract and ProductionJob model",
+          "description": "IStationAdapter interface + registry; Core ProductionJob (enabled, recipe, mode, target, supplied, produced, owner tomb) with progress and completion rules.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-002",
+            "HB-T-041"
+          ],
+          "acceptance_criteria": [
+            "Adding a fake adapter requires no change to planner/core",
+            "Finite completion when supplied×yield ≥ target and outputs collected"
+          ],
+          "components": [
+            "HaugbuiProductionManager",
+            "ProductionStationAdapter"
+          ],
+          "testing": {
+            "automated": [
+              "Job math: finite, infinite, yield > 1, edits mid-job"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-111",
+            "HB-112",
+            "HB-114"
+          ]
+        },
+        {
+          "id": "HB-T-059",
+          "title": "Job persistence and ownership on station ZDO",
+          "description": "haugbui_job blob on the vanilla station; owning tomb GUID; takeover after owner missing for N minutes of world time.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-058",
+            "HB-T-013"
+          ],
+          "acceptance_criteria": [
+            "Job and progress survive reload",
+            "Second Haugbui ignores owned job",
+            "Takeover after owner tomb deleted"
+          ],
+          "components": [
+            "HaugbuiProductionManager",
+            "Coordination"
+          ],
+          "testing": {
+            "automated": [
+              "Ownership takeover rule"
+            ],
+            "manual": [
+              "Two tombs near one smelter"
+            ]
+          },
+          "requirements": [
+            "HB-112",
+            "HB-118",
+            "HB-170",
+            "HB-157"
+          ]
+        },
+        {
+          "id": "HB-T-060",
+          "title": "Production panel and station entry point",
+          "description": "Shift+E on supported stations (patch Switch hover/interact for Smelter switches; Interactable for Fermenter/CookingStation) opens panel: enable, recipe dropdown from conversions filtered by known materials, finite/infinite, target, progress.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-058",
+            "HB-T-005"
+          ],
+          "acceptance_criteria": [
+            "Smelter example: Iron, 100, enabled",
+            "Unknown materials not listed",
+            "Panel shows supplied/produced/remaining"
+          ],
+          "components": [
+            "UI",
+            "HaugbuiProductionManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Open on every supported station"
+            ]
+          },
+          "requirements": [
+            "HB-110",
+            "HB-111",
+            "HB-116",
+            "HB-120"
+          ]
+        },
+        {
+          "id": "HB-T-061",
+          "title": "SmelterAdapter: smelter, blast furnace, charcoal kiln, eitr refinery",
+          "description": "Read queue/fuel; feed inputs via RPC_AddOre(prefab, cheated) and fuel via RPC_AddFuel with explicit capacity checks; blocked reasons (smoke).",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-058",
+            "HB-T-043"
+          ],
+          "acceptance_criteria": [
+            "Queue never exceeds m_maxOre; fuel never exceeds m_maxFuel",
+            "Eitr refinery gets sap fuel + soft tissue"
+          ],
+          "components": [
+            "ProductionStationAdapter"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Each station with a 20-unit finite job"
+            ]
+          },
+          "requirements": [
+            "HB-113",
+            "HB-119"
+          ]
+        },
+        {
+          "id": "HB-T-062",
+          "title": "SmelterAdapter specifics: windmill and spinning wheel",
+          "description": "Windmill m_spawnStack + wind dependence, spinning wheel roof requirement; report blocked reasons.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-061"
+          ],
+          "acceptance_criteria": [
+            "Windmill flour collected after stack release",
+            "Unroofed spinning wheel shows 'needs roof'"
+          ],
+          "components": [
+            "ProductionStationAdapter"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "wind command; roof removal"
+            ]
+          },
+          "requirements": [
+            "HB-119"
+          ]
+        },
+        {
+          "id": "HB-T-063",
+          "title": "Output collection around station output point",
+          "description": "Collect ground ItemDrops of the job output near OutputPoint (reserved), deposit per storage rules, credit produced count.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-061",
+            "HB-T-054"
+          ],
+          "acceptance_criteria": [
+            "All outputs collected even with ground toggle OFF",
+            "Produced counter matches collected outputs"
+          ],
+          "components": [
+            "HaugbuiProductionManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Ground toggle OFF during smelting"
+            ]
+          },
+          "requirements": [
+            "HB-113",
+            "HB-093"
+          ]
+        },
+        {
+          "id": "HB-T-064",
+          "title": "Finite and infinite job execution",
+          "description": "Planner integration: supply until target or indefinitely, wait states for missing input/fuel, automatic resume, completion state, stop on disable.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-063",
+            "HB-T-059"
+          ],
+          "acceptance_criteria": [
+            "Finite 100 Iron stops at 100 products",
+            "Infinite continues while ore exists",
+            "Missing coal shows waiting and resumes when coal added"
+          ],
+          "components": [
+            "HaugbuiProductionManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Save/reload mid-job; remove coal; re-add"
+            ]
+          },
+          "requirements": [
+            "HB-112",
+            "HB-113",
+            "HB-114",
+            "HB-115"
+          ]
+        },
+        {
+          "id": "HB-T-065",
+          "title": "Delivery reservations and manual-use protection",
+          "description": "Exclude delivery-reserved quantities from production sourcing; pause job when queue holds foreign input; never remove queued items.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-064",
+            "HB-T-053"
+          ],
+          "acceptance_criteria": [
+            "Iron requested by a Delivery Chest is not smelted into anything",
+            "Manual copper in an iron job pauses it"
+          ],
+          "components": [
+            "HaugbuiProductionManager",
+            "HaugbuiDeliveryManager"
+          ],
+          "testing": {
+            "automated": [
+              "Available = stock − reserved"
+            ],
+            "manual": [
+              "Manual interference scenario"
+            ]
+          },
+          "requirements": [
+            "HB-087",
+            "HB-117"
+          ]
+        },
+        {
+          "id": "HB-T-066",
+          "title": "FermenterAdapter",
+          "description": "Load base via RPC_AddItem(hash, cheated) when Empty; tap via RPC_Tap when Ready; yield m_producedItems; exposure reported.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-064"
+          ],
+          "acceptance_criteria": [
+            "Finite job counts produced meads correctly",
+            "Exposed fermenter reported"
+          ],
+          "components": [
+            "ProductionStationAdapter"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "skiptime fermentation"
+            ]
+          },
+          "requirements": [
+            "HB-113",
+            "HB-119"
+          ]
+        },
+        {
+          "id": "HB-T-067",
+          "title": "FuelOnlyAdapter: hot tub, frigid kiln, shield generator",
+          "description": "Keep fuel topped up within max with infinite mode only.",
+          "priority": "P2",
+          "dependencies": [
+            "HB-T-064"
+          ],
+          "acceptance_criteria": [
+            "Fuel never exceeds max",
+            "Stops when disabled"
+          ],
+          "components": [
+            "ProductionStationAdapter"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Each station"
+            ]
+          },
+          "requirements": [
+            "HB-113"
+          ]
+        },
+        {
+          "id": "HB-T-068",
+          "title": "CookingStationAdapter (dawn-aware)",
+          "description": "Add raw items to free slots, fuel ovens, remove done items before burning (high-priority task). Load a slot only if the Haugbui will still be out (or has the Altar) when it is done; remove all done items before entering the tomb. Gated by ProductionUnlockLevel.",
+          "priority": "P2",
+          "dependencies": [
+            "HB-T-064",
+            "HB-T-033"
+          ],
+          "acceptance_criteria": [
+            "No burnt items over a 30-minute test with the Altar",
+            "No slot loaded within the cook time before dawn without the Altar",
+            "Unavailable below the unlock level"
+          ],
+          "components": [
+            "ProductionStationAdapter"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Long-run cooking test"
+            ]
+          },
+          "requirements": [
+            "HB-113",
+            "HB-121"
+          ]
+        },
+        {
+          "id": "HB-T-092",
+          "title": "RecipeCraftingAdapter (cauldron)",
+          "description": "Generic adapter for CraftingStation recipes behind RecipeStationAllowList (v1: cauldron only). Job picks one recipe known to the owner; gathers ingredients from storage; checks station level/extensions like a player; creates one product and removes its ingredients in the same frame; stores the product per storage rules.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-064",
+            "HB-T-043",
+            "HB-T-091"
+          ],
+          "acceptance_criteria": [
+            "Finite job of 10 soups produces exactly 10 and consumes exactly 10× ingredients",
+            "Recipe requiring a higher cauldron level is not offered",
+            "Workbench/forge stay unsupported unless added to the allow-list"
+          ],
+          "components": [
+            "ProductionStationAdapter"
+          ],
+          "testing": {
+            "automated": [
+              "Ingredient/product conservation with fake inventories"
+            ],
+            "manual": [
+              "Cauldron soups and mead bases"
+            ]
+          },
+          "requirements": [
+            "HB-111",
+            "HB-113",
+            "HB-122"
+          ]
+        },
+        {
+          "id": "HB-T-069",
+          "title": "Production level gate and toggle",
+          "description": "ProductionUnlockLevel (default 2) and tomb Production toggle; RecipeStationAllowList (default: cauldron only); Obliterator never supported.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-064",
+            "HB-T-039"
+          ],
+          "acceptance_criteria": [
+            "Below unlock level the panel explains the requirement",
+            "Toggle OFF stops all production tasks"
+          ],
+          "components": [
+            "HaugbuiProductionManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "L1 vs L2"
+            ]
+          },
+          "requirements": [
+            "HB-161"
+          ]
+        },
+        {
+          "id": "HB-T-070",
+          "title": "Unlocked-recipe rule",
+          "description": "Recipe list restricted to station conversions whose input/output the owner has discovered (Player.IsKnownMaterial); revalidated when job runs.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-060"
+          ],
+          "acceptance_criteria": [
+            "Undiscovered output not offered"
+          ],
+          "components": [
+            "HaugbuiProductionManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "New character test"
+            ]
+          },
+          "requirements": [
+            "HB-116"
+          ]
+        },
+        {
+          "id": "HB-T-098",
+          "title": "Sleep fast mode",
+          "description": "While EnvMan.IsTimeSkipping(), accumulate the world-time delta in which the Haugbui may work into a WorkBudget and run planned steps without flight (teleport + interaction) while the budget covers travel + interaction time; combat suspended; same rules as normal work. Config SleepFastMode (default ON). WorkBudget lives in Core and is reused by away mode.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-064",
+            "HB-T-056",
+            "HB-T-046",
+            "HB-T-093"
+          ],
+          "acceptance_criteria": [
+            "Sleeping at 0.8 gives the same order of work as staying awake until dawn (±25% in a scripted comparison)",
+            "Without the Altar, afternoon time skipped before night adds no budget",
+            "No item duplication/loss when sleeping during a delivery"
+          ],
+          "components": [
+            "SleepFastMode",
+            "HaugbuiStateMachine",
+            "Haugbui.Core"
+          ],
+          "testing": {
+            "automated": [
+              "WorkBudget accrual and consumption tests"
+            ],
+            "manual": [
+              "Sleep with an iron job and a delivery request; compare with a night awake"
+            ]
+          },
+          "requirements": [
+            "HB-046"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M8",
+      "name": "Combat",
+      "goal": "Opt-in defence with explicit warnings and safe targeting.",
+      "tickets": [
+        {
+          "id": "HB-T-071",
+          "title": "Target policy and detection",
+          "description": "Core rules + Game facts: alive, not player, not tamed, not Haugbui, MonsterAI-driven, not AnimalsVeg/Players faction, in radius, loaded; scan every 1 s.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-041",
+            "HB-T-031"
+          ],
+          "acceptance_criteria": [
+            "Greydwarfs/skeletons detected",
+            "Deer, boars (wild), tamed wolves, players, other Haugbuis ignored"
+          ],
+          "components": [
+            "HaugbuiCombatManager"
+          ],
+          "testing": {
+            "automated": [
+              "Target policy matrix"
+            ],
+            "manual": [
+              "Spawn mixed creatures"
+            ]
+          },
+          "requirements": [
+            "HB-141"
+          ]
+        },
+        {
+          "id": "HB-T-072",
+          "title": "Combat actuator and attack",
+          "description": "Approach target, attack via Humanoid default weapon (tuned wraith_melee), damage scaling per level (config); collateral piece damage allowed.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-071",
+            "HB-T-029"
+          ],
+          "acceptance_criteria": [
+            "Kills a greydwarf with the Longsword bound at any level",
+            "Pieces near the enemy may take damage"
+          ],
+          "components": [
+            "HaugbuiCombatManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Fight inside a base"
+            ]
+          },
+          "requirements": [
+            "HB-142",
+            "HB-143",
+            "HB-145"
+          ]
+        },
+        {
+          "id": "HB-T-073",
+          "title": "Combat interrupt, resume and flee",
+          "description": "Suspend tasks after the atomic step, resume by re-planning; flee to tomb when attacked with combat OFF.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-072",
+            "HB-T-045"
+          ],
+          "acceptance_criteria": [
+            "Carried items unaffected by combat",
+            "Delivery resumes after the fight",
+            "Combat OFF never attacks"
+          ],
+          "components": [
+            "HaugbuiStateMachine",
+            "HaugbuiCombatManager"
+          ],
+          "testing": {
+            "automated": [
+              "Interrupt transitions"
+            ],
+            "manual": [
+              "Raid during delivery"
+            ]
+          },
+          "requirements": [
+            "HB-142",
+            "HB-144"
+          ]
+        },
+        {
+          "id": "HB-T-074",
+          "title": "Combat toggle with acknowledgement",
+          "description": "Toggle available while the Longsword is bound; first enable shows the warning YesNoPopup and stores combat_ack.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-039",
+            "HB-T-026"
+          ],
+          "acceptance_criteria": [
+            "Cannot enable without confirming",
+            "Default OFF on first installation"
+          ],
+          "components": [
+            "UI",
+            "HaugbuiCombatManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Enable/disable flow"
+            ]
+          },
+          "requirements": [
+            "HB-026",
+            "HB-140"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M9",
+      "name": "World safety and data integrity",
+      "goal": "Detect and warn about data loss, protect data when the mod is missing, and harden recovery.",
+      "tickets": [
+        {
+          "id": "HB-T-075",
+          "title": "World marker and world guard warning",
+          "description": "Global key haugbui <schema> and haugbui_tombs <count>; on load compare with tombs found (iterative ZDO scan); prominent popup when structures are missing.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-014"
+          ],
+          "acceptance_criteria": [
+            "Deleting a tomb ZDO via debug triggers the warning on next load",
+            "No warning on clean worlds"
+          ],
+          "components": [
+            "HaugbuiPersistenceManager",
+            "UI"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Simulated loss"
+            ]
+          },
+          "requirements": [
+            "HB-172",
+            "HB-173"
+          ]
+        },
+        {
+          "id": "HB-T-076",
+          "title": "Opt-in world backup on load",
+          "description": "When Haugbui data is detected and the option is on, copy the world folder (1.0 format) to a timestamped backup folder once per session; verify path API in 1.0.",
+          "priority": "P2",
+          "dependencies": [
+            "HB-T-075"
+          ],
+          "acceptance_criteria": [
+            "Backup folder restorable by copying back",
+            "Never blocks loading > 1 s for typical worlds (async copy)"
+          ],
+          "components": [
+            "HaugbuiPersistenceManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Restore test"
+            ]
+          },
+          "requirements": [
+            "HB-172"
+          ]
+        },
+        {
+          "id": "HB-T-077",
+          "title": "Integrity checks and recovery on load",
+          "description": "Validate tomb blobs, clamp invalid states, rebind upgrades, clear reservations, repair inconsistent jobs/ledgers, log repairs.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-013",
+            "HB-T-059",
+            "HB-T-051"
+          ],
+          "acceptance_criteria": [
+            "Corrupted blob → feature disabled for that object with warning, data preserved",
+            "Load never throws"
+          ],
+          "components": [
+            "HaugbuiPersistenceManager"
+          ],
+          "testing": {
+            "automated": [
+              "Fuzzed blob deserialization"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-175"
+          ]
+        },
+        {
+          "id": "HB-T-078",
+          "title": "Missing-mod end-to-end validation and protection statement",
+          "description": "Run the full missing-mod scenario with every structure type and jobs/requests; document results in README and TECHNICAL_FEASIBILITY §9.3.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-075",
+            "HB-T-064",
+            "HB-T-053"
+          ],
+          "acceptance_criteria": [
+            "Documented table of what survives matches observed results"
+          ],
+          "components": [
+            "Docs",
+            "HaugbuiPersistenceManager"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Missing-mod round trip checklist"
+            ]
+          },
+          "requirements": [
+            "HB-172",
+            "HB-174"
+          ]
+        },
+        {
+          "id": "HB-T-079",
+          "title": "Save/reload torture procedure",
+          "description": "Scripted debug scenario: transfers, deaths, production, delivery with forced saves and quits; compare item totals via ledger.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-043",
+            "HB-T-035",
+            "HB-T-064"
+          ],
+          "acceptance_criteria": [
+            "Zero duplication/loss over the procedure"
+          ],
+          "components": [
+            "Diagnostics"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Torture checklist"
+            ]
+          },
+          "requirements": [
+            "HB-175",
+            "HB-134"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M10",
+      "name": "UI completion and localization",
+      "goal": "Complete management UI and full pt-BR/en-US coverage.",
+      "tickets": [
+        {
+          "id": "HB-T-080",
+          "title": "Tomb panel v2: inventory, storage, overflow",
+          "description": "Live read-only carried inventory grid, weight/capacity, speed, radius, activity text, open tomb storage, retrieve overflow to player/tomb storage.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-039",
+            "HB-T-035"
+          ],
+          "acceptance_criteria": [
+            "Inventory updates while the Haugbui works",
+            "Overflow retrievable without loss"
+          ],
+          "components": [
+            "UI"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Inspect during work; retrieve overflow"
+            ]
+          },
+          "requirements": [
+            "HB-160",
+            "HB-162",
+            "HB-007"
+          ]
+        },
+        {
+          "id": "HB-T-081",
+          "title": "Hover texts for all structures and stations",
+          "description": "Consistent hover format: tomb (level/state/HP/cooldown), upgrades (bound/level), chests (role, alt-interact), stations (automation status).",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-060",
+            "HB-T-050"
+          ],
+          "acceptance_criteria": [
+            "All hovers localized and implement GetHoverOffset"
+          ],
+          "components": [
+            "UI"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Hover each"
+            ]
+          },
+          "requirements": [
+            "HB-006",
+            "HB-120"
+          ]
+        },
+        {
+          "id": "HB-T-082",
+          "title": "Full localization pass and glossary",
+          "description": "Externalize every string, create pt-BR/en-US glossary (Haugbui, túmulo/tomb, oferenda/offering...), review tone, parity test green.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-080",
+            "HB-T-081"
+          ],
+          "acceptance_criteria": [
+            "grep finds no hard-coded player-facing strings",
+            "No [missing key] in either language"
+          ],
+          "components": [
+            "HaugbuiLocalization"
+          ],
+          "testing": {
+            "automated": [
+              "Key parity",
+              "Source scan for string literals in UI calls"
+            ],
+            "manual": [
+              "Full playthrough in each language"
+            ]
+          },
+          "requirements": [
+            "HB-190",
+            "HB-191"
+          ]
+        },
+        {
+          "id": "HB-T-083",
+          "title": "Input handling polish",
+          "description": "Esc/E/gamepad back closes panels, input blocking, no movement while typing.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-080",
+            "HB-T-052",
+            "HB-T-060"
+          ],
+          "acceptance_criteria": [
+            "No stuck input-block state after closing any panel"
+          ],
+          "components": [
+            "UI"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Keyboard and gamepad"
+            ]
+          },
+          "requirements": [
+            "HB-163"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M11",
+      "name": "Optimization and release preparation",
+      "goal": "Measured performance, documentation and a Thunderstore package.",
+      "tickets": [
+        {
+          "id": "HB-T-084",
+          "title": "Performance profiling and budgets",
+          "description": "Debug timing per system; stress worlds: 3 Haugbuis, 100 containers, 20 stations, 300 ground items, large fields; tune intervals.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-064",
+            "HB-T-073",
+            "HB-T-056"
+          ],
+          "acceptance_criteria": [
+            "≤0.3 ms average per Haugbui per frame in the stress world",
+            "No GC spikes from Haugbui > 1 KB/frame"
+          ],
+          "components": [
+            "Performance"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Stress world checklist",
+              "2-hour session"
+            ]
+          },
+          "requirements": [
+            "HB-200",
+            "HB-201"
+          ]
+        },
+        {
+          "id": "HB-T-085",
+          "title": "Multi-Haugbui coordination validation",
+          "description": "Three overlapping tombs: verify no duplicate pickups, no shared station conflicts, capacity respected, cooperation on separate tasks.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-064",
+            "HB-T-053",
+            "HB-T-054"
+          ],
+          "acceptance_criteria": [
+            "Ledger shows no double moves; job ownership stable"
+          ],
+          "components": [
+            "Coordination"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Multi-tomb checklist"
+            ]
+          },
+          "requirements": [
+            "HB-004",
+            "HB-118",
+            "HB-145",
+            "HB-155",
+            "HB-156",
+            "HB-158"
+          ]
+        },
+        {
+          "id": "HB-T-086",
+          "title": "Configuration review",
+          "description": "Group advanced settings, descriptions, ranges, defaults equal to spec; ConfigurationManager friendliness.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-084"
+          ],
+          "acceptance_criteria": [
+            "Every setting has description and range",
+            "Normal play needs no changes"
+          ],
+          "components": [
+            "HaugbuiConfiguration"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Fresh install review"
+            ]
+          },
+          "requirements": [
+            "HB-180"
+          ]
+        },
+        {
+          "id": "HB-T-087",
+          "title": "README, protection statement and known limitations",
+          "description": "Player-facing README (pt-BR + en), installation, features, missing-mod protection table, loaded-area limitation, incompatibilities (logistics mods).",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-078"
+          ],
+          "acceptance_criteria": [
+            "Reviewed against PRD §18 and feasibility §9.3"
+          ],
+          "components": [
+            "Docs"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Doc review"
+            ]
+          },
+          "requirements": [
+            "HB-174"
+          ]
+        },
+        {
+          "id": "HB-T-088",
+          "title": "Thunderstore packaging",
+          "description": "manifest.json (name Haugbui, deps denikson-BepInExPack_Valheim-5.4.2351, ValheimModding-Jotunn-2.30.2), icon 256x256, README, CHANGELOG; release build zip via publish script.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-087"
+          ],
+          "acceptance_criteria": [
+            "Zip installs via r2modman into a clean profile and loads"
+          ],
+          "components": [
+            "Build"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Clean profile install"
+            ]
+          },
+          "requirements": []
+        },
+        {
+          "id": "HB-T-089",
+          "title": "Release regression checklist",
+          "description": "Execute DEVELOPMENT_GUIDE manual test suites end-to-end on the release build; record results.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-084",
+            "HB-T-085",
+            "HB-T-079",
+            "HB-T-082"
+          ],
+          "acceptance_criteria": [
+            "All P0 checklist items pass"
+          ],
+          "components": [
+            "QA"
+          ],
+          "testing": {
+            "automated": [
+              "Full Core suite green"
+            ],
+            "manual": [
+              "Full checklist"
+            ]
+          },
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "id": "M12",
+      "name": "Away mode (remote worker)",
+      "goal": "The tomb keeps doing logistics on world data while the player is elsewhere in the world. Planned as release 1.1 so the core ships first; can be pulled into 1.0 if the spike is clean.",
+      "tickets": [
+        {
+          "id": "HB-T-094",
+          "title": "RemoteWorkerService and hand-over",
+          "description": "Single service ticking every RemoteTickSeconds (default 10 s) over tombs whose zone is not instantiated; rebuilds worker state from ZDOs; hand-over flag so the visible Haugbui and the remote worker never run at once; travel-time budget so remote throughput never exceeds the visible Haugbui; night/Altar rules via ITimeSource; config AwayModeEnabled. Reuses WorkBudget from HB-T-098.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-090",
+            "HB-T-046",
+            "HB-T-093",
+            "HB-T-098"
+          ],
+          "acceptance_criteria": [
+            "No work while the game is closed",
+            "Never both remote and physical worker for one tomb",
+            "Remote throughput ≤ physical throughput in a timed comparison"
+          ],
+          "components": [
+            "RemoteWorkerService"
+          ],
+          "testing": {
+            "automated": [
+              "Travel budget and hand-over state tests"
+            ],
+            "manual": [
+              "Leave base for a night, return, compare"
+            ]
+          },
+          "requirements": [
+            "HB-125",
+            "HB-126",
+            "HB-129"
+          ]
+        },
+        {
+          "id": "HB-T-095",
+          "title": "Remote sorting and delivery",
+          "description": "Remote providers for tomb storage/Collection Chest sorting and Delivery Chest requests on ZDO inventories, using the same StorageSelector, DeliveryLedger, access policy (ward ZDOs) and destination-first transfers.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-094",
+            "HB-T-049",
+            "HB-T-053"
+          ],
+          "acceptance_criteria": [
+            "Same results as the physical worker on the same base",
+            "Item totals conserved across save/reload during remote work"
+          ],
+          "components": [
+            "RemoteWorkerService",
+            "TransferService"
+          ],
+          "testing": {
+            "automated": [
+              "Conservation tests on serialized inventories"
+            ],
+            "manual": [
+              "Away-and-back test"
+            ]
+          },
+          "requirements": [
+            "HB-125",
+            "HB-126"
+          ]
+        },
+        {
+          "id": "HB-T-096",
+          "title": "Remote station refill",
+          "description": "Top up smelter/blast furnace/kiln/refinery queues and fuel on ZDO keys within capacity for active jobs; no output collection, cooking, cauldron, harvesting or combat remotely; key list kept in Haugbui.Core/GameApi/GameApiManifest.cs and checked by the API self-check.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-094",
+            "HB-T-061"
+          ],
+          "acceptance_criteria": [
+            "Queue/fuel never exceed capacity",
+            "Station processes remote queue on return",
+            "Unsupported stations untouched"
+          ],
+          "components": [
+            "RemoteWorkerService",
+            "ProductionStationAdapter"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Away-and-back with an iron job"
+            ]
+          },
+          "requirements": [
+            "HB-125",
+            "HB-127"
+          ]
+        },
+        {
+          "id": "HB-T-097",
+          "title": "Away summary in the tomb panel",
+          "description": "Counters of what was done while away (items sorted, delivered, ore/fuel loaded) shown on return and in the panel.",
+          "priority": "P2",
+          "dependencies": [
+            "HB-T-094",
+            "HB-T-080"
+          ],
+          "acceptance_criteria": [
+            "Summary matches the debug ledger"
+          ],
+          "components": [
+            "UI"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Return after a night away"
+            ]
+          },
+          "requirements": [
+            "HB-128"
+          ]
+        }
+      ]
+    }
+  ]
+}

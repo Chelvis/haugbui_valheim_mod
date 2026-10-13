@@ -1,0 +1,165 @@
+using System.Collections.Generic;
+using BepInEx.Configuration;
+using Haugbui.Core.Progression;
+using Haugbui.Core.Recipes;
+using Haugbui.Diagnostics;
+
+namespace Haugbui.Config
+{
+    internal sealed class HaugbuiConfig
+    {
+        private const string General = "1 - General";
+        private const string Progression = "2 - Progression";
+        private const string Timing = "3 - Timing";
+        private const string Death = "4 - Death";
+        private const string Production = "5 - Production";
+        private const string Construction = "6 - Construction";
+        private const string Recipes = "7 - Recipes";
+        private const string Combat = "8 - Combat";
+        private const string AwayMode = "9 - Away mode";
+        private const string Advanced = "99 - Advanced";
+
+        private readonly ConfigFile _file;
+        private readonly Dictionary<string, ConfigEntry<string>> _recipeEntries = new Dictionary<string, ConfigEntry<string>>();
+
+        private ConfigEntry<string> _carryCapacity;
+        private ConfigEntry<string> _maxSpeed;
+        private ConfigEntry<string> _radius;
+        private ConfigEntry<string> _slots;
+        private ConfigEntry<string> _maxHealth;
+
+        public HaugbuiConfig(ConfigFile file)
+        {
+            _file = file;
+            Bind();
+            ProgressionTable = BuildProgressionTable();
+        }
+
+        public ProgressionTable ProgressionTable { get; private set; }
+
+        public ConfigEntry<bool> DebugLogging { get; private set; }
+        public ConfigEntry<string> EffectsQuality { get; private set; }
+
+        public ConfigEntry<float> DawnReturnLeadSeconds { get; private set; }
+        public ConfigEntry<float> CollectionIntervalSeconds { get; private set; }
+        public ConfigEntry<bool> SleepFastMode { get; private set; }
+
+        public ConfigEntry<float> CooldownSeconds { get; private set; }
+        public ConfigEntry<float> RestFullHealSeconds { get; private set; }
+
+        public ConfigEntry<int> ProductionUnlockLevel { get; private set; }
+        public ConfigEntry<string> RecipeStationAllowList { get; private set; }
+
+        public ConfigEntry<float> BedDistance { get; private set; }
+        public ConfigEntry<float> TombSpacing { get; private set; }
+        public ConfigEntry<float> UpgradeRange { get; private set; }
+
+        public ConfigEntry<float> CombatDamageMultiplier { get; private set; }
+
+        public ConfigEntry<bool> AwayModeEnabled { get; private set; }
+        public ConfigEntry<float> RemoteTickSeconds { get; private set; }
+
+        public ConfigEntry<float> PlanningIntervalSeconds { get; private set; }
+        public ConfigEntry<int> MaxTicksPerFrame { get; private set; }
+        public ConfigEntry<float> ReservationLeaseSeconds { get; private set; }
+
+        public string GetRecipeIngredients(string pieceId) =>
+            _recipeEntries.TryGetValue(pieceId, out ConfigEntry<string> entry) ? entry.Value : null;
+
+        public string GetDefaultRecipeIngredients(string pieceId) =>
+            _recipeEntries.TryGetValue(pieceId, out ConfigEntry<string> entry) ? (string)entry.DefaultValue : null;
+
+        private void Bind()
+        {
+            DebugLogging = _file.Bind(General, "DebugLogging", false, "Verbose Haugbui logging for troubleshooting.");
+            DebugLogging.SettingChanged += (_, __) => Log.DebugEnabled = DebugLogging.Value;
+            Log.DebugEnabled = DebugLogging.Value;
+            EffectsQuality = _file.Bind(General, "EffectsQuality", "Normal",
+                new ConfigDescription("Particle density of Haugbui effects.", new AcceptableValueList<string>("Low", "Normal")));
+
+            _carryCapacity = BindLevels("CarryCapacity", ProgressionTable.ToCsv(ProgressionTable.DefaultCarryCapacity),
+                "Carry weight per level 1..6.");
+            _maxSpeed = BindLevels("MaxSpeed", ProgressionTable.ToCsv(ProgressionTable.DefaultMaxSpeed),
+                "Maximum flight speed (m/s) per level 1..6.");
+            _radius = BindLevels("OperationalRadius", ProgressionTable.ToCsv(ProgressionTable.DefaultRadius),
+                "Work radius around the tomb (m) per level 1..6.");
+            _slots = BindLevels("InventorySlots", ProgressionTable.ToCsv(ProgressionTable.DefaultSlots),
+                "Carried inventory slots per level 1..6 (whole numbers).");
+            _maxHealth = BindLevels("MaxHealth", ProgressionTable.ToCsv(ProgressionTable.DefaultMaxHealth),
+                "Health per level 1..6.");
+
+            DawnReturnLeadSeconds = BindAdmin(Timing, "DawnReturnLeadSeconds", 60f,
+                "Real seconds before dawn when the Haugbui starts returning to its tomb.", 0f, 600f);
+            CollectionIntervalSeconds = BindAdmin(Timing, "CollectionIntervalSeconds", 10f,
+                "How often a working Haugbui checks Collection Chests.", 2f, 120f);
+            SleepFastMode = BindAdmin(Timing, "SleepFastMode", true,
+                "While the player sleeps, the Haugbui works the skipped night in fast mode.");
+
+            CooldownSeconds = BindAdmin(Death, "CooldownSeconds", 3600f,
+                "World-time seconds before a dead Haugbui returns (3600 = about two in-game days).", 0f, 86400f);
+            RestFullHealSeconds = BindAdmin(Death, "RestFullHealSeconds", 3600f,
+                "World-time seconds for a resting Haugbui to heal from zero to full.", 1f, 86400f);
+
+            ProductionUnlockLevel = BindAdmin(Production, "ProductionUnlockLevel", 2,
+                "Tomb level that unlocks production automation.", ProgressionTable.MinLevel, ProgressionTable.MaxLevel);
+            RecipeStationAllowList = BindAdmin(Production, "RecipeStationAllowList", "piece_cauldron",
+                "Comma-separated crafting station prefabs where the Haugbui may craft recipes.");
+
+            BedDistance = BindAdmin(Construction, "BedDistance", 50f,
+                "Maximum distance between a tomb and a bed owned by the builder.", 5f, 500f);
+            TombSpacing = BindAdmin(Construction, "TombSpacing", 5f, "Minimum distance between two tombs.", 0f, 100f);
+            UpgradeRange = BindAdmin(Construction, "UpgradeRange", 8f, "Maximum distance between an upgrade and its tomb.", 2f, 50f);
+
+            foreach (PieceRecipe recipe in DefaultRecipes.All)
+            {
+                _recipeEntries[recipe.PieceId] = _file.Bind(Recipes, recipe.PieceId, recipe.IngredientsToConfig(),
+                    AdminDescription("Ingredients as Item:Amount,Item:Amount (item prefab names). Invalid text uses the default."));
+            }
+
+            CombatDamageMultiplier = BindAdmin(Combat, "DamageMultiplier", 1f, "Multiplier for Haugbui attack damage.", 0.1f, 10f);
+
+            AwayModeEnabled = BindAdmin(AwayMode, "Enabled", true,
+                "Tombs keep sorting, delivering and refilling smelters while the player is far away.");
+            RemoteTickSeconds = BindAdmin(AwayMode, "TickSeconds", 10f, "Interval of away-mode work.", 2f, 120f);
+
+            PlanningIntervalSeconds = BindAdmin(Advanced, "PlanningIntervalSeconds", 1f,
+                "How often each Haugbui plans its next task.", 0.25f, 10f);
+            MaxTicksPerFrame = BindAdmin(Advanced, "MaxTicksPerFrame", 1,
+                "Maximum Haugbui planning ticks per frame across all tombs.", 1, 10);
+            ReservationLeaseSeconds = BindAdmin(Advanced, "ReservationLeaseSeconds", 30f,
+                "How long a task reservation lives without renewal.", 5f, 300f);
+        }
+
+        private ConfigEntry<string> BindLevels(string key, string defaults, string description)
+        {
+            ConfigEntry<string> entry = _file.Bind(Progression, key, defaults, AdminDescription(description));
+            entry.SettingChanged += (_, __) => ProgressionTable = BuildProgressionTable();
+            return entry;
+        }
+
+        private ProgressionTable BuildProgressionTable()
+        {
+            ProgressionTable table = ProgressionTable.FromCsv(
+                _carryCapacity.Value, _maxSpeed.Value, _radius.Value, _slots.Value, _maxHealth.Value,
+                out IReadOnlyList<string> warnings);
+            foreach (string warning in warnings)
+                Log.Warning("Config " + Progression + ": " + warning);
+            return table;
+        }
+
+        private ConfigEntry<float> BindAdmin(string section, string key, float value, string description, float min, float max) =>
+            _file.Bind(section, key, value, AdminDescription(description, new AcceptableValueRange<float>(min, max)));
+
+        private ConfigEntry<int> BindAdmin(string section, string key, int value, string description, int min, int max) =>
+            _file.Bind(section, key, value, AdminDescription(description, new AcceptableValueRange<int>(min, max)));
+
+        private ConfigEntry<bool> BindAdmin(string section, string key, bool value, string description) =>
+            _file.Bind(section, key, value, AdminDescription(description));
+
+        private ConfigEntry<string> BindAdmin(string section, string key, string value, string description) =>
+            _file.Bind(section, key, value, AdminDescription(description));
+
+        private static ConfigDescription AdminDescription(string description, AcceptableValueBase range = null) =>
+            new ConfigDescription(description, range, new ConfigurationManagerAttributes { IsAdminOnly = true });
+    }
+}

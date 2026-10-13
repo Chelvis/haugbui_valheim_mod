@@ -1,0 +1,21 @@
+{
+  "haugbui_name": "Haugbui",
+  "haugbui_piece_tomb": "Túmulo do Haugbui",
+  "haugbui_piece_tomb_desc": "Um túmulo que prende um servo morto-vivo. Ele trabalha para você durante a noite.",
+  "haugbui_piece_offering": "Oferenda",
+  "haugbui_piece_offering_desc": "Carne de javali assada e mel deixados diante do túmulo. Fortalece o Haugbui.",
+  "haugbui_piece_treasure": "Tesouro Pessoal",
+  "haugbui_piece_treasure_desc": "As moedas e joias com que o morto foi enterrado. Fortalece o Haugbui.",
+  "haugbui_piece_bracelets": "Braceletes de Prata",
+  "haugbui_piece_bracelets_desc": "Braceletes de um chefe guerreiro. Fortalece o Haugbui.",
+  "haugbui_piece_longsword": "Espada Longa do Rei Caído",
+  "haugbui_piece_longsword_desc": "A lâmina de um rei caído. O Haugbui passará a defender o túmulo.",
+  "haugbui_piece_altar": "Altar das Trevas",
+  "haugbui_piece_altar_desc": "Energia sombria que permite ao Haugbui andar sob a luz do dia.",
+  "haugbui_piece_collection": "Baú de Coleta",
+  "haugbui_piece_collection_desc": "Um Haugbui guarda os itens deixados aqui.",
+  "haugbui_piece_delivery": "Baú de Entrega",
+  "haugbui_piece_delivery_desc": "Um Haugbui traz para este baú os itens que você pedir.",
+  "haugbui_msg_api_check_failed": "Haugbui: alguns recursos foram desativados porque o jogo mudou. Veja o log do BepInEx.",
+  "haugbui_msg_piece_disabled": "Haugbui: uma construção foi desativada porque a receita é inválida. Veja o log do BepInEx."
+}

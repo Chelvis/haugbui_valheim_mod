@@ -1,0 +1,10 @@
+.reference/
+bin/
+obj/
+.vs/
+*.user
+Environment.props
+publicized_assemblies/
+Packages/
+*-progress.md
+.DS_Store

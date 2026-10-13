@@ -1,0 +1,21 @@
+{
+  "haugbui_name": "Haugbui",
+  "haugbui_piece_tomb": "Haugbui Tomb",
+  "haugbui_piece_tomb_desc": "A burial mound that binds an undead servant. It works for you at night.",
+  "haugbui_piece_offering": "Offering",
+  "haugbui_piece_offering_desc": "Roasted boar meat and honey laid before the tomb. Strengthens its Haugbui.",
+  "haugbui_piece_treasure": "Personal Treasure",
+  "haugbui_piece_treasure_desc": "The coins and gems the dead one was buried with. Strengthens its Haugbui.",
+  "haugbui_piece_bracelets": "Silver Bracelets",
+  "haugbui_piece_bracelets_desc": "Arm rings of a chieftain. Strengthens its Haugbui.",
+  "haugbui_piece_longsword": "Fallen King's Longsword",
+  "haugbui_piece_longsword_desc": "The blade of a fallen king. Its Haugbui will defend the burial place.",
+  "haugbui_piece_altar": "Altar of Darkness",
+  "haugbui_piece_altar_desc": "Dark energy that lets its Haugbui walk in daylight.",
+  "haugbui_piece_collection": "Collection Chest",
+  "haugbui_piece_collection_desc": "Items left here are put away by a Haugbui.",
+  "haugbui_piece_delivery": "Delivery Chest",
+  "haugbui_piece_delivery_desc": "A Haugbui brings the items you request to this chest.",
+  "haugbui_msg_api_check_failed": "Haugbui: some features were disabled because the game changed. See the BepInEx log.",
+  "haugbui_msg_piece_disabled": "Haugbui: a building piece was disabled because its recipe is invalid. See the BepInEx log."
+}

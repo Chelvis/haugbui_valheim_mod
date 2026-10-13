@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>Haugbui</RootNamespace>
+    <AssemblyName>Haugbui</AssemblyName>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DebugType>portable</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" IncludeAssets="compile" PrivateAssets="all" />
+    <PackageReference Include="JotunnLib" Version="2.30.2" IncludeAssets="compile" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Haugbui.Core\Haugbui.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="assembly_valheim" Publicize="true" HintPath="$(VALHEIM_MANAGED)/assembly_valheim.dll" Private="false" />
+    <Reference Include="assembly_utils" Publicize="true" HintPath="$(VALHEIM_MANAGED)/assembly_utils.dll" Private="false" />
+    <Reference Include="assembly_guiutils" HintPath="$(VALHEIM_MANAGED)/assembly_guiutils.dll" Private="false" />
+    <Reference Include="gui_framework" HintPath="$(VALHEIM_MANAGED)/gui_framework.dll" Private="false" />
+    <Reference Include="SoftReferenceableAssets" HintPath="$(VALHEIM_MANAGED)/SoftReferenceableAssets.dll" Private="false" />
+    <Reference Include="Unity.TextMeshPro" HintPath="$(VALHEIM_MANAGED)/Unity.TextMeshPro.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(VALHEIM_MANAGED)/UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.UI" HintPath="$(VALHEIM_MANAGED)/UnityEngine.UI.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="UnityEngine.AnimationModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.AnimationModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ParticleSystemModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.ParticleSystemModule.dll" Private="false" />
+    <Reference Include="UnityEngine.AudioModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.AudioModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UIModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.UIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.IMGUIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.InputLegacyModule.dll" Private="false" />
+    <Reference Include="UnityEngine.AssetBundleModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.AssetBundleModule.dll" Private="false" />
+    <Reference Include="UnityEngine.JSONSerializeModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.JSONSerializeModule.dll" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Translations\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="DeployToPlugins" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' And '$(MOD_DEPLOYPATH)' != ''">
+    <ItemGroup>
+      <DeployFiles Include="$(OutDir)Haugbui.dll;$(OutDir)Haugbui.pdb;$(OutDir)Haugbui.Core.dll;$(OutDir)Haugbui.Core.pdb" />
+      <DeployTranslations Include="$(OutDir)Translations\**\*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DeployFiles)" DestinationFolder="$(MOD_DEPLOYPATH)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(DeployTranslations)" DestinationFolder="$(MOD_DEPLOYPATH)\Translations\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Haugbui deployed to $(MOD_DEPLOYPATH)" />
+  </Target>
+</Project>

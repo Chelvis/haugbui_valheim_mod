@@ -1,0 +1,16 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)Environment.props" Condition="Exists('$(MSBuildThisFileDirectory)Environment.props')" />
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <HaugbuiVersion>0.0.1</HaugbuiVersion>
+    <Version>$(HaugbuiVersion)</Version>
+
+    <VALHEIM_INSTALL Condition="'$(VALHEIM_INSTALL)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</VALHEIM_INSTALL>
+    <!-- On machines without the game (macOS planning machine), the Managed folder copied to .reference/ is used. -->
+    <VALHEIM_MANAGED Condition="'$(VALHEIM_MANAGED)' == '' And Exists('$(VALHEIM_INSTALL)\valheim_Data\Managed')">$(VALHEIM_INSTALL)\valheim_Data\Managed</VALHEIM_MANAGED>
+    <VALHEIM_MANAGED Condition="'$(VALHEIM_MANAGED)' == ''">$(MSBuildThisFileDirectory).reference/Managed</VALHEIM_MANAGED>
+  </PropertyGroup>
+</Project>
