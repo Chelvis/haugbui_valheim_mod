@@ -228,8 +228,8 @@ All keys are namespaced `haugbui_*` and versioned. Blobs are `ZPackage` byte arr
 
 | Object | Keys |
 |---|---|
-| Any Haugbui host | `haugbui_kind` (int: Tomb, Collection, Delivery, Upgrade1..5), `haugbui_ver` (int), `haugbui_guid` (string) |
-| Tomb | `haugbui_owner` (long playerID), `haugbui_state` (int), `haugbui_hp` (float), `haugbui_carried` (byte[] inventory), `haugbui_overflow` (byte[] inventory), `haugbui_death_time` (double as long bits), `haugbui_cooldown` (float), `haugbui_toggles` (int bitmask: ground, harvest, combat, production, resting, combat_ack), `haugbui_pos` (Vec3 last creature position), `haugbui_level_cache` (int, display only) |
+| Any Haugbui host | `haugbui_kind` (int, `StructureKind`: Tomb 1, Offering 10, PersonalTreasure 11, SilverBracelets 12, Longsword 13, Altar 14, CollectionChest 20, DeliveryChest 21), `haugbui_ver` (int), `haugbui_guid` (string) |
+| Tomb | `haugbui_tomb` (versioned blob `TombState`: guid, owner playerID, toggles bitmask, health, death time, level cache), `haugbui_carried` / `haugbui_overflow` (byte[] vanilla `Inventory`) |
 | Upgrade | `haugbui_tomb_guid` (binding, written on placement), upgrade kind in `haugbui_kind` |
 | Delivery chest | `haugbui_requests` (byte[]: list of {itemPrefab, requested, delivered}) |
 | Vanilla station | `haugbui_job` (byte[]: {enabled, recipe input/output prefab, mode finite/infinite, target, supplied, produced, tombGuid}) |
@@ -246,16 +246,19 @@ Rules:
 ```mermaid
 sequenceDiagram
   participant P as Player (build hammer)
-  participant G as Placeholder piece (custom prefab)
-  participant HS as HostPrefabSystem
-  participant H as Vanilla host (e.g. piece_chest_wood)
-  P->>G: PlacePiece (vanilla resource consumption)
-  G->>HS: Start() on owner, ZDO new
-  HS->>H: Instantiate host at same pos/rot
-  HS->>H: copy creator; set haugbui_kind/guid/ver
-  HS->>G: ZNetScene.Destroy(placeholder)
-  Note over H: On every load: Awake postfix sees haugbui_kind<br/>→ attach TombComponent/Chest behaviour + visuals
+  participant J as Jötunn piece (clone of the vanilla host + HaugbuiStructure)
+  participant Z as ZDO
+  participant L as Later load
+  P->>J: PlacePiece (vanilla flow: resources, creator, effects)
+  J->>Z: IPlaced.OnPlaced → set haugbui_kind/guid/ver, state blobs
+  J->>Z: ZDO.SetPrefab(host hash) — saved as the vanilla host from now on
+  L->>L: ZNetScene instantiates the vanilla host
+  L->>L: Piece.Awake postfix sees haugbui_kind → name, refund, look, HaugbuiStructure
 ```
+
+The placed object is never swapped: only its ZDO prefab hash changes, which the game reads only when it instantiates
+objects (verified: `ZNetScene.CreateObject`, no instance/ZDO prefab consistency check). Implemented in
+`Structures/HostPrefabSystem.cs` (M2).
 
 Supporting patches: deconstruction refund (drop Haugbui recipe instead of host cost), hover/interact override,
 `Container.Awake` adjustments (size/name) before `Load`, exclusion from vanilla/3rd-party auto-storage where possible

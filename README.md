@@ -72,8 +72,8 @@ anything Haugbui-related is missing.
 
 | Milestone | Scope | Status |
 |---|---|---|
-| M1 | Foundation, configuration, localization, diagnostics, technical spikes | 🔨 in progress (0.0.1) |
-| M2 | Tomb, upgrades, levels, persistence | ⏳ |
+| M1 | Foundation, configuration, localization, diagnostics, technical spikes | ✅ (0.0.1) |
+| M2 | Tomb, upgrades, levels, persistence | 🔨 in progress |
 | M3 | The servant: flight, day/night, death and resurrection | ⏳ |
 | M4–M6 | Storage sorting, Collection/Delivery chests, ground items, harvesting | ⏳ |
 | M7 | Production automation, sleep fast mode | ⏳ |
@@ -116,7 +116,8 @@ Open the console with **F5** (launch with `-console`).
 | Command | What it does |
 |---|---|
 | `haugbui_status` | Plugin, game API and recipe validation status |
-| `haugbui_dump_prefabs` | Writes station, container, item and recipe data to `BepInEx/haugbui_prefabs.json` |
+| `haugbui_dump_prefabs` | Writes station, piece, container, item and recipe data to `BepInEx/haugbui_prefabs.json` |
+| `haugbui_dump_tomb` | Prints the nearest tomb's saved state, level and bound upgrades |
 | `haugbui_spike_*` | Debug builds only: technical spikes (see the development guide) |
 
 ## Languages

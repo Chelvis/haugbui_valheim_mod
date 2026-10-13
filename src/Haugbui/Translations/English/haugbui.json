@@ -17,5 +17,14 @@
   "haugbui_piece_delivery": "Delivery Chest",
   "haugbui_piece_delivery_desc": "A Haugbui brings the items you request to this chest.",
   "haugbui_msg_api_check_failed": "Haugbui: some features were disabled because the game changed. See the BepInEx log.",
-  "haugbui_msg_piece_disabled": "Haugbui: a building piece was disabled because its recipe is invalid. See the BepInEx log."
+  "haugbui_msg_piece_disabled": "Haugbui: a building piece was disabled because its recipe is invalid. See the BepInEx log.",
+  "haugbui_tomb_storage": "Tomb storage",
+  "haugbui_hover_level": "Level $1/$2",
+  "haugbui_hover_unbound": "Not bound to a tomb",
+  "haugbui_msg_need_bed": "A tomb must be built near a bed you own.",
+  "haugbui_msg_tomb_too_close": "Too close to another tomb.",
+  "haugbui_msg_need_tomb": "Build this next to a Haugbui tomb.",
+  "haugbui_msg_upgrade_exists": "The tomb nearby already has this.",
+  "haugbui_combat_warning_title": "The king's sword",
+  "haugbui_combat_warning_text": "With this sword the Haugbui will defend its burial place at all costs, and its blows may damage your buildings. Combat stays off until you enable it in the tomb."
 }

@@ -6,6 +6,7 @@ using Haugbui.Core.Scheduling;
 using Haugbui.Diagnostics;
 using Haugbui.Diagnostics.Commands;
 using Haugbui.Integration;
+using Haugbui.Structures;
 using Jotunn.Managers;
 using Jotunn.Utils;
 using UnityEngine;
@@ -24,6 +25,7 @@ namespace Haugbui
         public const string PluginVersion = "0.0.1";
 
         private Harmony _harmony;
+        private bool _piecesRegistered;
 
         internal static HaugbuiPlugin Instance { get; private set; }
         internal HaugbuiConfig Settings { get; private set; }
@@ -43,6 +45,10 @@ namespace Haugbui
             Scheduler.TickFailed += (handle, e) => Log.ErrorRateLimited("tick:" + handle.Name, $"Tick {handle.Name} failed: {e}");
 
             GameApiSelfCheck.Run();
+            ApplyConstructionSettings();
+            Settings.UpgradeRange.SettingChanged += (_, __) => ApplyConstructionSettings();
+            Settings.BedDistance.SettingChanged += (_, __) => ApplyConstructionSettings();
+            Settings.TombSpacing.SettingChanged += (_, __) => ApplyConstructionSettings();
 
             _harmony = new Harmony(PluginGuid);
             _harmony.PatchAll(typeof(HaugbuiPlugin).Assembly);
@@ -51,10 +57,13 @@ namespace Haugbui
 
             CommandManager.Instance.AddConsoleCommand(new StatusCommand());
             CommandManager.Instance.AddConsoleCommand(new DumpPrefabsCommand());
+            CommandManager.Instance.AddConsoleCommand(new DumpTombCommand());
 #if DEBUG
             CommandManager.Instance.AddConsoleCommand(new Spikes.TransferSaveSpikeCommand());
             CommandManager.Instance.AddConsoleCommand(new Spikes.RemoteWorkSpikeCommand());
             CommandManager.Instance.AddConsoleCommand(new Spikes.HostPrefabSpikeCommand());
+            CommandManager.Instance.AddConsoleCommand(new Spikes.FlightSpikeCommand());
+            Spikes.FlightSpike.RegisterPrefab();
 #endif
 
             Log.Info($"{PluginName} {PluginVersion} loaded (Valheim {Version.GetVersionString()}, Jötunn {Jotunn.Main.Version}).");
@@ -63,6 +72,7 @@ namespace Haugbui
         private void Update()
         {
             Scheduler.Update(Time.timeAsDouble);
+            StructureRegistry.Update();
         }
 
         private void OnDestroy()
@@ -74,6 +84,17 @@ namespace Haugbui
         private void OnVanillaPrefabsAvailable()
         {
             StartupValidation.Run(Settings);
+            if (_piecesRegistered) return;
+            _piecesRegistered = true;
+            if (GameApiSelfCheck.IsAvailable(Core.GameApi.Features.Structures)) HostPrefabSystem.RegisterPieces();
+            else Log.Error("Haugbui structures disabled: required game members are missing.");
+        }
+
+        private void ApplyConstructionSettings()
+        {
+            StructureRegistry.UpgradeRange = Settings.UpgradeRange.Value;
+            PlacementCheck.BedDistance = Settings.BedDistance.Value;
+            PlacementCheck.TombSpacing = Settings.TombSpacing.Value;
         }
     }
 }

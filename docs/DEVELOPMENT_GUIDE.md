@@ -153,6 +153,33 @@ must show only the `Harvest` feature disabled.
 2. Remove `Haugbui.dll` from `plugins\Haugbui\`, load the world: the chest is a normal chest with its items. `save`, quit.
 3. Put the DLL back, load: the tombstone look returns; `haugbui_spike_host info` shows the same `guid`.
 
+**HB-T-008 incorporeal flight:** next to a building with walls, a door and chests:
+1. `haugbui_spike_fly spawn 4` → a passive Wraith appears in front of you (4 m/s).
+2. `haugbui_spike_fly follow` and walk in and out of the building, through doors and over terrain bumps: it must pass
+   through walls, chests and doors and never fall below the ground.
+3. For a repeatable path: `haugbui_spike_fly point` at 5–10 places (inside/outside, behind walls), then
+   `haugbui_spike_fly go` and watch it loop for ~10 minutes.
+4. Hit it a few times (it must take damage), then `haugbui_spike_fly report`: send the line (stuck events must be 0).
+5. `haugbui_spike_fly despawn`. Quit and reload: no Wraith may remain (it is never saved).
+
+### 4.5 M2 structures (Debug or Release build)
+
+1. Hammer → **Haugbui** tab: Tomb and the five upgrades are listed with icons and the recipes of PRD §4.2
+   (`nocost` helps).
+2. Tomb rules: without a bed you own within 50 m the ghost is red and clicking shows "A tomb must be built near a bed
+   you own"; with your bed it places. A second tomb closer than 5 m is refused.
+3. Upgrades: refused with no tomb within 8 m; a second upgrade of the same kind is refused; any order works. The
+   Longsword shows the combat warning popup.
+4. Hover the tomb: "Level n/6" goes up by one per upgrade; `haugbui_dump_tomb` lists the bound upgrades.
+5. Destroy an upgrade with the hammer: level drops by one and the refund is the Haugbui recipe.
+6. `E` on the tomb opens "Tomb storage" (10 slots).
+7. Save, quit, reload: same look, level and storage. Remove `Haugbui.dll`, load: a wooden chest and tables (or
+   benches) with the same items; save, re-add the DLL, load: everything is back.
+8. Destroy the tomb and build a new one within range: the upgrades rebind to it.
+9. Send screenshots of each structure: the looks are first-pass kitbashes and their offsets need tuning
+   (`Structures/StructureDefinitions.cs`). Also run `haugbui_dump_prefabs` again and send the file: it now lists
+   every buildable piece, used to pick better hosts for the upgrades.
+
 ## 5. Logs and debugging
 
 | Log | Location |

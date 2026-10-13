@@ -21,6 +21,7 @@ namespace Haugbui.Core.GameApi
         public const string Cooking = "Production.Cooking";
         public const string Harvest = "Harvest";
         public const string RemoteWork = "RemoteWork";
+        public const string Structures = "Structures";
     }
 
     public sealed class ApiMember
@@ -105,6 +106,27 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "Beehive", "RPC_Extract", MemberKind.Method, Features.Harvest),
             M(Valheim, "Pickable", "RPC_Pick", MemberKind.Method, Features.Harvest),
             M(Valheim, "Pickable", "m_harvestable", MemberKind.Field, Features.Harvest),
+
+            M(Valheim, "Piece", "Awake", MemberKind.Method, Features.Structures),
+            M(Valheim, "Piece", "m_resources", MemberKind.Field, Features.Structures),
+            M(Valheim, "Player", "UpdatePlacementGhost", MemberKind.Method, Features.Structures),
+            M(Valheim, "Player", "TryPlacePiece", MemberKind.Method, Features.Structures, "Piece"),
+            M(Valheim, "Player", "SetPlacementGhostValid", MemberKind.Method, Features.Structures),
+            M(Valheim, "Player", "m_placementGhost", MemberKind.Field, Features.Structures),
+            M(Valheim, "Player", "m_placementStatus", MemberKind.Field, Features.Structures),
+            M(Valheim, "Player", "GetPlayerID", MemberKind.Method, Features.Structures),
+            M(Valheim, "Bed", "Awake", MemberKind.Method, Features.Structures),
+            M(Valheim, "Bed", "GetOwner", MemberKind.Method, Features.Structures),
+            M(Valheim, "Container", "GetHoverText", MemberKind.Method, Features.Structures),
+            M(Valheim, "Container", "m_name", MemberKind.Field, Features.Structures),
+            M(Valheim, "Inventory", "m_name", MemberKind.Field, Features.Structures),
+            M(Valheim, "ZDO", "SetPrefab", MemberKind.Method, Features.Structures),
+            M(Valheim, "ZDOMan", "m_objectsByID", MemberKind.Field, Features.Structures),
+            M(Valheim, "TombStone", "m_floater", MemberKind.Field, Features.Structures),
+            M(Valheim, "UnifiedPopup", "Push", MemberKind.Method, Features.Structures),
+            M(Valheim, "UnifiedPopup", "Pop", MemberKind.Method, Features.Structures),
+            M(Valheim, "WarningPopup", null, MemberKind.Type, Features.Structures),
+            M(Valheim, "IPlaced", null, MemberKind.Type, Features.Structures),
         };
 
         public static IEnumerable<string> FeaturesOf(IEnumerable<ApiMember> members) =>

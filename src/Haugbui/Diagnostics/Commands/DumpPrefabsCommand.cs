@@ -155,6 +155,29 @@ namespace Haugbui.Diagnostics.Commands
             }
             json.EndArray();
 
+            json.Name("pieces").BeginArray();
+            foreach (GameObject prefab in prefabs)
+            {
+                Piece piece = prefab.GetComponent<Piece>();
+                if (piece == null) continue;
+                json.BeginObject()
+                    .Property("prefab", prefab.name)
+                    .Property("token", piece.m_name)
+                    .Property("category", piece.m_category.ToString())
+                    .Property("station", piece.m_craftingStation != null ? piece.m_craftingStation.name : null);
+                json.Name("components").BeginArray();
+                foreach (Component component in prefab.GetComponents<Component>())
+                {
+                    if (component != null && !(component is Transform)) json.Value(component.GetType().Name);
+                }
+                json.EndArray();
+                json.Name("resources").BeginArray();
+                foreach (Piece.Requirement req in piece.m_resources)
+                    json.BeginObject().Property("item", PrefabName(req.m_resItem)).Property("amount", req.m_amount).EndObject();
+                json.EndArray().EndObject();
+            }
+            json.EndArray();
+
             json.Name("containers").BeginArray();
             foreach (GameObject prefab in prefabs)
             {

@@ -422,7 +422,7 @@
         {
           "id": "HB-T-014",
           "title": "HostPrefabSystem (or fallback) generic implementation",
-          "description": "Generalise the spike result: register Haugbui piece definitions (kind, host prefab, placeholder, visuals, recipe); handle placement swap, Awake augmentation, hover/interact override, deconstruct refunds. If the spike was no-go, implement plain Jötunn custom pieces with the same definition API.",
+          "description": "Generalise the spike: register Haugbui piece definitions (kind, host candidates, visuals, recipe) as Jötunn pieces cloned from the vanilla host; IPlaced.OnPlaced writes haugbui_* keys and switches the ZDO prefab to the host (ZDO.SetPrefab); Piece.Awake postfix restores name, refund, look and behaviour on loaded hosts.",
           "priority": "P0",
           "dependencies": [
             "HB-T-007",
