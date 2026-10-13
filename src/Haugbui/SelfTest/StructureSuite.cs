@@ -30,7 +30,7 @@ namespace Haugbui.SelfTest
         {
             _t.Suite = "Structures";
             Player player = _t.Player;
-            _arena = SelfTestContext.OnGround(player.transform.position + player.transform.forward * 15f);
+            _arena = SelfTestContext.FindDryArena(player.transform.position + player.transform.forward * 15f);
 
             if (!StructureDefinitions.All.All(d => HostPrefabSystem.IsRegistered(d.Kind)))
             {
@@ -135,6 +135,14 @@ namespace Haugbui.SelfTest
                 yield return Screenshots.Capture(_t.OutputFolder, upgrade.Kind.ToString(), upgrade.transform.position, 2f);
             yield return Screenshots.Capture(_t.OutputFolder, "tomb_and_upgrades", _arena, 7f);
             _t.Check("visual parts all found", StructureVisuals.MissingParts.Count == 0, string.Join(", ", StructureVisuals.MissingParts));
+            foreach (StructureDefinition definition in StructureDefinitions.All)
+            {
+                foreach (VisualPart part in definition.Parts)
+                {
+                    StructureVisuals.PartDiagnostics.TryGetValue(definition.PieceId + "/" + part.Prefab, out string detail);
+                    _t.Check($"{definition.Kind} shows {part.Prefab}", StructureVisuals.CopiedCount(definition.PieceId, part.Prefab) > 0, detail ?? "not applied");
+                }
+            }
         }
 
         private IEnumerator ReloadAll()

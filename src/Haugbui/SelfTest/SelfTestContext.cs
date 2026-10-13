@@ -79,6 +79,35 @@ namespace Haugbui.SelfTest
             return position;
         }
 
+        /// <summary>A dry, fairly flat spot near the preferred one, so pictures are not taken under water.</summary>
+        public static Vector3 FindDryArena(Vector3 preferred, float radius = 6f)
+        {
+            float water = ZoneSystem.instance.m_waterLevel + 0.5f;
+            for (float ring = 0; ring <= 60f; ring += 6f)
+            {
+                for (int step = 0; step < (ring == 0 ? 1 : 12); step++)
+                {
+                    float angle = step * Mathf.PI / 6f;
+                    Vector3 candidate = OnGround(preferred + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * ring);
+                    if (IsDryAndFlat(candidate, radius, water)) return candidate;
+                }
+            }
+            return OnGround(preferred);
+        }
+
+        private static bool IsDryAndFlat(Vector3 center, float radius, float water)
+        {
+            float min = float.MaxValue, max = float.MinValue;
+            for (int i = 0; i < 8; i++)
+            {
+                float angle = i * Mathf.PI / 4f;
+                float h = ZoneSystem.instance.GetGroundHeight(center + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radius);
+                min = Mathf.Min(min, h);
+                max = Mathf.Max(max, h);
+            }
+            return min > water && center.y > water && max - min < 1.5f;
+        }
+
         /// <summary>Spawns a vanilla networked prefab (test fixture; no creator, no resources).</summary>
         public GameObject SpawnVanilla(string prefabName, Vector3 position, Quaternion rotation)
         {
@@ -103,7 +132,14 @@ namespace Haugbui.SelfTest
             while (Time.time < end && (recreated = ZNetScene.instance.FindInstance(zdo)) == null)
                 yield return null;
 
-            if (recreated != null) _created.Add(recreated.gameObject);
+            if (recreated != null)
+            {
+                _created.Add(recreated.gameObject);
+                // Containers read their items from the ZDO on their first CheckForChanges, up to a second later.
+                Container container = recreated.GetComponent<Container>();
+                while (container != null && Time.time < end && container.m_lastRevision != zdo.DataRevision)
+                    yield return null;
+            }
             done(recreated != null ? recreated.gameObject : null);
         }
 

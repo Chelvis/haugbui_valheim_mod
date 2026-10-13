@@ -11,6 +11,14 @@ namespace Haugbui.Structures
 
         internal static readonly HashSet<string> MissingParts = new HashSet<string>();
 
+        /// <summary>"pieceId/part" → what was copied and why meshes were skipped; read by the self-test.</summary>
+        internal static readonly Dictionary<string, string> PartDiagnostics = new Dictionary<string, string>();
+
+        internal static int CopiedCount(string pieceId, string part) =>
+            PartDiagnostics.TryGetValue(pieceId + "/" + part, out string text) && text.StartsWith("copied ")
+                ? int.Parse(text.Substring(7).Split(';')[0])
+                : -1;
+
         /// <summary>Idempotent: hides the host meshes when requested and adds copies of the parts' meshes.</summary>
         public static void Apply(GameObject target, StructureDefinition definition)
         {
@@ -41,7 +49,7 @@ namespace Haugbui.Structures
                 holder.transform.localPosition = anchor + part.Offset;
                 holder.transform.localRotation = Quaternion.Euler(part.Euler);
                 holder.transform.localScale = Vector3.one * part.Scale;
-                copied += CopyMeshes(source, holder.transform);
+                copied += CopyMeshes(source, holder.transform, definition.PieceId + "/" + part.Prefab);
             }
 
             if (copied == 0 && definition.HideHost)
@@ -75,35 +83,56 @@ namespace Haugbui.Structures
         /// Copies only static meshes. Instantiating the source prefab would create a networked object, and item prefabs
         /// also carry an "attach" model for when they are equipped, which must be skipped.
         /// </summary>
-        private static int CopyMeshes(GameObject source, Transform parent)
+        private static int CopyMeshes(GameObject source, Transform parent, string diagnosticsKey)
         {
             int count = 0;
+            var skipped = new List<string>();
             GameObject floater = source.GetComponent<TombStone>()?.m_floater;
-            foreach (MeshFilter filter in source.GetComponentsInChildren<MeshFilter>(true))
+            foreach (Renderer renderer in source.GetComponentsInChildren<Renderer>(true))
             {
-                MeshRenderer renderer = filter.GetComponent<MeshRenderer>();
-                if (renderer == null || filter.sharedMesh == null || !IsShownInWorld(filter.transform, source.transform)) continue;
-                if (floater != null && filter.transform.IsChildOf(floater.transform)) continue;
+                string path = PathOf(renderer.transform, source.transform);
+                Mesh mesh = renderer is SkinnedMeshRenderer skinned ? skinned.sharedMesh
+                    : renderer is MeshRenderer ? renderer.GetComponent<MeshFilter>()?.sharedMesh
+                    : null;
+                string reason = mesh == null ? renderer.GetType().Name + " without mesh"
+                    : floater != null && renderer.transform.IsChildOf(floater.transform) ? "floater"
+                    : HiddenReason(renderer.transform, source.transform);
+                if (reason != null)
+                {
+                    skipped.Add($"{path} ({reason})");
+                    continue;
+                }
 
-                var copy = new GameObject(filter.name);
+                var copy = new GameObject(renderer.name);
                 copy.transform.SetParent(parent, false);
-                copy.transform.localPosition = source.transform.InverseTransformPoint(filter.transform.position);
-                copy.transform.localRotation = Quaternion.Inverse(source.transform.rotation) * filter.transform.rotation;
-                copy.transform.localScale = filter.transform.lossyScale;
-                copy.AddComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
+                copy.transform.localPosition = source.transform.InverseTransformPoint(renderer.transform.position);
+                copy.transform.localRotation = Quaternion.Inverse(source.transform.rotation) * renderer.transform.rotation;
+                copy.transform.localScale = renderer.transform.lossyScale;
+                copy.AddComponent<MeshFilter>().sharedMesh = mesh;
                 copy.AddComponent<MeshRenderer>().sharedMaterials = renderer.sharedMaterials;
                 count++;
             }
+
+            if (!PartDiagnostics.ContainsKey(diagnosticsKey))
+                PartDiagnostics[diagnosticsKey] = $"copied {count}" + (skipped.Count > 0 ? "; skipped " + string.Join(", ", skipped) : "");
             return count;
         }
 
-        private static bool IsShownInWorld(Transform node, Transform root)
+        private static string PathOf(Transform node, Transform root)
+        {
+            var parts = new List<string>();
+            for (Transform t = node; t != null && t != root; t = t.parent) parts.Insert(0, t.name);
+            return parts.Count == 0 ? "(root)" : string.Join("/", parts);
+        }
+
+        private static string HiddenReason(Transform node, Transform root)
         {
             for (Transform t = node; t != null && t != root; t = t.parent)
             {
-                if (!t.gameObject.activeSelf || t.name.ToLowerInvariant().Contains("attach")) return false;
+                if (!t.gameObject.activeSelf) return "inactive " + t.name;
+                if (t.name.ToLowerInvariant().Contains("attach")) return "equip model";
             }
-            return true;
+            return null;
         }
     }
 }

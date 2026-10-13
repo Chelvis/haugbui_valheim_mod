@@ -77,7 +77,7 @@ namespace Haugbui.Spikes
         {
             if (chest.transform.Find(VisualName) != null) return;
 
-            foreach (Renderer renderer in chest.GetComponentsInChildren<Renderer>())
+            foreach (Renderer renderer in chest.GetComponentsInChildren<Renderer>(true))
                 renderer.enabled = false;
 
             var visual = new GameObject(VisualName);
