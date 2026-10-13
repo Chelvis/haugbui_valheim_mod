@@ -15,8 +15,8 @@
       "tickets": [
         {
           "id": "HB-T-001",
-          "title": "Create solution from JotunnModStub with pinned versions",
-          "description": "Create Haugbui.sln from JotunnModStub; rename; target net48; reference JotunnLib 2.30.2 (NuGet) and BepInExPack_Valheim 5.4.2351; enable publicizer (DoPrebuild.props ExecutePrebuild=true); Environment.props template (git-ignored) with VALHEIM_INSTALL/BEPINEX_PATH/MOD_DEPLOYPATH; Debug build deploys dll+mdb to the plugins folder.",
+          "title": "Create solution with pinned versions",
+          "description": "Haugbui.sln with net48 plugin; compile-only JotunnLib 2.30.2 and BepInEx.Core 5.4.21; BepInEx.AssemblyPublicizer.MSBuild for game assemblies; Directory.Build.props resolving VALHEIM_INSTALL/VALHEIM_MANAGED (falls back to .reference/Managed); Environment.props template (git-ignored); Debug build deploys DLLs, pdbs and Translations to MOD_DEPLOYPATH.",
           "priority": "P0",
           "dependencies": [],
           "acceptance_criteria": [
@@ -2070,41 +2070,9 @@
           ]
         },
         {
-          "id": "HB-T-092",
-          "title": "RecipeCraftingAdapter (cauldron)",
-          "description": "Generic adapter for CraftingStation recipes behind RecipeStationAllowList (v1: cauldron only). Job picks one recipe known to the owner; gathers ingredients from storage; checks station level/extensions like a player; creates one product and removes its ingredients in the same frame; stores the product per storage rules.",
-          "priority": "P1",
-          "dependencies": [
-            "HB-T-064",
-            "HB-T-043",
-            "HB-T-091"
-          ],
-          "acceptance_criteria": [
-            "Finite job of 10 soups produces exactly 10 and consumes exactly 10× ingredients",
-            "Recipe requiring a higher cauldron level is not offered",
-            "Workbench/forge stay unsupported unless added to the allow-list"
-          ],
-          "components": [
-            "ProductionStationAdapter"
-          ],
-          "testing": {
-            "automated": [
-              "Ingredient/product conservation with fake inventories"
-            ],
-            "manual": [
-              "Cauldron soups and mead bases"
-            ]
-          },
-          "requirements": [
-            "HB-111",
-            "HB-113",
-            "HB-122"
-          ]
-        },
-        {
           "id": "HB-T-069",
           "title": "Production level gate and toggle",
-          "description": "ProductionUnlockLevel (default 2) and tomb Production toggle; RecipeStationAllowList (default: cauldron only); Obliterator never supported.",
+          "description": "ProductionUnlockLevel (default 2) and tomb Production toggle; only Smelter, CookingStation and Fermenter families are offered; crafting stations (recipes) and the Obliterator are never supported.",
           "priority": "P0",
           "dependencies": [
             "HB-T-064",
@@ -2112,7 +2080,8 @@
           ],
           "acceptance_criteria": [
             "Below unlock level the panel explains the requirement",
-            "Toggle OFF stops all production tasks"
+            "Toggle OFF stops all production tasks",
+            "Shift+E on a workbench, forge, cauldron, mead ketill or prep table opens no automation panel"
           ],
           "components": [
             "HaugbuiProductionManager"
@@ -2124,6 +2093,7 @@
             ]
           },
           "requirements": [
+            "HB-122",
             "HB-161"
           ]
         },

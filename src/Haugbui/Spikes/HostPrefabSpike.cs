@@ -100,10 +100,13 @@ namespace Haugbui.Spikes
         private static int CopyMeshes(GameObject source, Transform parent)
         {
             int count = 0;
+            // The player tombstone carries a floating raft (TombStone.m_floater) that only shows in water.
+            GameObject floater = source.GetComponent<TombStone>()?.m_floater;
             foreach (MeshFilter filter in source.GetComponentsInChildren<MeshFilter>(true))
             {
                 MeshRenderer renderer = filter.GetComponent<MeshRenderer>();
                 if (renderer == null || filter.sharedMesh == null) continue;
+                if (floater != null && filter.transform.IsChildOf(floater.transform)) continue;
                 var copy = new GameObject(filter.name);
                 copy.transform.SetParent(parent, false);
                 copy.transform.localPosition = source.transform.InverseTransformPoint(filter.transform.position);

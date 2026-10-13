@@ -48,7 +48,6 @@ namespace Haugbui.Config
         public ConfigEntry<float> RestFullHealSeconds { get; private set; }
 
         public ConfigEntry<int> ProductionUnlockLevel { get; private set; }
-        public ConfigEntry<string> RecipeStationAllowList { get; private set; }
 
         public ConfigEntry<float> BedDistance { get; private set; }
         public ConfigEntry<float> TombSpacing { get; private set; }
@@ -102,8 +101,6 @@ namespace Haugbui.Config
 
             ProductionUnlockLevel = BindAdmin(Production, "ProductionUnlockLevel", 2,
                 "Tomb level that unlocks production automation.", ProgressionTable.MinLevel, ProgressionTable.MaxLevel);
-            RecipeStationAllowList = BindAdmin(Production, "RecipeStationAllowList", "piece_cauldron",
-                "Comma-separated crafting station prefabs where the Haugbui may craft recipes.");
 
             BedDistance = BindAdmin(Construction, "BedDistance", 50f,
                 "Maximum distance between a tomb and a bed owned by the builder.", 5f, 500f);

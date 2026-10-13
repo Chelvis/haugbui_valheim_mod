@@ -15,7 +15,8 @@ Companion documents: `TECHNICAL_FEASIBILITY.md` (verified facts), `PRODUCT_REQUI
    `Integration/` adapter layer, so a game update breaks one place, and the domain logic stays unit-testable.
 5. **Transfers are single-frame and owner-checked.** An item leaves a source and enters a destination in the same
    frame, only when this peer owns both ZDOs. World saves snapshot ZDOs on the main thread between frames, so a save never
-   observes a half-moved item. [I — validated by test T-PERSIST-03]
+   observes a half-moved item. [V — spike HB-T-009, 2026-10-13: 120 s of random destination-first moves between two
+   chests with a forced save every 5 s, then reload: item totals unchanged]
 6. **Owner-authoritative execution.** All Haugbui logic runs only on the peer that owns the tomb's ZDO (in
    single-player: the local player). This keeps the door open to server-authoritative multiplayer.
 7. **No custom items. Host prefabs for structures.** See feasibility §9.2.
@@ -258,7 +259,9 @@ sequenceDiagram
 
 Supporting patches: deconstruction refund (drop Haugbui recipe instead of host cost), hover/interact override,
 `Container.Awake` adjustments (size/name) before `Load`, exclusion from vanilla/3rd-party auto-storage where possible
-(`MUC_Ignore`). Spike ticket validates this end-to-end; fallback is standard Jötunn prefabs.
+(`MUC_Ignore`). **Decision (spike HB-T-007, 2026-10-13): go.** The `Container.Awake` postfix, look swap and
+missing-mod survival work on 1.0.17; the placeholder → host swap and refund patch are built and tested in HB-T-014.
+Fallback (standard Jötunn prefabs) stays documented only.
 
 ## 9. Production adapters
 
@@ -286,10 +289,9 @@ interface IStationAdapter {
 - Inputs are taken from eligible storage minus quantities reserved by Delivery Chest requests (`DeliveryLedger`).
 - `CookingStationAdapter` is **dawn-aware**: without the Altar it only loads an item if cook time + collection margin ends
   before the Haugbui must return; done items have top task priority (prevents burning).
-- `RecipeCraftingAdapter` covers `CraftingStation` + `Recipe` stations: the Haugbui gathers `m_resources` into its
-  carried inventory, flies to the station, checks `IsRecipeKnown`, station level and `CheckUsable` (fire), then swaps
-  resources for products in one frame (crafter = tomb owner). Enabled by a station allow-list config: v1 default =
-  cauldron only; workbench, forge, etc. become an update by adding them to the list.
+- No adapter for `CraftingStation` recipes in v1 (PRD HB-122). A V2 `RecipeCraftingAdapter` would gather
+  `m_resources`, check `IsRecipeKnown`, station level and `CheckUsable`, and swap resources for products in one frame;
+  `IStationAdapter` already allows adding it without touching the planner.
 - Manual use is respected: the Haugbui never removes queued inputs; it only tops up to capacity, so a player can
   still add items manually. A station whose queue holds a different input than the job recipe is left alone until
   empty ("manual use detected" status).
@@ -350,7 +352,7 @@ ticks every `RemoteTickSeconds`, default 10 s) runs each tomb's abstract worker 
   throughput never exceeds what the physical servant could do.
 - Supported remotely: tomb storage / Collection Chest → storage chests; Delivery Chest requests; smelter/kiln/refinery
   queue + fuel top-up within capacity (writes the same ZDO keys the vanilla `QueueOre`/`SetFuel` write; key list in
-  `Haugbui.Core/GameApi/GameApiManifest.cs`). Not supported remotely: harvesting, output collection, cooking, cauldron, combat.
+  `Haugbui.Core/GameApi/GameApiManifest.cs`). Not supported remotely: harvesting, output collection, cooking, combat.
 - Container data is edited through a temporary `Inventory` (`Load` from `s_items`, modify, `Save` back); the
   destination-first rule applies.
 - Hand-over: when the zone loads, the remote worker stops for that tomb and the physical Haugbui takes over (state

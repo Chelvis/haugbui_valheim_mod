@@ -83,9 +83,8 @@ Upgrades can be built **in any order**. Level and abilities are two independent 
 | **HB-023 Fallen King's Longsword** | black-metal two-handed longsword on a wall mount | black metal | BlackMetal ×15, LinenThread ×5, TrophyDraugrElite ×1 | Forge | Plains |
 | **HB-024 Altar of Darkness** | dark altar radiating purple energy | eitr, black marble | BlackMarble ×20, Eitr ×10, BoneFragments ×20, Ectoplasm ×10 | Galdr table | Mistlands |
 
-Prefab names verified on the Jötunn 1.0.7 lists: CookedMeat, Honey, Thistle, Wood, FineWood, Coins, Ruby,
-AmberPearl, Amber, Iron, Silver, BlackMetal, LinenThread, Eitr, BlackMarble, BoneFragments, Ectoplasm, Resin.
-Not yet verified: GreydwarfEye, SurtlingCore, WolfPelt, TrophyDraugrElite, `piece_magetable` (Galdr table). All recipe ingredients
+All item and station names above were verified in game on 1.0.17 (startup validation 8/8 and `haugbui_dump_prefabs`,
+2026-10-13). All recipe ingredients
 and stations are validated at startup against `ObjectDB`/`ZNetScene` (backlog HB-T-012); a missing name disables
 that piece with a logged error instead of breaking the game.
 
@@ -247,16 +246,15 @@ All stations below unlock at `ProductionUnlockLevel` (default **2**).
 | Fermenter | load base, tap when ready |
 | Hot tub, Frigid kiln, Shield generator | fuel maintenance only |
 | Cooking station, Iron cooking station, Stone oven, Frost foundry | inputs + fuel, remove done items; dawn-aware (below) |
-| Cauldron (and its extensions) | crafts recipes from the cauldron recipe list (soups, meads bases, etc.) |
-| Workbench, Forge, Black forge, Galdr table, Artisan table, Stonecutter | **not in v1**; recipe crafting is built generically so these can be enabled later by config allow-list |
+| Any recipe station: Workbench, Forge, Black forge, Stonecutter, Artisan table, Galdr table, Cauldron, Mead ketill, Food preparation table | **not in v1** (V2 candidate) |
 | Obliterator | **never** |
 
 - **HB-121** Cooking stations: the Haugbui loads a slot only if it can come back before the item burns (it will
   still be outside, or it has the Altar). Before entering the tomb it removes every done item; items still cooking
   when it leaves may burn, as for a player — the panel warns about this.
-- **HB-122** Cauldron: a job picks one cauldron recipe; the Haugbui gathers the ingredients from storage, crafts one
-  unit at a time through the game's crafting rules (station level/extensions required as for a player) and stores the
-  result per §8.1. Ingredients are removed only in the same step that creates the product.
+- **HB-122** v1 automates only simple production machines (a station that converts or consumes items placed in it:
+  the Smelter, CookingStation and Fermenter families). It never crafts **recipes** at any `CraftingStation`;
+  recipe crafting is a V2 candidate. [Decision 2026-10-13, product owner]
 
 ### 13.2 Behaviour
 
@@ -293,7 +291,7 @@ Planned for release 1.1 (backlog M12), with a feasibility spike in M1; can move 
   fulfils Delivery Chest requests, and refills smelter/kiln/refinery inputs and fuel within capacity.
 - **HB-126** Away mode follows the same rules as the visible Haugbui (night/Altar, toggles, storage rule, wards,
   destination-first) and is throttled by simulated travel time, so it is never faster than the visible Haugbui.
-- **HB-127** Not done in away mode: harvesting, collecting station outputs, cooking, cauldron, combat. The game freezes
+- **HB-127** Not done in away mode: harvesting, collecting station outputs, cooking, combat. The game freezes
   those objects while unloaded and catches up when the player returns; the visible Haugbui then collects.
 - **HB-128** Config `AwayModeEnabled`, default ON. The tomb panel shows what was done while away (summary counters).
 - **HB-129** Nothing happens while the game is closed (world time is paused).
@@ -364,7 +362,7 @@ Planned for release 1.1 (backlog M12), with a feasibility spike in M1; can move 
 ## 19. Configuration
 
 - **HB-180** BepInEx config with defaults from this document: cooldown, base radius & per-level tables, speed,
-  capacity, slots, HP, tick intervals, production unlock level & allowed stations (`RecipeStationAllowList`), away mode, bed distance, tomb spacing, upgrade
+  capacity, slots, HP, tick intervals, production unlock level & allowed stations, away mode, bed distance, tomb spacing, upgrade
   range, effects quality, debug logging. Normal play needs no configuration. Technical settings grouped under
   "Advanced".
 
@@ -386,7 +384,7 @@ Planned for release 1.1 (backlog M12), with a feasibility spike in M1; can move 
 ## 22. Out of scope (v1)
 
 Multiplayer/dedicated servers, simulation while the game is closed, keeping distant areas loaded (chunk loader),
-crafting at workbench-type stations (prepared, disabled), gamepad-specific UI polish beyond vanilla
+crafting recipes at any crafting station (V2 candidate), gamepad-specific UI polish beyond vanilla
 navigation, compatibility patches for other logistics mods (documented only), additional languages.
 
 ## 23. Decisions log
@@ -394,7 +392,8 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | Date | Question | Decision |
 |---|---|---|
 | 2026-10-13 | Cooldown clock (HB-135) | World time only |
-| 2026-10-13 | Production unlock (§13.3) | Level 2, configurable; cooking stations and cauldron included; workbench-type crafting prepared but off |
+| 2026-10-13 | Production unlock (§13.3) | Level 2, configurable; cooking stations included |
+| 2026-10-13 | Recipe crafting (HB-122) | None in v1 (no workbench, forge, cauldron, mead ketill, prep table…); V2 candidate |
 | 2026-10-13 | Upgrade order (HB-010) | Any order; level = 1 + upgrades; Longsword and Altar grant independent abilities |
 | 2026-10-13 | Recipe quantities | Delegated to planning; defaults and rationale in §4.3; tunable |
 | 2026-10-13 | Work while the player sleeps (HB-046) | Fast mode proportional to the skipped night |

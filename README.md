@@ -38,7 +38,7 @@ works. At dawn he returns to his mound — unless you give him reason to walk in
 | 🧺 | **Collection Chest** | Drop anything into it; he puts it away. |
 | 📜 | **Delivery Chest** | Ask for *"40 Wood, 20 Resin"*; he gathers it from your chests and brings it. |
 | 🌾 | **Ground items & harvest** | Picks up loose items, harvests ripe crops, empties beehives and birds' nests. |
-| 🔥 | **Production** | Feeds smelters, kilns, the windmill, spinning wheel, eitr refinery, fermenters, cooking stations and the cauldron — with finite ("make 100 iron") or endless jobs. |
+| 🔥 | **Production** | Feeds smelters, kilns, the windmill, spinning wheel, eitr refinery, fermenters and cooking stations — with finite ("make 100 iron") or endless jobs. |
 | ⚔️ | **Defence** *(opt-in)* | Given his king's sword, he defends his burial place. |
 | 🌙 | **Sleep & away** | Works through the night you skip by sleeping, and keeps your base logistics running while you are far away. |
 

@@ -131,7 +131,8 @@ AmmoNonEquipable; deny everything equipable, `Customization`, `None`). No name-b
 
 ## 4. Production stations
 
-All verified in 1.0.17 code [V]; prefab names from Jötunn 1.0.7 list [W].
+All verified in 1.0.17 code [V]. Prefab names and values verified with `haugbui_dump_prefabs` on 1.0.17 (2026-10-13;
+dump kept in `.reference/dumps/`, not committed) [V].
 
 | Station class | Prefabs | Input API | Output | Notes |
 |---|---|---|---|---|
@@ -140,7 +141,33 @@ All verified in 1.0.17 code [V]; prefab names from Jötunn 1.0.7 list [W].
 | `Fermenter` | `fermenter` | `RPC_AddItem(int prefabNameHash, bool)` (only when Empty) | `RPC_Tap` (Ready) → `m_producedItems` ground items | 2400 s duration; must not be covered/"Exposed". |
 | `ShieldGenerator` | `piece_shieldgenerator` | `RPC_AddFuel` (no max check) | — | Fuel maintenance only. |
 | `Incinerator` | `incinerator` (Obliterator) | — | — | **Never automate** (destroys items). |
-| `CraftingStation` + `Recipe` | `piece_cauldron` (and later workbench, forge, etc.) | No RPC: vanilla crafting is instant, done by the player through `InventoryGui` (resources removed, product added to the player inventory) | Product goes to the crafter's inventory | Cauldron is a **crafting station**, not a processing machine (prefab data; [W], confirm with prefab dump). Automation = Haugbui performs the recipe itself at ≤1 m: checks `Player.IsRecipeKnown`, station level (`m_minStationLevel`), fire requirement (`CraftingStation.CheckUsable`), removes `m_resources` and adds `m_amount` products to its carried inventory in one frame. Real "unlocked recipe" rule applies here. v1 enables it **only for the cauldron**; workbench-type stations stay disabled (config allow-list) for a later update. [I] |
+| `CraftingStation` + `Recipe` | `piece_cauldron` (and later workbench, forge, etc.) | No RPC: vanilla crafting is instant, done by the player through `InventoryGui` (resources removed, product added to the player inventory) | Product goes to the crafter's inventory | Cauldron is a **crafting station**, not a processing machine ([V], dump). Automation = Haugbui performs the recipe itself at ≤1 m: checks `Player.IsRecipeKnown`, station level (`m_minStationLevel`), fire requirement (`CraftingStation.CheckUsable`), removes `m_resources` and adds `m_amount` products to its carried inventory in one frame. Real "unlocked recipe" rule applies here. **Not in v1** (product decision 2026-10-13: no recipe crafting at any station); V2 candidate. [I] |
+
+### 4.1 Prefab values from the 1.0.17 dump [V]
+
+| Prefab | Kind | Fuel (max, per product) | Queue max | Sec/product | Notes |
+|---|---|---|---|---|---|
+| `smelter` | Smelter | Coal (20, 2) | 10 | 30 | Copper/Tin/Silver ore, Iron ore, Iron/Bronze/Copper scrap |
+| `blastfurnace` | Smelter | Coal (20, 2) | 10 | 30 | BlackMetalScrap, FlametalOreNew (listed twice), **GoldOre → Gold** (new) |
+| `charcoal_kiln` | Smelter | — | 25 | 15 | Wood, FineWood, RoundLog → Coal |
+| `windmill` | Smelter | — | 50 | 10 | Barley → BarleyFlour, **OatSeeds → Oat, Oat → OatFlour** (new); `spawnStack` |
+| `piece_spinningwheel` | Smelter | — | 40 | 30 | Flax → LinenThread; needs roof |
+| `eitrrefinery` | Smelter | Sap (20, 1) | 20 | 40 | Softtissue → Eitr |
+| `piece_bathtub` | Smelter, fuel only | Wood (10, 1) | 0 | 5000 | no conversions |
+| `piece_FrostKiln` | Smelter, fuel only | Ice (25, 5) | 0 | 30 | single conversion with **no input** → FrozenFuel: produces from fuel; output must be collected |
+| `piece_cookingstation` / `_iron` | CookingStation | no fuel, needs fire | 2 / 5 slots | per item | burns to Coal |
+| `piece_oven` | CookingStation | Wood (10) | 4 slots | per item | |
+| `piece_FrostFoundry` | CookingStation | FrozenFuel (20) | 1 slot | per item | 30 conversions |
+| `fermenter` | Fermenter | — | 1 | 2400 | 20 conversions, **6** products per base (not the code default 4) |
+| `piece_beehive` / `piece_birdnest` | Beehive | — | max 4 | 1200 | Honey / Feathers |
+
+Crafting stations: `piece_workbench` (88 recipes), `forge` (74), `blackforge` (144), `piece_magetable` (34),
+`piece_artisanstation` (7), `piece_stonecutter` (1), `UpgradeStation`, and three food stations: **`piece_cauldron`**
+(41: soups, jerky, stews…), **`piece_MeadCauldron`** "Mead ketill" (21: all mead bases and barley wine base) and
+**`piece_preptable`** "food preparation table" (28: doughs, feast materials, raw fish dishes). Mead bases are no
+longer made at the cauldron. None of these recipe stations is automated in v1.
+
+`piece_chest_wood` is 5×2 = 10 slots [V], as assumed for the Collection/Delivery chest hosts.
 
 Feasible with a **station adapter** abstraction (§ARCHITECTURE). Two important consequences:
 
@@ -284,7 +311,13 @@ seconds) in the tomb ZDO. No real-time option in v1.
 5. **Backups:** Valheim keeps its own automatic backups (folder per backup in 1.0 [W]); the mod additionally offers an
    opt-in "backup world folder on load when Haugbui data is detected" [U — path API in 1.0 save system to confirm].
 
-**Feasibility status: [I] — needs a spike** (ticket M1). Risks: host-prefab swap on placement, deconstruction refunds
+**Spike HB-T-007 (2026-10-13, Windows, 1.0.17) [V]:** a vanilla `piece_chest_wood` tagged with `haugbui_kind` and
+`haugbui_guid` got its new look from a `Container.Awake` postfix on every load (log: "applied look … 5 meshes copied"),
+kept its 5 items and the same GUID across save/quit/reload, and loaded as a plain chest without the DLL (reported by
+the product owner). The copied tombstone also showed its floating raft (`TombStone.m_floater`); fixed by skipping that
+subtree. Not covered yet: placement swap from the placeholder piece and deconstruction refund (M2, HB-T-014).
+
+**Feasibility status: [V] go for the appearance and survival part; placement flow still [I]** (ticket M1). Risks: host-prefab swap on placement, deconstruction refunds
 (host refunds vanilla cost; patch for marked pieces), other mods treating hosts as normal chests. **Fallback:** ordinary
 Jötunn custom prefabs + world marker + backups + documented risk (structures and their contents are lost if the world
 is opened and played near them without the mod).
@@ -335,6 +368,11 @@ Verified facts [V]:
 | A. Keep the base loaded ("chunk loader" anchored on the tomb) | Physical Haugbui works anywhere | Patching zone creation, object creation/removal, ZDO ownership and slow updates for a second centre; terrain must be generated; doubles loaded area (CPU/physics); fragile across game updates | **Rejected for v1** (possible research item for a future dedicated-server version) |
 | B. **Remote work on world data** ("away mode") | When the tomb is unloaded, the tomb runs an abstract worker on ZDO data: sorts tomb storage and Collection Chests into storage chests, fulfils Delivery Chest requests, tops up smelter/kiln queues and fuel within capacity | Must replicate a few private vanilla writes (e.g. smelter queue keys) and keep the same transfer rules; travel time simulated from distance/speed; night/level rules still apply | **Recommended** as a separate milestone (M12), spike in M1 |
 | C. Do nothing | — | Servant idle while away | Baseline |
+
+**Spike HB-T-090 (2026-10-13) [V]:** with the player far away (`goto`), +5 Resin were written to an unloaded chest's
+`s_items` and 2 CopperOre + 4 Coal to an unloaded smelter's queue/fuel keys, then saved. Back at the base the chest
+held the 5 Resin, and the smelter had consumed exactly 2 ore and 4 coal (2 products × 2 fuel), i.e. it caught up and
+processed the remote queue. **Go** for away mode. Scan timings not measured yet.
 
 Not possible remotely without bypassing game mechanics (so not done): harvesting crops/hives/nests and collecting
 station outputs — those require the objects to exist (drops are spawned as ground items), and the game itself
@@ -412,7 +450,7 @@ owner, not tested) [W]. Closest in scope: a dvergr that sorts chests within 20 m
 | 9/10 | Collection/Delivery chests (10 slots) | Feasible | Host `piece_chest_wood` (10 slots) [U data]. |
 | 11 | Ground collection + toggle | Feasible | `ItemDrop` registry + reservations. |
 | 12 | Crops, beehives, **bird nests** | Feasible | Bird nest exists in 1.0 (`piece_birdnest`, Beehive component). |
-| 13 | Production automation | Feasible for Smelter family, Fermenter, ShieldGenerator (fuel), CookingStation (with dawn-aware loading to avoid burning), cauldron (recipe crafting); Incinerator **excluded**; workbench-type crafting prepared but disabled. | Outputs are ground drops (machines) or carried products (cauldron). "Unlocked recipes" = conversion list + known materials (machines) / `IsRecipeKnown` (cauldron). |
+| 13 | Production automation | Feasible for Smelter family, Fermenter, ShieldGenerator (fuel), CookingStation (with dawn-aware loading to avoid burning), Incinerator **excluded**; recipe crafting at any crafting station out of v1. | Outputs are ground drops. "Unlocked recipes" = conversion list + known materials. |
 | 13.5 | Unlock level | **Level 2** (decision 2026-10-13, configurable). | |
 | 15 | Multi-Haugbui coordination | Feasible | Lease-based reservations, persistent job ownership. |
 | 16 | Wards/ownership | Feasible (SP); designed for MP | `IAccessPolicy`. |

@@ -65,7 +65,7 @@ cooldown math, state-machine transitions, localization key parity.
 4. Haugbui commands (HB-T-010): `haugbui_status`, `haugbui_dump_tomb`, `haugbui_reservations`, `haugbui_plan`
    (dry run), `haugbui_cleanup`, `haugbui_kill`, `haugbui_cooldown_skip`.
 5. `haugbui_dump_prefabs` (HB-T-091) writes `BepInEx\haugbui_prefabs.json` with station conversions, capacities,
-   cauldron recipes and item names from the installed game. Run it after each game update and attach the file when
+   crafting recipes and item names from the installed game. Run it after each game update and attach the file when
    planning changes on the Mac.
 
 ### 4.3 Manual validation suites (spec §22)
@@ -200,7 +200,7 @@ repository. To compile `Haugbui.dll` on macOS (no game run), also copy `BepInEx\
 
 File: `BepInEx\config\<plugin guid>.cfg` (or F1 with ConfigurationManager). Defaults equal the PRD. Main sections:
 `General`, `Progression` (CSV per level), `Timing`, `Death` (`CooldownSeconds`, world time), `Production`
-(`ProductionUnlockLevel` = 2, allowed station kinds, `RecipeStationAllowList` = cauldron), `AwayMode`
+(`ProductionUnlockLevel` = 2, allowed station kinds), `AwayMode`
 (`AwayModeEnabled`, `RemoteTickSeconds`), `Construction` (`BedDistance`, `TombSpacing`, `UpgradeRange`), `Combat`,
 `Advanced` (tick intervals, reservation lease, debug).
 
