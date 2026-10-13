@@ -64,6 +64,8 @@ namespace Haugbui
             CommandManager.Instance.AddConsoleCommand(new Spikes.HostPrefabSpikeCommand());
             CommandManager.Instance.AddConsoleCommand(new Spikes.FlightSpikeCommand());
             Spikes.FlightSpike.RegisterPrefab();
+            CommandManager.Instance.AddConsoleCommand(new SelfTest.SelfTestCommand());
+            SelfTest.AutoTest.StartIfRequested(this);
 #endif
 
             Log.Info($"{PluginName} {PluginVersion} loaded (Valheim {Version.GetVersionString()}, Jötunn {Jotunn.Main.Version}).");

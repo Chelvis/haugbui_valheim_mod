@@ -118,7 +118,8 @@ Open the console with **F5** (launch with `-console`).
 | `haugbui_status` | Plugin, game API and recipe validation status |
 | `haugbui_dump_prefabs` | Writes station, piece, container, item and recipe data to `BepInEx/haugbui_prefabs.json` |
 | `haugbui_dump_tomb` | Prints the nearest tomb's saved state, level and bound upgrades |
-| `haugbui_spike_*` | Debug builds only: technical spikes (see the development guide) |
+| `haugbui_selftest` | Debug builds only: in-game integration tests with a report and pictures (see the development guide) |
+| `haugbui_spike_*` | Debug builds only: technical spikes |
 
 ## Languages
 

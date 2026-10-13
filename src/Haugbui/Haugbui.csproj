@@ -40,6 +40,7 @@
     <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.InputLegacyModule.dll" Private="false" />
     <Reference Include="UnityEngine.AssetBundleModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.AssetBundleModule.dll" Private="false" />
     <Reference Include="UnityEngine.JSONSerializeModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.JSONSerializeModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.ImageConversionModule.dll" Private="false" />
   </ItemGroup>
 
   <ItemGroup>

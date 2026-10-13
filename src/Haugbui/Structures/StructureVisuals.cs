@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Haugbui.Diagnostics;
 using Jotunn.Managers;
 using UnityEngine;
@@ -7,6 +8,8 @@ namespace Haugbui.Structures
     internal static class StructureVisuals
     {
         public const string RootName = "HaugbuiVisual";
+
+        internal static readonly HashSet<string> MissingParts = new HashSet<string>();
 
         /// <summary>Idempotent: hides the host meshes when requested and adds copies of the parts' meshes.</summary>
         public static void Apply(GameObject target, StructureDefinition definition)
@@ -30,7 +33,7 @@ namespace Haugbui.Structures
                 GameObject source = PrefabManager.Cache.GetPrefab<GameObject>(part.Prefab);
                 if (source == null)
                 {
-                    Log.Warning($"Visual part '{part.Prefab}' not found for {definition.PieceId}");
+                    if (MissingParts.Add(part.Prefab)) Log.Warning($"Visual part '{part.Prefab}' not found for {definition.PieceId}");
                     continue;
                 }
                 var holder = new GameObject(part.Prefab);

@@ -23,6 +23,11 @@ namespace Haugbui.Structures
 
         private static readonly Dictionary<StructureKind, GameObject> Placeholders = new Dictionary<StructureKind, GameObject>();
 
+        /// <summary>Self-test switch: hosts load as plain vanilla objects, as if Haugbui were not installed.</summary>
+        internal static bool SuppressAugmentation { get; set; }
+
+        internal static bool IsRegistered(StructureKind kind) => Placeholders.ContainsKey(kind);
+
         public static void RegisterPieces()
         {
             foreach (StructureDefinition definition in StructureDefinitions.All)
@@ -96,7 +101,7 @@ namespace Haugbui.Structures
         {
             ZNetView view = piece.GetComponent<ZNetView>();
             ZDO zdo = view != null && view.IsValid() ? view.GetZDO() : null;
-            if (zdo == null || piece.GetComponent<HaugbuiStructure>() != null) return;
+            if (zdo == null || SuppressAugmentation || piece.GetComponent<HaugbuiStructure>() != null) return;
 
             var kind = (StructureKind)zdo.GetInt(ZdoKeys.Kind);
             StructureDefinition definition = StructureDefinitions.For(kind);

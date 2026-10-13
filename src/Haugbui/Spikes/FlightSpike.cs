@@ -43,6 +43,19 @@ namespace Haugbui.Spikes
             PrefabManager.Instance.AddPrefab(clone);
         }
 
+        /// <returns>The controller of the new creature, or null when the spike prefab is not registered.</returns>
+        public static FlightSpikeController Spawn(Vector3 position, float speed)
+        {
+            GameObject prefab = ZNetScene.instance.GetPrefab(PrefabName);
+            if (prefab == null) return null;
+            GameObject instance = Object.Instantiate(prefab, position, Quaternion.identity);
+            Character character = instance.GetComponent<Character>();
+            character.m_flySlowSpeed = speed;
+            character.m_flyFastSpeed = speed;
+            MakeIncorporeal(character);
+            return instance.AddComponent<FlightSpikeController>();
+        }
+
         public static void MakeIncorporeal(Character character)
         {
             int mask = LayerMask.GetMask(PassThroughLayers);
@@ -107,21 +120,14 @@ namespace Haugbui.Spikes
 
         private void Spawn(Player player, float speed)
         {
-            GameObject prefab = ZNetScene.instance.GetPrefab(FlightSpike.PrefabName);
-            if (prefab == null)
+            if (_active != null) ZNetScene.instance.Destroy(_active.gameObject);
+            Vector3 position = player.transform.position + player.transform.forward * 3f + Vector3.up * 1.5f;
+            _active = FlightSpike.Spawn(position, speed);
+            if (_active == null)
             {
                 Print("Spike prefab not registered; see the log.");
                 return;
             }
-            if (_active != null) ZNetScene.instance.Destroy(_active.gameObject);
-
-            Vector3 position = player.transform.position + player.transform.forward * 3f + Vector3.up * 1.5f;
-            GameObject instance = Object.Instantiate(prefab, position, Quaternion.identity);
-            Character character = instance.GetComponent<Character>();
-            character.m_flySlowSpeed = speed;
-            character.m_flyFastSpeed = speed;
-            FlightSpike.MakeIncorporeal(character);
-            _active = instance.AddComponent<FlightSpikeController>();
             Print($"Spawned at {position}, speed {speed} m/s. Use 'follow' and walk through walls, or 'point' x N then 'go'.");
         }
 
@@ -150,6 +156,13 @@ namespace Haugbui.Spikes
         private int _hits;
         private float _minClearance = float.MaxValue;
         private float _flownMeters;
+
+        public int StuckEvents => _stuckEvents;
+        public int Hits => _hits;
+        public float FlownMeters => _flownMeters;
+        public float MinClearance => _minClearance;
+        public int WaypointsReached { get; private set; }
+        public Character Character => _character;
         private Vector3 _lastPosition;
 
         private void Awake()
@@ -207,7 +220,11 @@ namespace Haugbui.Spikes
             float distance = toTarget.magnitude;
             if (distance <= ArriveDistance)
             {
-                if (_follow == null) _index++;
+                if (_follow == null)
+                {
+                    _index++;
+                    WaypointsReached++;
+                }
                 ResetProgress();
                 _character.SetMoveDir(Vector3.zero);
                 return;

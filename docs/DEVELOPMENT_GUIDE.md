@@ -125,7 +125,31 @@ Each item: setup → action → expected. Record pass/fail per release in `docs/
 - [ ] Stress world (3 tombs, 100 containers, 20 stations, 300 ground items): `haugbui_status` timing ≤ budget.
 - [ ] 2-hour session: no growing memory or log spam.
 
-### 4.4 M1 spikes (Debug build, `devcommands`, on a copy of a test world)
+### 4.4 In-game self-test (Debug build) — preferred
+
+Most in-game checks are automated. Use a throwaway test world: the suites build, reload and destroy objects about
+15 m around the player and remove everything they created.
+
+- **Manual run:** in the world, `devcommands`, then `haugbui_selftest` (all suites) or
+  `haugbui_selftest basics structures flight transfers`. Stand still for about a minute.
+- **Unattended run:** in r2modman, *Settings → Set launch parameters*:
+  `-console -haugbui-autotest "<character>" "<world>" -haugbui-autotest-quit`, then *Start modded*. The mod picks the
+  character and world from the main menu, waits for the spawn, runs every suite, writes the report and quits.
+- **Output:** `BepInEx\haugbui_selftest\report.txt` (PASS/FAIL per check) and PNG pictures of each structure taken
+  at noon from fixed angles (`tomb.png`, `Offering.png`, …, `tomb_without_mod.png`, `flyer.png`).
+
+What the suites cover:
+| Suite | Checks |
+|---|---|
+| basics | API self-check, recipe validation, every translation key resolves |
+| structures | bed/spacing/upgrade rules and their results, ZDO saved as the vanilla host, tomb state, levels 1→6 in any order, abilities, combat warning, tomb storage, reload of every structure (look, refund, level, items), **mod-missing simulation** (tomb loads as a plain chest with items and keys, then comes back), removing an upgrade, rebinding to a rebuilt tomb |
+| flight | non-persistent flyer crosses a wall back and forth for 25 s, never stuck, stays above ground, takes damage |
+| transfers | 10 s of random destination-first moves between two chests with forced saves, totals unchanged, also after reload |
+
+Not covered by the self-test (still manual, once per release): a real quit/reload from disk and loading the world
+with the DLL removed (§4.5 step 7), and judging how the structures look (use the pictures).
+
+### 4.4.1 M1 spikes (manual, superseded by the self-test) (Debug build, `devcommands`, on a copy of a test world)
 
 Each spike prints PASS/FAIL or numbers; record them in `TECHNICAL_FEASIBILITY.md` as the ticket asks.
 
