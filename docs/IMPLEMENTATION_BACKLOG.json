@@ -1631,8 +1631,8 @@
     },
     {
       "id": "M6",
-      "name": "Ground item collection and harvesting",
-      "goal": "Independent toggles for ground items and harvesting using vanilla mechanics.",
+      "name": "Ground item collection, harvesting and tribute",
+      "goal": "Independent toggles for ground items and harvesting using vanilla mechanics. Plus the tribute system: the Haugbui is paid per shift with valuables offered at the tomb.",
       "tickets": [
         {
           "id": "HB-T-054",
@@ -1750,6 +1750,199 @@
             "HB-100",
             "HB-101",
             "HB-105"
+          ]
+        },
+        {
+          "id": "HB-T-100",
+          "title": "Tribute rules and balance (Core + persistence)",
+          "description": "Core TributeRules: valuables and values, cost per level (CSV config), shift id (world day + day/night, two shifts with the Altar). TombState schema bump: balance, last paid shift id; old blobs load with balance 0. The balance tracks the part paid with cheated valuables separately (refund rule HB-159).",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-033",
+            "HB-T-013"
+          ],
+          "acceptance_criteria": [
+            "Cost table and values from config with fallback to defaults",
+            "A shift id is paid at most once, also across reload and resurrection",
+            "Old tomb blobs load with balance 0"
+          ],
+          "components": [
+            "Haugbui.Core",
+            "TombState"
+          ],
+          "testing": {
+            "automated": [
+              "TributeRules and shift id tests incl. Altar day/night and day rollover"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-164",
+            "HB-165",
+            "HB-166"
+          ]
+        },
+        {
+          "id": "HB-T-101",
+          "title": "Charge per shift only when there is work",
+          "description": "Presence policy: at shift start (and periodic re-checks) ask the task providers whether any task exists; if none, stay dormant without charge; if work exists and balance ≥ cost, charge and emerge; else stay dormant with status 'no tribute'. Rest never charges. Hook for away mode and sleep fast mode to charge the same shift.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-100",
+            "HB-T-045",
+            "HB-T-049",
+            "HB-T-053",
+            "HB-T-054"
+          ],
+          "acceptance_criteria": [
+            "No charge on a night without work",
+            "Charge once when work appears mid-shift",
+            "Insufficient balance keeps it dormant with status text",
+            "Death and resurrection in the same shift does not charge again"
+          ],
+          "components": [
+            "TombController",
+            "PresencePolicy"
+          ],
+          "testing": {
+            "automated": [
+              "Policy tests with fake providers and clock"
+            ],
+            "manual": [
+              "Self-test: work/no-work/insufficient scenarios with a fake clock"
+            ]
+          },
+          "requirements": [
+            "HB-167",
+            "HB-168"
+          ]
+        },
+        {
+          "id": "HB-T-102",
+          "title": "Tribute panel: balance, offer buttons, shift timer",
+          "description": "Tomb panel Tribute area: balance, one Offer button per valuable (takes one from the player inventory, identical-data rule irrelevant: value only), disabled when the player has none; shift timer (time left, or time to next shift while dormant); hover shows balance and 'no tribute'. Localized.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-100",
+            "HB-T-039"
+          ],
+          "acceptance_criteria": [
+            "Offering moves exactly one item from the player and adds its value",
+            "Timer matches the presence policy",
+            "pt-BR and en-US texts"
+          ],
+          "components": [
+            "UI",
+            "TombPanel"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Self-test: offer each valuable, check balance and inventory totals"
+            ]
+          },
+          "requirements": [
+            "HB-166",
+            "HB-169"
+          ]
+        },
+        {
+          "id": "HB-T-103",
+          "title": "Tribute refund on tomb destruction and config",
+          "description": "On tomb destruction drop the balance as Coins at the tomb (stacks of max size) or forfeit, per TributeOnTombDestroyed; TributeEnabled switch.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-100",
+            "HB-T-035"
+          ],
+          "acceptance_criteria": [
+            "DropCoins drops exactly the balance in Coins",
+            "Forfeit drops nothing",
+            "TributeEnabled=false never charges",
+            "Refunded Coins are cheated only for the cheated part of the balance"
+          ],
+          "components": [
+            "TombController",
+            "Config"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Self-test: destroy a tomb with balance in both modes"
+            ]
+          },
+          "requirements": [
+            "HB-159",
+            "HB-180"
+          ]
+        },
+        {
+          "id": "HB-T-104",
+          "title": "Servant registry: per-player world slots",
+          "description": "World-level registry of servant slots per owner stored in ZoneSystem global key values (verify read/write and save in the decompile; versioned value). Slot: index, name, death time/cooldown end, toggles. Tomb ZDO references its slot; on tomb destruction the slot becomes vacant; new tomb binds the lowest vacant slot; placement blocked when all slots are bound (MaxHaugbuisPerPlayer, default 3, warning in the config description). Migration: existing tombs get slots on load in GUID order. Names 'Haugbui', 'Haugbui #2', …; no dismissal.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-100",
+            "HB-T-036"
+          ],
+          "acceptance_criteria": [
+            "Destroy + rebuild keeps name and cooldown",
+            "Fourth tomb refused with message at the default limit",
+            "Registry survives save/reload and a missing-mod load",
+            "Existing worlds migrate without losing tombs"
+          ],
+          "components": [
+            "Persistence",
+            "Structures",
+            "TombController"
+          ],
+          "testing": {
+            "automated": [
+              "Registry serialization, binding and migration tests"
+            ],
+            "manual": [
+              "Self-test: build, kill, destroy, rebuild; limit"
+            ]
+          },
+          "requirements": [
+            "HB-137",
+            "HB-138",
+            "HB-139"
+          ]
+        },
+        {
+          "id": "HB-T-105",
+          "title": "Death and new-tomb timing rules",
+          "description": "Replace the 3600 s cooldown: CooldownDays (default 1, × EnvMan day length); without the Altar wait for the next dusk after the cooldown, with the Altar return at cooldown end; new tombs start at the next dusk; inherited cooldown takes the later time. Countdown label shows time to the actual return. Return is a new charged shift.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-104",
+            "HB-T-101"
+          ],
+          "acceptance_criteria": [
+            "Dying at night without Altar returns at the dusk after the cooldown ends, not mid-night",
+            "With Altar returns at cooldown end",
+            "A new tomb built at night waits until the next dusk",
+            "Rebuild during cooldown is never faster than waiting"
+          ],
+          "components": [
+            "PresencePolicy",
+            "TombController",
+            "UI"
+          ],
+          "testing": {
+            "automated": [
+              "Policy tests with fake clock incl. day-length changes"
+            ],
+            "manual": [
+              "Self-test: fake-clock death/rebuild scenarios"
+            ]
+          },
+          "requirements": [
+            "HB-132",
+            "HB-133",
+            "HB-136",
+            "HB-168"
           ]
         }
       ]
@@ -2125,13 +2318,14 @@
         {
           "id": "HB-T-098",
           "title": "Sleep fast mode",
-          "description": "While EnvMan.IsTimeSkipping(), accumulate the world-time delta in which the Haugbui may work into a WorkBudget and run planned steps without flight (teleport + interaction) while the budget covers travel + interaction time; combat suspended; same rules as normal work. Config SleepFastMode (default ON). WorkBudget lives in Core and is reused by away mode.",
+          "description": "While EnvMan.IsTimeSkipping(), accumulate the world-time delta in which the Haugbui may work into a WorkBudget and run planned steps without flight (teleport + interaction) while the budget covers travel + interaction time; combat suspended; same rules as normal work. Config SleepFastMode (default ON). WorkBudget lives in Core and is reused by away mode. Charges the tribute shift like the visible Haugbui (HB-167).",
           "priority": "P1",
           "dependencies": [
             "HB-T-064",
             "HB-T-056",
             "HB-T-046",
-            "HB-T-093"
+            "HB-T-093",
+            "HB-T-101"
           ],
           "acceptance_criteria": [
             "Sleeping at 0.8 gives the same order of work as staying awake until dawn (±25% in a scripted comparison)",
@@ -2748,13 +2942,14 @@
         {
           "id": "HB-T-094",
           "title": "RemoteWorkerService and hand-over",
-          "description": "Single service ticking every RemoteTickSeconds (default 10 s) over tombs whose zone is not instantiated; rebuilds worker state from ZDOs; hand-over flag so the visible Haugbui and the remote worker never run at once; travel-time budget so remote throughput never exceeds the visible Haugbui; night/Altar rules via ITimeSource; config AwayModeEnabled. Reuses WorkBudget from HB-T-098.",
+          "description": "Single service ticking every RemoteTickSeconds (default 10 s) over tombs whose zone is not instantiated; rebuilds worker state from ZDOs; hand-over flag so the visible Haugbui and the remote worker never run at once; travel-time budget so remote throughput never exceeds the visible Haugbui; night/Altar rules via ITimeSource; config AwayModeEnabled. Reuses WorkBudget from HB-T-098. Charges the tribute shift like the visible Haugbui (HB-167).",
           "priority": "P1",
           "dependencies": [
             "HB-T-090",
             "HB-T-046",
             "HB-T-093",
-            "HB-T-098"
+            "HB-T-098",
+            "HB-T-101"
           ],
           "acceptance_criteria": [
             "No work while the game is closed",

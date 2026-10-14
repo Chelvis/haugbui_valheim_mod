@@ -29,6 +29,10 @@ harvest your fields and keep your smelters running — while you go adventuring.
 In Norse lore, a *haugbúi* is the dead one who dwells inside his burial mound, guarding what was buried with him.
 Build him a tomb near your bed, honour him with offerings, and he will serve your household from beyond the grave.
 
+Once a Haugbui binds itself to you, there is no getting rid of it: it joins you to prove its worth and become
+worthy of Valhalla, no longer bound to its tomb or the earthly world. If its tomb is destroyed, it returns as soon as
+a new one is built.
+
 He is not a walking corpse: he is a translucent, floating spirit that drifts through walls and doors. By night he
 works. At dawn he returns to his mound — unless you give him reason to walk in daylight.
 
@@ -43,6 +47,9 @@ works. At dawn he returns to his mound — unless you give him reason to walk in
 | 🔥 | **Production** | Feeds smelters, kilns, the windmill, spinning wheel, eitr refinery, fermenters and cooking stations — with finite ("make 100 iron") or endless jobs. |
 | ⚔️ | **Defence** *(opt-in)* | Given his king's sword, he defends his burial place. |
 | 🌙 | **Sleep & away** | Works through the night you skip by sleeping, and keeps your base logistics running while you are far away. |
+
+He is not free: each shift is paid with a **tribute** of coins, amber or gems offered at his tomb — only
+when there is work to do.
 
 He never creates or destroys items, never touches equipment (weapons, armour, tools), respects wards and private
 chests, and puts every item in its destination *before* removing it from its source.

@@ -307,12 +307,37 @@ Planned for release 1.1 (backlog M12), with a feasibility spike in M1; can move 
 - **HB-131** On death: ghost-death VFX, creature removed, death time stored in the tomb, all carried items moved to
   tomb storage; remainder goes to overflow (persisted list shown in the tomb panel, retrievable by the owner). Nothing is
   destroyed.
-- **HB-132** Cooldown default **3600 s of world time ≈ 2 Valheim days** (config). Countdown shown above the tomb
-  (world-space label, 1 Hz) and in hover/panel.
-- **HB-133** When the cooldown ends: emerges immediately at night or when the Altar is bound; otherwise waits for the next night.
+- **HB-132** Cooldown default **1 Valheim day** of world time (config `CooldownDays`, in days so it follows the game's
+  day length). Countdown shown above the tomb (world-space label, 1 Hz) and in hover/panel, counting down to the
+  moment it can return.
+- **HB-133** When the cooldown ends: **without the Altar** it returns only at the **start of the next night** (dusk),
+  even if it is already night when the cooldown ends; **with the Altar** it returns immediately. Returning starts a new
+  shift and is charged normally (HB-167). [Decision 2026-10-14]
+- **HB-136** **New tomb:** a newly built tomb starts working only at the **start of the next night**, with or without
+  the Altar. When it inherits a servant still in cooldown (HB-137), the later of the two times applies, so destroying
+  and rebuilding a tomb is never faster than waiting. [Decision 2026-10-14]
 - **HB-134** Survives saves, exits, restarts, reloads (stored in the tomb ZDO; no in-memory-only timers).
 - **HB-135** The cooldown uses **world time** only: it pauses while the game is closed and sleeping advances it.
   [Decision 2026-10-13, product owner; no real-time option.]
+
+### 14.1 Servant identity (the Haugbui outlives its tomb)
+
+Lore: once a Haugbui binds itself to you there is no getting rid of it. It joins you to fulfil its purpose, prove its
+worth and become worthy of Valhalla, no longer bound to its tomb or to the earthly world, and it does not give up.
+Whenever its tomb is destroyed, it returns as soon as a new tomb is built.
+
+- **HB-137** **Servant slots.** Each player has a fixed number of servant slots per world (default **3**, config
+  `MaxHaugbuisPerPlayer`; its description warns that many Haugbuis can cause performance problems and errors). Slots
+  exist from the start and are filled when a servant is first created. A slot stores the servant's identity: name,
+  death/cooldown state and toggles. It is saved in the world (global key values, verified API:
+  `ZoneSystem.m_globalKeysValues`), not in the tomb, so it survives tomb destruction and a missing mod.
+- **HB-138** **Binding.** Building a tomb binds it automatically to the owner's lowest slot that has no tomb; when all
+  slots are bound the tomb cannot be placed ("$haugbui_msg_max_tombs"). Destroying a tomb leaves its slot vacant with
+  name and cooldown kept. Not inherited by a new tomb: level and abilities (recomputed from nearby upgrades), carried
+  items, overflow and tomb storage (dropped at the old tomb, HB-008), tribute balance (refunded, HB-159).
+- **HB-139** **Name and no dismissal.** A new servant is named "Haugbui" (first slot) or "Haugbui #2", "Haugbui #3"…;
+  slot numbers are not shown elsewhere. Renaming in the tomb panel is planned (customizable name). There is no way to
+  dismiss a servant: once created it is permanent in that world.
 
 ## 15. Combat
 
@@ -350,6 +375,32 @@ Planned for release 1.1 (backlog M12), with a feasibility spike in M1; can move 
 - **HB-162** Buttons: open tomb storage, retrieve overflow.
 - **HB-163** Valheim look (wood panel, Norse font), keyboard/gamepad closable, blocks player input while open.
 
+### 17.1 Tribute (wages)
+
+The Haugbui does not work for free: each shift is paid with valuables offered at the tomb.
+
+- **HB-164** **Shift.** A shift is one stretch of time the Haugbui may work: the night (from dusk until the dawn return,
+  HB-040); with the Altar, the day is a second shift (2 shifts per day). Shifts are identified by world day + day/night,
+  so a shift is paid at most once.
+- **HB-165** **Cost per shift** in coin units (configurable): levels 1–2 = 5, levels 3–4 = 10, levels 5–6 = 15.
+- **HB-166** **Credit.** The tomb keeps a tribute balance (a number in coin units, stored in the tomb ZDO; no custom
+  item). Values (configurable): Coins 1, Amber 5, AmberPearl 10, Ruby 20, SilverNecklace 30. The tomb panel has a
+  Tribute area with the balance and one "Offer" button per valuable that takes one unit from the player's inventory
+  and adds its value. No change is given back.
+- **HB-167** **Charging.** At the start of a shift the cost is charged only if there is work to do (Collection Chest
+  items, open delivery line, ground items, ripe harvest, station to supply…). With no work it stays dormant, charges
+  nothing and re-checks periodically during the shift. The Rest toggle = off, never charged. Away mode (§13.4) and
+  sleep fast mode (HB-046) are shifts and are charged the same way.
+- **HB-168** **Insufficient balance:** the Haugbui does not emerge; the tomb hover and panel show "no tribute".
+  Death during a paid shift: no refund; it never returns within the same shift (HB-133), so its return is a new,
+  charged shift.
+- **HB-169** **Shift timer.** The panel shows the time left in the current shift (until the dawn return lead, or the end
+  of the Altar day shift); while dormant, the time until the next shift starts.
+- **HB-159** **Tomb destroyed:** the remaining balance is dropped at the tomb as Coins (default) or forfeited
+  (config `TributeOnTombDestroyed` = `DropCoins` | `Forfeit`). Dropped Coins are never marked cheated; only the part
+  of the balance that came from cheated valuables is refunded as cheated Coins (the balance tracks it separately, as
+  HB-061 requires). Config `TributeEnabled` (default ON) turns the whole system off.
+
 ## 18. Persistence and world safety
 
 - **HB-170** Persist: tomb identity (GUID), owner, level cache, upgrade bindings, HP, carried inventory, overflow,
@@ -366,7 +417,8 @@ Planned for release 1.1 (backlog M12), with a feasibility spike in M1; can move 
 
 ## 19. Configuration
 
-- **HB-180** BepInEx config with defaults from this document: cooldown, base radius & per-level tables, speed,
+- **HB-180** BepInEx config with defaults from this document: tribute (enabled, costs per level, values, refund on
+  destruction), cooldown, base radius & per-level tables, speed,
   capacity, slots, HP, tick intervals, production unlock level & allowed stations, away mode, bed distance, tomb spacing, upgrade
   range, effects quality, debug logging. Normal play needs no configuration. Technical settings grouped under
   "Advanced".
@@ -406,6 +458,9 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-13 | Movement (HB-051) | Incorporeal flight (simpler than physical pathing) |
 | 2026-10-13 | Structures if the mod is removed (HB-172) | Persist as vanilla objects whose look the mod changes at runtime (spike HB-T-007) |
 | 2026-10-13 | Working while the player is away (§13.4) | Away mode on world data, logistics only (M12, spike in M1) |
+| 2026-10-14 | Death and new tombs (HB-132/133/136) | 1-day cooldown; without Altar return only at the next dusk; with Altar immediately; new tombs start at the next dusk |
+| 2026-10-14 | Servant identity (§14.1) | Servants live in per-player world slots (default 3, configurable), outlive their tomb, cannot be dismissed |
+| 2026-10-14 | Tribute (§17.1) | Paid per shift with a credit balance offered at the tomb panel; charged only when there is work; values Coins 1 / Amber 5 / AmberPearl 10 / Ruby 20 / SilverNecklace 30 |
 | 2026-10-13 | Cheated flag on moved items (HB-061) | Never marks anything cheated: merges only identical item data, carries the flag exactly |
 
 Open: none.
