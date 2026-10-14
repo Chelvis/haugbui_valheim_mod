@@ -17,8 +17,10 @@
     <Version>$(HaugbuiVersion)</Version>
 
     <VALHEIM_INSTALL Condition="'$(VALHEIM_INSTALL)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</VALHEIM_INSTALL>
-    <!-- On machines without the game (macOS planning machine), the Managed folder copied to .reference/ is used. -->
+    <!-- On machines without the game (macOS planning machine), the Managed folder copied to .reference/ is used, or to
+         ../haugbui-reference/ when it is kept outside a synced source folder. -->
     <VALHEIM_MANAGED Condition="'$(VALHEIM_MANAGED)' == '' And Exists('$(VALHEIM_INSTALL)\valheim_Data\Managed')">$(VALHEIM_INSTALL)\valheim_Data\Managed</VALHEIM_MANAGED>
-    <VALHEIM_MANAGED Condition="'$(VALHEIM_MANAGED)' == ''">$(MSBuildThisFileDirectory).reference/Managed</VALHEIM_MANAGED>
+    <VALHEIM_MANAGED Condition="'$(VALHEIM_MANAGED)' == '' And Exists('$(MSBuildThisFileDirectory).reference/Managed')">$(MSBuildThisFileDirectory).reference/Managed</VALHEIM_MANAGED>
+    <VALHEIM_MANAGED Condition="'$(VALHEIM_MANAGED)' == ''">$(MSBuildThisFileDirectory)../haugbui-reference/Managed</VALHEIM_MANAGED>
   </PropertyGroup>
 </Project>

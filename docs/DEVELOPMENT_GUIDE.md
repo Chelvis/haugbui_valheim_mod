@@ -30,7 +30,8 @@ Stack: BepInExPack_Valheim 5.4.2351 · Jötunn 2.30.2 · .NET Framework 4.8 · C
 
    How references resolve (`Directory.Build.props`, `src/Haugbui/Haugbui.csproj`):
    - Game DLLs from `VALHEIM_MANAGED` = `<VALHEIM_INSTALL>\valheim_Data\Managed`, or `.reference/Managed` when the game
-     is not installed (macOS). `assembly_valheim` and `assembly_utils` are publicized at build time by
+     is not installed (macOS), or `../haugbui-reference/Managed` when the reference folder is kept next to the
+     repository instead of inside it (synced source folder). `assembly_valheim` and `assembly_utils` are publicized at build time by
      `BepInEx.AssemblyPublicizer.MSBuild` (output in `obj/`, nothing written to the game folder). A game update only
      needs a rebuild.
    - BepInEx (`BepInEx.Core` 5.4.21 from nuget.bepinex.dev) and Jötunn (`JotunnLib` 2.30.2 from nuget.org) are
@@ -41,6 +42,8 @@ Stack: BepInExPack_Valheim 5.4.2351 · Jötunn 2.30.2 · .NET Framework 4.8 · C
      variable `HAUGBUI_BUILD_ROOT` on all but one of them (e.g. `export HAUGBUI_BUILD_ROOT=~/.cache/haugbui-build`
      on the Mac): that machine's `bin/` and `obj/` then live outside the tree, so the two never overwrite each other.
      Pass `-p:MOD_DEPLOYPATH=` there if the shared `Environment.props` points at the other machine's plugins folder.
+     Keep `.git` out of the synced folder too: `git init --separate-git-dir <path outside>` leaves a one-line `.git`
+     file pointing to it.
 
 ## 3. Install locally (without building)
 

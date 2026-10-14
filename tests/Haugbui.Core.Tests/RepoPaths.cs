@@ -26,6 +26,13 @@ namespace Haugbui.Core.Tests
 
         public static string Translations => Path.Combine(Root, "src", "Haugbui", "Translations");
 
-        public static string ReferenceManaged => Path.Combine(Root, ".reference", "Managed");
+        public static string ReferenceManaged
+        {
+            get
+            {
+                string inside = Path.Combine(Root, ".reference", "Managed");
+                return Directory.Exists(inside) ? inside : Path.Combine(Root, "..", "haugbui-reference", "Managed");
+            }
+        }
     }
 }
