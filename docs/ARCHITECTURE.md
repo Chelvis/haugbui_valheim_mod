@@ -122,7 +122,8 @@ flowchart LR
   not allocate); carts, ships and attached sub-containers are not indexed. The registry is cleared on world load
   (`ZNetScene.Awake`) and `haugbui_registry` compares it with a full scene scan.
 - `TombComponent` (owner-only `Update` at a configurable tick, default 0.5 s) decides whether the creature should exist
-  (night/level/cooldown/resting), spawns it at the tomb (emergence VFX) or recalls it.
+  (night/level/cooldown/resting/new-tomb start, then the shift payment of §5.2), spawns it at the tomb (emergence VFX) or
+  recalls it.
 - The creature's `HaugbuiController` runs the state machine at its own tick (default 0.25 s) with movement in `Update`.
 
 ## 5. State machine
@@ -155,8 +156,39 @@ stateDiagram-v2
   Returning, Entering** exist only while the creature is spawned.
 - Interrupts: Combat > Returning(dawn) > tasks. An interrupt never splits an atomic interaction step (e.g. moving one
   stack); it waits for the step to finish (≤ 1 tick).
-- On load, a spawned creature never resumes mid-task: the tomb respawns it (if allowed) at its last saved position or
-  at the tomb, in Idle, and tasks are re-planned from persistent state.
+- On load, a spawned creature never resumes mid-task: the tomb respawns it (if allowed and its shift is paid) at its last
+  saved position or at the tomb, in Idle, and tasks are re-planned from persistent state.
+
+### 5.2 Presence, shifts and tribute (M6)
+
+All times come from world time (`ZNet.GetTimeSeconds`) through `WorldClock` (Core): EnvMan (1.0.17) rescales the raw
+part of the day 0.15..0.85 to the visible fraction 0.25..0.75 and calls "night" a visible fraction ≤ 0.25 or ≥ 0.75, so
+night is raw ≤ 0.15 or ≥ 0.85 (30% of the day). Computing it from world time instead of `EnvMan.IsNight` drops the
+smoothing lag and lets the mod store absolute times (next dusk, shift ends). Day d has the day shift `2d` and the night
+shift `2d+1`, which also covers the hours after midnight of day d+1.
+
+`PresencePolicy.ShouldBeOut` (the work window): not resting; not before `StartTime` (HB-136, a new tomb's first dusk);
+not before the return time of a death (HB-133: cooldown `CooldownDays × day length`, then the first dusk at or after it
+without the Altar, at once with it); then at night before the dawn lead, or always with the Altar. `WaitRemaining` (the
+later of start and return) feeds the countdown label and the hover.
+
+Inside the window `TombController.StartShift` (HB-T-101) decides with `ShiftRules`: tribute off → free; shift already
+paid (`LastPaidShift`) → work; else every `WorkCheckSeconds` it asks `HaugbuiWorker.HasWork` (all task providers on a
+separate probe `WorkContext`, nothing reserved, the Collection Chest interval ignored) and charges the shift cost of
+its level when there is work and enough balance, otherwise stays dormant with "no work" / "no tribute". The same check
+runs when a new shift starts while it is out (Altar: dusk and dawn); without work or credit it goes home. Death clears
+`LastPaidShift`, so every return is charged. `StartShift` is the hook away mode and sleep fast mode will call.
+
+Tribute (HB-166/159): `TributeBalance` keeps the total and the part paid with cheated valuables; charges spend the
+cheated part first, so a refund never gives back more clean coins than were offered clean. Offering takes one item
+from the player's inventory (`Inventory.RemoveItem`) and adds its value. On tomb destruction the balance drops as Coins
+(clean and cheated stacks) or is forfeited (`TributeOnTombDestroyed`).
+
+Servant slots (HB-137..139): `ServantRegistry` keeps one global key per slot, `haugbui_slot_<ownerId>_<n> <hex>`
+(name, bound tomb GUID, pending death time, toggles). A new tomb binds the lowest slot whose tomb no longer exists
+(loaded or found in `ZDOMan.m_objectsByID`) and inherits its name, pending death and toggles; placement is refused when
+none is free (`MaxHaugbuisPerPlayer`). Tombs from before 0.0.6 bind on load in GUID order. Destroying a tomb only clears
+the slot's tomb GUID.
 
 ### 5.1 Task model
 
@@ -179,6 +211,15 @@ Default priority order (configurable later): Combat (interrupt) → deposit when
 output pickup (avoid ground clutter) → production feeding → delivery requests → harvesting → collection chest →
 ground items → idle hover near tomb.
 
+M6 priorities: deposit 100, delivery 70, leftover drops of its own harvests 61, harvesting 60, sorting tomb storage 50,
+Collection Chests 45, ground items 40. Harvest and ground-item tasks are one trip through the nearest targets (next
+stop ≤ 10 m from the last, ≤ 8 stops) whose items the carried inventory can take whole (`PickupRoute`, Core); both
+require a storage destination for the product (HB-065/091). A harvest step calls the target's own RPC
+(`Pickable.RPC_Pick`, `Beehive`/`SapCollector.RPC_Extract`) through `HarvestGateway`; an RPC to the local owner runs at
+once, so the new drops are found by diffing `ItemDrop.s_instances` and picked up in the same step (`DropEndpoint`,
+destination first). Drops that do not fit are remembered for 5 minutes and collected even with the ground toggle off
+(HB-093). Crops are `Pickable.m_harvestable` (the scythe's flag); wild pickables and sap collectors only by config.
+
 ## 6. Coordination between Haugbuis
 
 - `ReservationService` (singleton per world session) maps `ReservationKey` (`ZDOID` of target + optional item
@@ -190,6 +231,7 @@ ground items → idle hover near tomb.
   - Container *for writing* → ZDOID (exclusive for the duration of a single Take/Put step only).
   - Station → ZDOID (exclusive while feeding/collecting).
   - Delivery request line → (chest ZDOID, item hash).
+  - M6: `drop:<ZDOID>` per ground item of a trip, `harvest:<ZDOID>` per crop, hive or nest.
 - **Persistent ownership** (survives reloads): a station's automation job stores `haugbui_job_tomb = <tombGuid>`. The
   first Haugbui whose radius covers it claims it; others skip it. If the owning tomb is gone/unloaded for > N minutes
   of world time, another tomb may take over. The Delivery Chest is served by any Haugbui (ledger is on the chest).
@@ -273,11 +315,11 @@ All keys are namespaced `haugbui_*` and versioned. Blobs are `ZPackage` byte arr
 | Object | Keys |
 |---|---|
 | Any Haugbui host | `haugbui_kind` (int, `StructureKind`: Tomb 1, Offering 10, PersonalTreasure 11, SilverBracelets 12, Longsword 13, Altar 14, CollectionChest 20, DeliveryChest 21), `haugbui_ver` (int), `haugbui_guid` (string) |
-| Tomb | `haugbui_tomb` (versioned blob `TombState`: guid, owner playerID, toggles bitmask, health, death time, level cache), `haugbui_carried` / `haugbui_overflow` (byte[] vanilla `Inventory`) |
+| Tomb | `haugbui_tomb` (versioned blob `TombState` v3: guid, owner playerID, toggles bitmask, health, death time, level cache, creature state, position, health time; v3 adds servant slot index, tribute balance, cheated part of the balance, last paid shift, start time), `haugbui_carried` / `haugbui_overflow` (`ItemStack` lists) |
 | Upgrade | `haugbui_tomb_guid` (binding, written on placement), upgrade kind in `haugbui_kind` |
 | Delivery chest | `haugbui_requests` (byte[]: list of {itemPrefab, requested, delivered}) |
 | Vanilla station | `haugbui_job` (byte[]: {enabled, recipe input/output prefab, mode finite/infinite, target, supplied, produced, tombGuid}) |
-| World | global key `haugbui <schemaVersion>`; `haugbui_tombs <count>` |
+| World | global key `haugbui <schemaVersion>`; `haugbui_tombs <count>` (planned, M9); servant slots `haugbui_slot_<ownerId>_<n> <lower-case hex of ServantSlot blob>` (M6, written directly to `ZoneSystem.m_globalKeys`/`m_globalKeysValues`: `SetGlobalKey` would route an RPC and add every new text to the player profile's known keys; the world load lower-cases the whole key text, hence hex; not synced to other peers yet) |
 
 Rules:
 - Never write defaults over existing data: readers return `null` for missing blobs; writers only run after a successful
@@ -381,9 +423,10 @@ validates and writes the ZDO (future MP: routed RPC to the owner).
 ## 13. Configuration and localization
 
 - `HaugbuiConfig` sections: `General` (debug logging, effects quality), `Progression` (per-level arrays as CSV strings
-  with defaults from the spec), `Timing` (tick intervals), `Death` (cooldown seconds, clock), `Production` (unlock
-  level, allowed station kinds), `Construction` (bed distance, tomb spacing), `Combat`. Admin-only attributes set
-  for future sync.
+  with defaults from the spec), `Timing` (tick intervals), `Death` (`CooldownDays`), `Production` (unlock
+  level, allowed station kinds), `Construction` (bed distance, tomb spacing, `MaxHaugbuisPerPlayer`), `Combat`,
+  `Harvest` (wild pickables, sap collectors), `Tribute` (enabled, cost per level, values, `OnTombDestroyed`,
+  `WorkCheckSeconds`). Admin-only attributes set for future sync.
 - Localization keys: `haugbui_<area>_<name>` in `Translations/English/haugbui.json` and
   `Translations/Portuguese_Brazilian/haugbui.json`; code references `$haugbui_*` only. A unit test ensures both files have
   identical key sets.

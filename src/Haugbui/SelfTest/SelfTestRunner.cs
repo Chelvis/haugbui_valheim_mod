@@ -17,7 +17,7 @@ namespace Haugbui.SelfTest
     /// </summary>
     internal static class SelfTestRunner
     {
-        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests" };
+        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute" };
 
         public static string OutputFolder => Path.Combine(BepInEx.Paths.BepInExRootPath, "haugbui_selftest");
 
@@ -53,15 +53,23 @@ namespace Haugbui.SelfTest
                     case "haugbui": body = new HaugbuiSuite(context).Run(); break;
                     case "storage": body = new StorageSuite(context).Run(); break;
                     case "chests": body = new ChestSuite(context).Run(); break;
+                    case "harvest": body = new HarvestSuite(context).Run(); break;
+                    case "tribute": body = new TributeSuite(context).Run(); break;
                     default:
                         context.Suite = suite;
                         context.Fail("unknown suite", suite);
                         continue;
                 }
+                // Each suite starts with no servant slots and gives the player's slots back afterwards (HB-137 is permanent).
+                long player = Player.m_localPlayer.GetPlayerID();
+                Dictionary<string, string> parked = Integration.ServantRegistry.Park(player);
+                Creature.TombController.TributeSuspendedForTests = suite != "tribute";
                 yield return Guard(context, suite, body);
                 Integration.TimeSource.Override = null;
+                Creature.TombController.TributeSuspendedForTests = false;
                 context.Cleanup();
                 yield return SelfTestContext.WaitFrames(5);
+                Integration.ServantRegistry.Unpark(player, parked);
             }
 
             context.WriteReport(stopwatch.Elapsed);

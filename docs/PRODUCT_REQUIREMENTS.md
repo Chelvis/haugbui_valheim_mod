@@ -462,5 +462,6 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-14 | Servant identity (§14.1) | Servants live in per-player world slots (default 3, configurable), outlive their tomb, cannot be dismissed |
 | 2026-10-14 | Tribute (§17.1) | Paid per shift with a credit balance offered at the tomb panel; charged only when there is work; values Coins 1 / Amber 5 / AmberPearl 10 / Ruby 20 / SilverNecklace 30 |
 | 2026-10-13 | Cheated flag on moved items (HB-061) | Never marks anything cheated: merges only identical item data, carries the flag exactly |
+| 2026-10-14 | M6 implementation choices (to confirm) | Night, shifts and dusk computed from world time (same boundaries as `EnvMan.IsNight`); with `TributeEnabled = false` the Haugbui works every night without the work check; ground items and harvests are taken only when a chest can store the product (HB-065/091); the panel's Offer button takes one item per click |
 
 Open: none.

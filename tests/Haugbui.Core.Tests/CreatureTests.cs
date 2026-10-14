@@ -245,22 +245,27 @@ namespace Haugbui.Core.Tests
 
     public class PresencePolicyTests
     {
+        private const double Day = 1800;
+        private const long Today = 100;
+
+        private static double TimeAt(float fraction, long day = Today) => (day + WorldClock.Unscale(fraction)) * Day;
+
         private static PresenceInput At(float fraction, bool fullTime = false) => new PresenceInput
         {
-            DayFraction = fraction,
-            IsNight = fraction <= PresencePolicy.Dawn || fraction >= PresencePolicy.Dusk,
-            DayLengthSeconds = 1800,
+            Now = TimeAt(fraction),
+            DayLengthSeconds = Day,
             FullTime = fullTime,
-            Now = 100000,
             DeathTime = double.NaN,
-            CooldownSeconds = 3600,
+            CooldownSeconds = Day,
             DawnReturnLeadSeconds = 60,
+            StartTime = double.NaN,
         };
 
         [TestCase(0.8f, true)]
         [TestCase(0.0f, true)]
-        [TestCase(0.2f, true)]
-        [TestCase(0.24f, false)] // 18 s before dawn, inside the 60 s lead
+        [TestCase(0.1f, true)]
+        [TestCase(0.2f, false)] // 54 s of world time before dawn, inside the 60 s lead
+        [TestCase(0.24f, false)]
         [TestCase(0.5f, false)]
         [TestCase(0.74f, false)]
         public void Without_altar_only_at_night_before_the_dawn_lead(float fraction, bool expected)
@@ -286,18 +291,91 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
-        public void Cooldown_blocks_then_respects_day_and_altar()
+        public void Death_at_night_without_altar_returns_at_the_dusk_after_the_cooldown()
+        {
+            PresenceInput input = At(0.9f);
+            input.Dead = true;
+            input.DeathTime = input.Now;
+            double expected = (Today + 1 + WorldClock.EveningRaw) * Day + Day;
+            Assert.That(PresencePolicy.ReturnTime(input), Is.EqualTo(expected).Within(1e-6),
+                "the cooldown ends at night the next day, so it waits for the dusk after that");
+
+            input.Now = TimeAt(0.9f, Today + 1) + 10;
+            Assert.That(PresencePolicy.ShouldBeOut(input), Is.False, "cooldown over in the middle of a night: not yet");
+            input.Now = expected + 1;
+            Assert.That(PresencePolicy.ShouldBeOut(input), Is.True, "back at the next dusk");
+        }
+
+        [Test]
+        public void Death_by_day_without_altar_returns_at_that_evening_after_the_cooldown()
+        {
+            PresenceInput input = At(0.3f);
+            input.Dead = true;
+            input.DeathTime = input.Now;
+            Assert.That(PresencePolicy.ReturnTime(input), Is.EqualTo((Today + 1 + WorldClock.EveningRaw) * Day).Within(1e-6));
+        }
+
+        [Test]
+        public void Death_with_altar_returns_at_cooldown_end()
+        {
+            PresenceInput input = At(0.9f, fullTime: true);
+            input.Dead = true;
+            input.DeathTime = input.Now;
+            Assert.That(PresencePolicy.ReturnTime(input), Is.EqualTo(input.Now + Day));
+            input.Now += Day - 1;
+            Assert.That(PresencePolicy.ShouldBeOut(input), Is.False);
+            input.Now += 2;
+            Assert.That(PresencePolicy.ShouldBeOut(input), Is.True);
+        }
+
+        [Test]
+        public void New_tomb_waits_for_the_next_dusk_with_or_without_altar()
+        {
+            PresenceInput input = At(0.9f, fullTime: true);
+            input.StartTime = WorldClock.NextDusk(input.Now, Day);
+            Assert.That(input.StartTime, Is.EqualTo((Today + 1 + WorldClock.EveningRaw) * Day).Within(1e-6));
+            Assert.That(PresencePolicy.ShouldBeOut(input), Is.False);
+            input.Now = input.StartTime + 1;
+            Assert.That(PresencePolicy.ShouldBeOut(input), Is.True);
+        }
+
+        [Test]
+        public void Rebuilding_during_cooldown_is_never_faster_than_waiting()
+        {
+            PresenceInput input = At(0.5f, fullTime: true);
+            input.Dead = true;
+            input.DeathTime = input.Now - 100;
+            input.StartTime = WorldClock.NextDusk(input.Now, Day);
+            double back = PresencePolicy.ReturnTime(input);
+            Assert.That(back, Is.GreaterThan(input.StartTime));
+            Assert.That(PresencePolicy.WaitRemaining(input), Is.EqualTo(back - input.Now).Within(1e-6), "the later of the two");
+        }
+
+        [Test]
+        public void Day_length_changes_move_the_dusk()
         {
             PresenceInput input = At(0.5f);
-            input.Dead = true;
-            input.DeathTime = input.Now - 1000;
-            Assert.That(PresencePolicy.ShouldBeOut(input), Is.False);
-            input.FullTime = true;
-            Assert.That(PresencePolicy.ShouldBeOut(input), Is.False, "cooldown still running");
-            input.DeathTime = input.Now - 3600;
-            Assert.That(PresencePolicy.ShouldBeOut(input), Is.True, "altar: emerges as soon as the cooldown ends");
-            input.FullTime = false;
-            Assert.That(PresencePolicy.ShouldBeOut(input), Is.False, "no altar: waits for night");
+            input.DayLengthSeconds = 1200;
+            input.Now = 100.5 * 1200;
+            Assert.That(WorldClock.NextDusk(input.Now, 1200), Is.EqualTo(100.85 * 1200).Within(1e-6));
+        }
+
+        [Test]
+        public void Shift_timer_counts_down_the_shift_or_up_to_the_next()
+        {
+            PresenceInput night = At(0.9f);
+            ShiftTimer timer = PresencePolicy.Timer(night);
+            Assert.That(timer.InShift);
+            Assert.That(timer.Seconds, Is.EqualTo((Today + 1 + WorldClock.MorningRaw) * Day - 60 - night.Now).Within(1e-6));
+
+            ShiftTimer day = PresencePolicy.Timer(At(0.5f));
+            Assert.That(day.InShift, Is.False);
+            Assert.That(day.Seconds, Is.EqualTo((Today + WorldClock.EveningRaw) * Day - At(0.5f).Now).Within(1e-6));
+
+            PresenceInput altar = At(0.5f, fullTime: true);
+            ShiftTimer altarDay = PresencePolicy.Timer(altar);
+            Assert.That(altarDay.InShift);
+            Assert.That(altarDay.Seconds, Is.EqualTo((Today + WorldClock.EveningRaw) * Day - altar.Now).Within(1e-6), "Altar day shift ends at dusk");
         }
 
         [Test]
@@ -310,11 +388,11 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
-        public void Seconds_to_dawn_wraps_midnight()
+        public void Seconds_to_dawn_on_world_time()
         {
-            Assert.That(PresencePolicy.SecondsToDawn(0.75f, 1800), Is.EqualTo(900).Within(0.01));
-            Assert.That(PresencePolicy.SecondsToDawn(0.2f, 1800), Is.EqualTo(90).Within(0.01));
-            Assert.That(PresencePolicy.SecondsToDawn(0.25f, 1800), Is.EqualTo(0).Within(0.01));
+            Assert.That(PresencePolicy.SecondsToDawn(At(0.76f)), Is.EqualTo((Today + 1 + WorldClock.MorningRaw) * Day - At(0.76f).Now).Within(0.01));
+            Assert.That(PresencePolicy.SecondsToDawn(At(0.0f)), Is.EqualTo(0.15 * Day).Within(0.01), "after midnight");
+            Assert.That(PresencePolicy.SecondsToDawn(At(0.5f)), Is.EqualTo(0));
         }
 
         [TestCase(0, "0:00")]

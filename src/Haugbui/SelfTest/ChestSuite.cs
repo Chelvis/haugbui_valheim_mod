@@ -200,9 +200,16 @@ namespace Haugbui.SelfTest
                 sawDeliver |= _tomb.Worker.Plan?.Kind == TaskKinds.Deliver;
                 yield return null;
             }
+            // A one-trip delivery completes between two samples; keep watching while the worker plans again.
+            float settle = Time.time + 3f * HaugbuiPlugin.Instance.Settings.PlanningIntervalSeconds.Value + 1f;
+            while (Time.time < settle)
+            {
+                maxWood = Mathf.Max(maxWood, CountPrefab(_deliveryA, "Wood"));
+                yield return null;
+            }
             _t.Check("delivers the requested wood", sawDeliver && Delivered(a, "Wood") == 15 && CountPrefab(_deliveryA, "Wood") == 15,
                 $"ledger {Delivered(a, "Wood")}, chest {CountPrefab(_deliveryA, "Wood")}");
-            _t.Check("never delivers more than requested", maxWood <= 15, maxWood.ToString());
+            _t.Check("never delivers more than requested", maxWood == 15 && Delivered(a, "Wood") == 15, $"max {maxWood} in the chest");
             _t.Check("short stock: delivers what exists, line stays open",
                 Delivered(a, "Stone") == 11 && a.Ledger.Remaining("Stone") == 19 && CountPrefab(_stone, "Stone") == 0, Lines(a));
             _t.Check("two Delivery Chests served independently", Delivered(b, "Resin") == 3 && CountPrefab(_deliveryB, "Resin") == 3

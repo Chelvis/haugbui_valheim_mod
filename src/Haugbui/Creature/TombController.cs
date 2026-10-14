@@ -5,6 +5,7 @@ using Haugbui.Core.Creature;
 using Haugbui.Core.Persistence;
 using Haugbui.Core.Progression;
 using Haugbui.Core.Structures;
+using Haugbui.Core.Tribute;
 using Haugbui.Diagnostics;
 using Haugbui.Integration;
 using Haugbui.Structures;
@@ -13,8 +14,9 @@ using UnityEngine;
 namespace Haugbui.Creature
 {
     /// <summary>
-    /// HB-T-032..036, HB-T-093, HB-T-025: the tomb owns its Haugbui. Decides presence, spawns and recalls the creature,
-    /// keeps health, carried items and overflow in the tomb ZDO. Logic runs only on the tomb's ZDO owner.
+    /// HB-T-032..036, HB-T-093, HB-T-025, HB-T-100..105: the tomb owns its Haugbui. Decides presence and pays the shift,
+    /// spawns and recalls the creature, keeps health, carried items, overflow and tribute in the tomb ZDO and the
+    /// servant's identity in its slot. Logic runs only on the tomb's ZDO owner.
     /// </summary>
     public sealed class TombController : MonoBehaviour
     {
@@ -35,6 +37,8 @@ namespace Haugbui.Creature
         private bool _resumeChecked;
         private int _lastSavedHash;
         private Core.Scheduling.TickHandle _planTick;
+        private float _nextWorkCheck;
+        private bool _slotChecked;
 
         public static IReadOnlyList<TombController> All => Instances;
 
@@ -46,6 +50,23 @@ namespace Haugbui.Creature
         internal HaugbuiWorker Worker { get; private set; }
         internal string Guid => _tomb.Guid;
 
+        /// <summary>The servant bound to this tomb (HB-137); null until bound or when every slot is taken.</summary>
+        internal ServantSlot Slot { get; private set; }
+        internal string ServantName => Slot != null && !string.IsNullOrEmpty(Slot.Name) ? Slot.Name : ServantSlots.DefaultName(0);
+
+        /// <summary>Why it stays inside during its work window (HB-167/168); null when it may work.</summary>
+        internal ShiftDecision? Waiting { get; private set; }
+        internal int ShiftCost => HaugbuiPlugin.Instance.Settings.TributeTable.CostFor(_tomb.Progress.Level);
+        internal static bool TributeEnabled => HaugbuiPlugin.Instance.Settings.TributeEnabled.Value && !TributeSuspended;
+
+#if DEBUG
+        /// <summary>Self-test suites written before the tribute rules run with it off.</summary>
+        internal static bool TributeSuspendedForTests { get; set; }
+        private static bool TributeSuspended => TributeSuspendedForTests;
+#else
+        private const bool TributeSuspended = false;
+#endif
+
         /// <summary>The creature is out and this peer runs its logic.</summary>
         internal bool CanWork => !_destroyed && State != null && IsOwner && Creature != null && Machine.IsOut;
         internal TombState State => _tomb != null ? _tomb.TombState : null;
@@ -55,16 +76,13 @@ namespace Haugbui.Creature
         internal bool DarkAura => FullTime;
         internal Vector3 Home => transform.position + Vector3.up * 0.8f;
 
-        internal double CooldownRemaining
-        {
-            get
-            {
-                TombState state = State;
-                if (state == null || Machine.State != HaugbuiState.Dead) return 0;
-                return PresencePolicy.CooldownRemaining(TimeSource.Current.Now, state.DeathTime,
-                    HaugbuiPlugin.Instance.Settings.CooldownSeconds.Value);
-            }
-        }
+        internal static double CooldownSeconds =>
+            HaugbuiPlugin.Instance.Settings.CooldownDays.Value * TimeSource.Current.DayLengthSeconds;
+
+        /// <summary>HB-132/136: time until death or a new tomb stop keeping it inside (countdown label, hover).</summary>
+        internal double WaitRemaining => State != null ? PresencePolicy.WaitRemaining(Input()) : 0;
+
+        internal ShiftTimer Timer => PresencePolicy.Timer(Input());
 
         private void Awake()
         {
@@ -118,26 +136,72 @@ namespace Haugbui.Creature
         internal void TickNow()
         {
             _nextTick = 0;
+            _nextWorkCheck = 0;
             if (!_destroyed && State != null && IsOwner) Tick();
         }
 
-        private PresenceInput Input()
+        private PresenceInput Input() => InputFor(State, Machine.State == HaugbuiState.Dead);
+
+        /// <summary>Also used by non-owners with the state read from the ZDO.</summary>
+        internal PresenceInput InputFor(TombState state, bool dead)
         {
             ITimeSource time = TimeSource.Current;
-            Config.HaugbuiConfig settings = HaugbuiPlugin.Instance.Settings;
             return new PresenceInput
             {
-                IsNight = time.IsNight,
-                DayFraction = time.DayFraction,
+                Now = time.Now,
                 DayLengthSeconds = time.DayLengthSeconds,
                 FullTime = FullTime,
-                Resting = State.Has(TombToggles.Resting),
-                Dead = Machine.State == HaugbuiState.Dead,
-                Now = time.Now,
-                DeathTime = State.DeathTime,
-                CooldownSeconds = settings.CooldownSeconds.Value,
-                DawnReturnLeadSeconds = settings.DawnReturnLeadSeconds.Value,
+                Resting = state.Has(TombToggles.Resting),
+                Dead = dead,
+                DeathTime = state.DeathTime,
+                CooldownSeconds = CooldownSeconds,
+                DawnReturnLeadSeconds = HaugbuiPlugin.Instance.Settings.DawnReturnLeadSeconds.Value,
+                StartTime = state.StartTime,
             };
+        }
+
+        private long CurrentShift => WorldClock.ShiftId(TimeSource.Current.Now, TimeSource.Current.DayLengthSeconds);
+
+        /// <summary>
+        /// HB-T-101: may this shift be worked? Charges the shift once, at its start, and only when there is work; checks
+        /// again every WorkCheckSeconds while it waits. The hook for away mode (M12) and sleep fast mode (HB-T-098),
+        /// which charge the same way.
+        /// </summary>
+        internal bool StartShift()
+        {
+            if (State.SlotIndex < 0)
+            {
+                Waiting = null;
+                return false;
+            }
+            if (!TributeEnabled)
+            {
+                Waiting = null;
+                return true;
+            }
+            long shift = CurrentShift;
+            if (shift == State.LastPaidShift)
+            {
+                Waiting = null;
+                return true;
+            }
+            if (Time.time < _nextWorkCheck) return false;
+            _nextWorkCheck = Time.time + HaugbuiPlugin.Instance.Settings.WorkCheckSeconds.Value;
+
+            int cost = ShiftCost;
+            ShiftDecision decision = ShiftRules.Decide(true, shift, State.LastPaidShift, Worker.HasWork(), State.Balance, cost);
+            if (decision == ShiftDecision.Charge)
+            {
+                var balance = new TributeBalance(State.Balance, State.CheatedBalance);
+                balance.TryCharge(cost);
+                State.Balance = balance.Total;
+                State.CheatedBalance = balance.Cheated;
+                State.LastPaidShift = shift;
+                SaveStateIfChanged();
+                Log.Info($"Tomb {_tomb.Guid}: shift {shift} paid ({cost}), balance {State.Balance}.");
+            }
+            Waiting = ShiftRules.MayWork(decision) ? (ShiftDecision?)null : decision;
+            return Waiting == null;
         }
 
         private void ResumeAfterLoad()
@@ -146,7 +210,7 @@ namespace Haugbui.Creature
             if (Creature != null) Adopt(Creature);
             if (!Machine.IsOut || Creature != null) return;
 
-            if (PresencePolicy.ShouldBeOut(Input()))
+            if (PresencePolicy.ShouldBeOut(Input()) && State.SlotIndex >= 0 && (!TributeEnabled || State.LastPaidShift == CurrentShift))
             {
                 var saved = new Vector3(State.PositionX, State.PositionY, State.PositionZ);
                 bool valid = !float.IsNaN(State.PositionX)
@@ -173,15 +237,25 @@ namespace Haugbui.Creature
             switch (PresencePolicy.Decide(Input(), Machine.IsOut))
             {
                 case PresenceDecision.Emerge:
-                    Emerge();
+                    if (StartShift()) Emerge();
                     break;
                 case PresenceDecision.Return:
+                    Waiting = null;
                     if (Machine.RequestReturn() && Creature != null) Creature.MoveTo(Home);
                     break;
                 case PresenceDecision.StayOut:
+                    // With the Altar it stays out across dusk and dawn; each new shift is paid like any other.
+                    if (!StartShift())
+                    {
+                        if (Waiting != null && Machine.RequestReturn() && Creature != null) Creature.MoveTo(Home);
+                        break;
+                    }
                     if (Machine.ReturnPending) Machine.CancelReturn();
                     // E.g. the Altar was built or Rest turned off while it flew home.
                     if (Machine.State == HaugbuiState.Returning && Machine.TryEnter(HaugbuiState.Idle)) Creature?.Stop();
+                    break;
+                default:
+                    Waiting = null;
                     break;
             }
 
@@ -249,6 +323,7 @@ namespace Haugbui.Creature
             Creature.SetState(Machine.State);
             State.CreatureState = (int)HaugbuiState.Idle;
             SaveStateIfChanged();
+            if (Slot != null && !double.IsNaN(Slot.DeathTime)) UpdateSlot(s => s.DeathTime = double.NaN);
         }
 
         private void Spawn(Vector3 position, bool emergeEffect)
@@ -335,9 +410,12 @@ namespace Haugbui.Creature
             State.Health = 0;
             State.HealthTime = now;
             State.CreatureState = (int)HaugbuiState.Dead;
+            // HB-168: no refund, and its return is a new shift that is charged again.
+            State.LastPaidShift = WorldClock.NoShift;
             DepositCarried();
             SaveStateIfChanged();
-            Log.Info($"Tomb {_tomb.Guid}: Haugbui died; returns in {PresencePolicy.FormatCountdown(HaugbuiPlugin.Instance.Settings.CooldownSeconds.Value)} (world time).");
+            UpdateSlot(s => s.DeathTime = now);
+            Log.Info($"Tomb {_tomb.Guid}: Haugbui died; returns in {PresencePolicy.FormatCountdown(WaitRemaining)} (world time).");
         }
 
         /// <summary>
@@ -388,8 +466,76 @@ namespace Haugbui.Creature
             State.Set(toggle, on);
             if (toggle == TombToggles.Combat && on) State.Set(TombToggles.CombatAcknowledged, true);
             SaveStateIfChanged();
+            TombToggles toggles = State.Toggles;
+            UpdateSlot(s => s.Toggles = toggles);
             TickNow();
             return true;
+        }
+
+        /// <summary>HB-T-102: takes one valuable from the player's inventory and adds its worth to the balance.</summary>
+        internal bool Offer(string prefab, Player player)
+        {
+            int value = HaugbuiPlugin.Instance.Settings.TributeTable.ValueOf(prefab);
+            if (value <= 0 || player == null || State == null || !IsOwner || _destroyed) return false;
+            Inventory inventory = player.GetInventory();
+            ItemDrop.ItemData item = inventory.GetAllItems().FirstOrDefault(i => ItemBridge.PrefabName(i) == prefab);
+            if (item == null) return false;
+            bool cheated = item.m_cheated;
+            if (!inventory.RemoveItem(item, 1)) return false;
+
+            var balance = new TributeBalance(State.Balance, State.CheatedBalance);
+            balance.Offer(value, cheated);
+            State.Balance = balance.Total;
+            State.CheatedBalance = balance.Cheated;
+            SaveStateIfChanged();
+            Log.Debug($"Tomb {_tomb.Guid}: offered {prefab} (+{value}{(cheated ? ", cheated" : "")}), balance {State.Balance}.");
+            TickNow();
+            return true;
+        }
+
+        /// <summary>Called once the tomb's state exists after placement (the controller woke up before it).</summary>
+        internal void OnStateCreated(ServantSlot slot)
+        {
+            Slot = slot;
+            _slotChecked = true;
+            Machine.Restore((HaugbuiState)State.CreatureState);
+            _lastSavedHash = 0;
+        }
+
+        /// <summary>HB-T-104 migration: loaded tombs without a slot (built before 0.0.6) bind in GUID order.</summary>
+        internal static void BindPendingSlots()
+        {
+            if (!ServantRegistry.Available) return;
+            foreach (TombController tomb in Instances.Where(t => !t._slotChecked && !t._destroyed && t.State != null && t.IsOwner)
+                         .OrderBy(t => t.Guid, System.StringComparer.Ordinal).ToList())
+                tomb.EnsureSlot();
+        }
+
+        private void EnsureSlot()
+        {
+            _slotChecked = true;
+            int before = State.SlotIndex;
+            int stateBefore = State.CreatureState;
+            Slot = ServantRegistry.Bind(State);
+            if (Slot == null)
+            {
+                Log.Warning($"Tomb {_tomb.Guid}: every servant slot of player {State.OwnerId} is taken; this tomb stays empty.");
+                return;
+            }
+            // Only an inherited death changes the state; a running Haugbui is left alone.
+            if (State.CreatureState != stateBefore && !Machine.IsOut) Machine.Restore((HaugbuiState)State.CreatureState);
+            SaveStateIfChanged();
+            if (before != State.SlotIndex) Log.Info($"Tomb {_tomb.Guid}: bound to servant slot {State.SlotIndex} ({Slot.Name}).");
+        }
+
+        private void UpdateSlot(System.Action<ServantSlot> change)
+        {
+            if (State == null || State.SlotIndex < 0) return;
+            ServantSlot current = ServantRegistry.Read(State.OwnerId, State.SlotIndex);
+            if (current == null || current.TombGuid != _tomb.Guid) return;
+            change(current);
+            ServantRegistry.Write(State.OwnerId, current);
+            Slot = current;
         }
 
         /// <summary>HB-T-025: tomb removed or destroyed. Carried and overflow items drop here; storage drops itself.</summary>
@@ -404,6 +550,8 @@ namespace Haugbui.Creature
             Overflow = new List<ItemStack>();
             _overflowSlot.TrySave(Overflow);
             Carried.TakeAll();
+            RefundTribute(at);
+            UpdateSlot(s => s.TombGuid = string.Empty);
 
             if (Creature != null)
             {
@@ -416,6 +564,31 @@ namespace Haugbui.Creature
                 upgrade.Zdo.Set(ZdoKeys.TombGuid, string.Empty);
             StructureRegistry.MarkDirty();
             Log.Info($"Tomb {_tomb.Guid} destroyed: {dropped} carried/overflow items dropped, upgrades unbound.");
+        }
+
+        /// <summary>HB-159: the balance drops as Coins; only the part paid with cheated valuables comes back cheated.</summary>
+        private void RefundTribute(Vector3 at)
+        {
+            if (State.Balance <= 0) return;
+            (int clean, int cheated) = new TributeBalance(State.Balance, State.CheatedBalance).TakeAll();
+            State.Balance = 0;
+            State.CheatedBalance = 0;
+            _tomb.SaveTombState();
+            if (!HaugbuiPlugin.Instance.Settings.RefundTribute)
+            {
+                Log.Info($"Tomb {_tomb.Guid}: tribute balance of {clean + cheated} forfeited.");
+                return;
+            }
+            int dropped = DropCoins(clean, false, at) + DropCoins(cheated, true, at);
+            Log.Info($"Tomb {_tomb.Guid}: tribute balance refunded as {dropped} Coins ({cheated} cheated).");
+        }
+
+        private static int DropCoins(int amount, bool cheated, Vector3 at)
+        {
+            if (amount <= 0) return 0;
+            var coins = new ItemStack { Prefab = "Coins", Amount = amount, WorldLevel = Game.m_worldLevel, Cheated = cheated };
+            ItemBridge.RefreshShared(coins);
+            return ItemBridge.Drop(coins, at);
         }
 
         private void PlayEffect(Vector3 position)
@@ -434,10 +607,15 @@ namespace Haugbui.Creature
         internal string StatusLine()
         {
             if (State == null) return string.Empty;
-            double cooldown = CooldownRemaining;
-            if (cooldown > 0) return Localization.instance.Localize("$haugbui_status_cooldown", PresencePolicy.FormatCountdown(cooldown));
+            if (_slotChecked && State.SlotIndex < 0) return "$haugbui_status_no_slot";
+            double wait = WaitRemaining;
+            if (wait > 0)
+                return Localization.instance.Localize(Machine.State == HaugbuiState.Dead ? "$haugbui_status_cooldown" : "$haugbui_status_starts_in",
+                    PresencePolicy.FormatCountdown(wait));
             if (Machine.State == HaugbuiState.Dead) return "$haugbui_status_waiting_night";
             if (State.Has(TombToggles.Resting)) return "$haugbui_status_resting";
+            if (!Machine.IsOut && Waiting == ShiftDecision.NoTribute) return "$haugbui_status_no_tribute";
+            if (!Machine.IsOut && Waiting == ShiftDecision.NoWork) return "$haugbui_status_no_work";
             return "$haugbui_state_" + Machine.State.ToString().ToLowerInvariant();
         }
     }

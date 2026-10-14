@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Haugbui.Creature
 {
-    /// <summary>HB-T-036: resurrection countdown above the tomb, updated at 1 Hz and hidden beyond 20 m.</summary>
+    /// <summary>HB-T-036/105: countdown to its return (death or a new tomb's first dusk), 1 Hz, hidden beyond 20 m.</summary>
     public sealed class CountdownLabel : MonoBehaviour
     {
         private const float CullDistance = 20f;
@@ -53,16 +53,15 @@ namespace Haugbui.Creature
             if (_text.gameObject.activeSelf != show) _text.gameObject.SetActive(show);
         }
 
-        /// <summary>Non-owners read the death time straight from the ZDO, so every peer sees the same countdown.</summary>
+        /// <summary>Non-owners read the state straight from the ZDO, so every peer sees the same countdown.</summary>
         private double Remaining()
         {
             if (_tomb == null) return 0;
-            if (_tomb.IsOwner) return _tomb.CooldownRemaining;
+            if (_tomb.IsOwner) return _tomb.WaitRemaining;
             ZDO zdo = _tomb.Structure.Zdo;
             if (zdo == null || TombStateSerializer.Instance.TryDeserialize(new ZdoBlobStore(zdo).Get(ZdoKeys.TombState), out TombState state) != BlobReadStatus.Ok)
                 return 0;
-            if (state.CreatureState != (int)HaugbuiState.Dead) return 0;
-            return PresencePolicy.CooldownRemaining(TimeSource.Current.Now, state.DeathTime, HaugbuiPlugin.Instance.Settings.CooldownSeconds.Value);
+            return PresencePolicy.WaitRemaining(_tomb.InputFor(state, state.CreatureState == (int)HaugbuiState.Dead));
         }
     }
 }

@@ -171,7 +171,12 @@ namespace Haugbui.Structures
             string actions = firstBreak >= 0 ? result.Substring(firstBreak) : string.Empty;
             var controller = container.GetComponent<Creature.TombController>();
             string status = controller != null ? "\n" + controller.StatusLine() : "";
-            result = Localization.instance.Localize($"$haugbui_piece_tomb\n{structure.LevelLine()}{status}") + actions +
+            string servant = controller != null && controller.State != null ? $" ({controller.ServantName})" : "";
+            // HB-T-102: the balance is always on the hover, so "no tribute" never comes as a surprise.
+            string tribute = controller != null && controller.State != null && Creature.TombController.TributeEnabled
+                ? "\n" + Localization.instance.Localize("$haugbui_hover_tribute", controller.State.Balance.ToString(), controller.ShiftCost.ToString())
+                : "";
+            result = Localization.instance.Localize($"$haugbui_piece_tomb{servant}\n{structure.LevelLine()}{status}") + tribute + actions +
                      Localization.instance.Localize("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_panel_open");
         }
 

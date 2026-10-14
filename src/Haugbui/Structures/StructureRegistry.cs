@@ -59,6 +59,7 @@ namespace Haugbui.Structures
             _dirty = false;
             RebindOrphans();
             RecomputeLevels();
+            Creature.TombController.BindPendingSlots();
         }
 
         private static void RebindOrphans()
@@ -101,7 +102,7 @@ namespace Haugbui.Structures
         }
 
         /// <summary>Looks through all world data, so a tomb in an unloaded neighbour zone is not taken as destroyed.</summary>
-        private static bool TombExistsInWorld(string guid)
+        internal static bool TombExistsInWorld(string guid)
         {
             int kind = (int)StructureKind.Tomb;
             foreach (ZDO zdo in ZDOMan.instance.m_objectsByID.Values)

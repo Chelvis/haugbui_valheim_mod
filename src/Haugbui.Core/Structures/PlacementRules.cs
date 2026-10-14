@@ -52,7 +52,8 @@ namespace Haugbui.Core.Structures
         NeedOwnBed,
         TombTooClose,
         NeedTomb,
-        UpgradeExists
+        UpgradeExists,
+        MaxTombs
     }
 
     public static class PlacementMessages
@@ -65,6 +66,7 @@ namespace Haugbui.Core.Structures
                 case PlacementResult.TombTooClose: return "haugbui_msg_tomb_too_close";
                 case PlacementResult.NeedTomb: return "haugbui_msg_need_tomb";
                 case PlacementResult.UpgradeExists: return "haugbui_msg_upgrade_exists";
+                case PlacementResult.MaxTombs: return "haugbui_msg_max_tombs";
                 default: return null;
             }
         }

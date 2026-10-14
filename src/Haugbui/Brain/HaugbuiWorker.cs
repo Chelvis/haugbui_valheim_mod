@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Core.Coordination;
 using Haugbui.Core.Creature;
@@ -26,8 +27,13 @@ namespace Haugbui.Brain
         private readonly TombController _tomb;
         private readonly TaskPlanner<WorkContext> _planner;
         private readonly WorkContext _context = new WorkContext();
+        private readonly WorkContext _probe = new WorkContext();
         private readonly CarriedEndpoint _carried;
-        private Container _target;
+        private const float OwnDropSeconds = 300f;
+
+        private readonly Dictionary<string, ItemDrop> _ownDrops = new Dictionary<string, ItemDrop>();
+        private readonly Dictionary<string, float> _ownDropsUntil = new Dictionary<string, float>();
+        private MonoBehaviour _target;
         private float _travelDeadline;
         private float _nextCoverage;
 
@@ -38,8 +44,11 @@ namespace Haugbui.Brain
             {
                 new DepositProvider(),
                 new DeliveryProvider(),
+                new OwnDropsProvider(),
+                new HarvestProvider(),
                 new SortTombStorageProvider(),
                 new CollectionProvider(),
+                new GroundItemProvider(),
             });
             _carried = new CarriedEndpoint("carried:" + tomb.Guid, tomb.Carried);
         }
@@ -53,6 +62,11 @@ namespace Haugbui.Brain
         public int Takes { get; private set; }
         public int Puts { get; private set; }
         public int Deliveries { get; private set; }
+        public int Harvests { get; private set; }
+        public int PickUps { get; private set; }
+
+        /// <summary>Drops of its own harvests still on the ground (HB-093); session only.</summary>
+        public IReadOnlyDictionary<string, ItemDrop> OwnDrops => _ownDrops;
         public IAccessPolicy Policy { get; set; } = SinglePlayerAccessPolicy.Instance;
 
         /// <summary>World time of the next Collection Chest check (HB-071).</summary>
@@ -75,6 +89,8 @@ namespace Haugbui.Brain
                         case TaskKinds.Deposit: return "$haugbui_activity_storing";
                         case TaskKinds.Deliver: return "$haugbui_activity_delivering";
                         case TaskKinds.Collect: return "$haugbui_activity_collecting";
+                        case TaskKinds.Harvest: return "$haugbui_activity_harvesting";
+                        case TaskKinds.Gather: return "$haugbui_activity_gathering";
                         default: return "$haugbui_activity_sorting";
                     }
                 }
@@ -88,6 +104,7 @@ namespace Haugbui.Brain
         {
             if (!_tomb.IsOwner || _tomb.State == null) return;
             if (Time.time >= _nextCoverage) RefreshCoverage();
+            PruneOwnDrops();
             if (!_tomb.CanWork) return;
             if (Plan != null) Reservations.Table.Renew(Holder);
             else PlanNow();
@@ -105,6 +122,14 @@ namespace Haugbui.Brain
             _context.Refresh(_tomb, Policy);
             Plan = _planner.Next(_context, Holder);
             if (Plan != null) Log.Debug($"Tomb {_tomb.Guid}: plan {Plan}");
+        }
+
+        /// <summary>HB-167: would it find work right now? Plans from the tomb with a separate context and reserves nothing.</summary>
+        public bool HasWork()
+        {
+            if (_tomb.State == null) return false;
+            _probe.Refresh(_tomb, Policy, probe: true);
+            return _planner.HasCandidates(_probe);
         }
 
         /// <summary>Called every frame by the tomb while the creature is out; returns true while a task drives the creature.</summary>
@@ -134,6 +159,12 @@ namespace Haugbui.Brain
                     return false;
                 }
                 _target = Resolve(step.Target);
+                if (_target == null && IsOptional(step))
+                {
+                    // Someone else took that drop or crop; the rest of the trip still makes sense.
+                    Plan.Advance();
+                    return true;
+                }
                 if (_target == null)
                 {
                     // HB-T-047: an unloaded or removed target is unavailable, never "empty".
@@ -150,6 +181,13 @@ namespace Haugbui.Brain
                 return true;
             }
 
+            if (_target == null && IsOptional(step))
+            {
+                machine.TryEnter(HaugbuiState.Idle);
+                creature.Stop();
+                Plan.Advance();
+                return true;
+            }
             if (_target == null)
             {
                 Abort("target unloaded while travelling");
@@ -167,7 +205,7 @@ namespace Haugbui.Brain
                 Abort("cannot interact (" + machine.State + ")");
                 return false;
             }
-            bool moved = Execute(step, new ContainerEndpoint(_target));
+            bool moved = Execute(step, _target);
             machine.CompleteStep();
             creature.Stop();
             Plan.Advance();
@@ -179,7 +217,62 @@ namespace Haugbui.Brain
         }
 
         /// <returns>True when items moved. A step that moved nothing puts its item kind on the retry backoff.</returns>
-        private bool Execute(TaskStep step, ContainerEndpoint target)
+        private bool Execute(TaskStep step, MonoBehaviour target)
+        {
+            switch (step.Kind)
+            {
+                case StepKind.PickUp:
+                    return PickUp((ItemDrop)target) > 0;
+                case StepKind.Harvest:
+                    return Harvest(target);
+                default:
+                    return Transfer(step, new ContainerEndpoint((Container)target));
+            }
+        }
+
+        /// <summary>HB-103: the target's own action; its drops go straight into the carried inventory as far as they fit.</summary>
+        private bool Harvest(MonoBehaviour target)
+        {
+            List<ItemDrop> drops = HarvestGateway.Harvest(target);
+            if (drops.Count == 0) return false;
+            Harvests++;
+            foreach (ItemDrop drop in drops)
+            {
+                PickUp(drop);
+                if (!DropEndpoint.IsLive(drop)) continue;
+                string id = DropEndpoint.IdOf(drop);
+                _ownDrops[id] = drop;
+                _ownDropsUntil[id] = Time.time + OwnDropSeconds;
+            }
+            _tomb.Creature?.Visuals?.Pulse();
+            return true;
+        }
+
+        private int PickUp(ItemDrop drop)
+        {
+            if (!DropEndpoint.IsLive(drop)) return 0;
+            ItemStack item = DropEndpoint.Read(drop);
+            TransferRecord record = Reservations.Transfers.Move(new DropEndpoint(drop), _carried, item, item.Amount);
+            if (record.Moved <= 0) return 0;
+            PickUps++;
+            _tomb.Creature?.Visuals?.Pulse();
+            return record.Moved;
+        }
+
+        private void PruneOwnDrops()
+        {
+            if (_ownDrops.Count == 0) return;
+            foreach (string id in _ownDrops.Keys.ToList())
+            {
+                if (DropEndpoint.IsLive(_ownDrops[id]) && Time.time < _ownDropsUntil[id]) continue;
+                _ownDrops.Remove(id);
+                _ownDropsUntil.Remove(id);
+            }
+        }
+
+        private static bool IsOptional(TaskStep step) => step.Kind == StepKind.PickUp || step.Kind == StepKind.Harvest;
+
+        private bool Transfer(TaskStep step, ContainerEndpoint target)
         {
             TransferRecord record = step.Kind == StepKind.Take
                 ? Reservations.Transfers.Move(target, _carried, step.Item, step.Amount)
@@ -238,12 +331,22 @@ namespace Haugbui.Brain
             _target = null;
         }
 
-        private Container Resolve(string id)
+        private MonoBehaviour Resolve(string id)
         {
-            if (!_context.ById.TryGetValue(id, out Container container) || container == null) return null;
-            ZNetView view = container.m_nview;
+            if (!_context.Targets.TryGetValue(id, out MonoBehaviour target) || target == null) return null;
+            ZNetView view = ViewOf(target);
             if (view == null || !view.IsValid() || ZNetScene.instance.FindInstance(view.GetZDO()) == null) return null;
-            return container;
+            return target;
+        }
+
+        private static ZNetView ViewOf(MonoBehaviour target)
+        {
+            switch (target)
+            {
+                case Container container: return container.m_nview;
+                case ItemDrop drop: return drop.m_nview;
+                default: return HarvestGateway.ViewOf(target);
+            }
         }
 
         private static Collider MainCollider(Component target) =>

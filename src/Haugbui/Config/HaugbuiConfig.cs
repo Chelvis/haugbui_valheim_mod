@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using BepInEx.Configuration;
 using Haugbui.Core.Progression;
 using Haugbui.Core.Recipes;
+using Haugbui.Core.Tribute;
 using Haugbui.Diagnostics;
 
 namespace Haugbui.Config
@@ -17,6 +18,8 @@ namespace Haugbui.Config
         private const string Recipes = "7 - Recipes";
         private const string Combat = "8 - Combat";
         private const string AwayMode = "9 - Away mode";
+        private const string Harvest = "10 - Harvest";
+        private const string Tribute = "11 - Tribute";
         private const string Advanced = "99 - Advanced";
 
         private readonly ConfigFile _file;
@@ -33,9 +36,11 @@ namespace Haugbui.Config
             _file = file;
             Bind();
             ProgressionTable = BuildProgressionTable();
+            TributeTable = BuildTributeTable();
         }
 
         public ProgressionTable ProgressionTable { get; private set; }
+        public TributeTable TributeTable { get; private set; }
 
         public ConfigEntry<bool> DebugLogging { get; private set; }
         public ConfigEntry<string> EffectsQuality { get; private set; }
@@ -44,16 +49,28 @@ namespace Haugbui.Config
         public ConfigEntry<float> CollectionIntervalSeconds { get; private set; }
         public ConfigEntry<bool> SleepFastMode { get; private set; }
 
-        public ConfigEntry<float> CooldownSeconds { get; private set; }
+        public ConfigEntry<float> CooldownDays { get; private set; }
         public ConfigEntry<float> RestFullHealSeconds { get; private set; }
 
         public ConfigEntry<int> ProductionUnlockLevel { get; private set; }
 
         public ConfigEntry<float> BedDistance { get; private set; }
         public ConfigEntry<float> TombSpacing { get; private set; }
+        public ConfigEntry<int> MaxHaugbuisPerPlayer { get; private set; }
         public ConfigEntry<float> UpgradeRange { get; private set; }
 
         public ConfigEntry<float> CombatDamageMultiplier { get; private set; }
+
+        public ConfigEntry<bool> HarvestWildPickables { get; private set; }
+        public ConfigEntry<bool> HarvestSapCollectors { get; private set; }
+
+        public ConfigEntry<bool> TributeEnabled { get; private set; }
+        public ConfigEntry<string> TributeOnTombDestroyed { get; private set; }
+        public ConfigEntry<float> WorkCheckSeconds { get; private set; }
+        private ConfigEntry<string> _tributeCosts;
+        private ConfigEntry<string> _tributeValues;
+
+        public bool RefundTribute => TributeOnTombDestroyed.Value != "Forfeit";
 
         public ConfigEntry<bool> AwayModeEnabled { get; private set; }
         public ConfigEntry<float> RemoteTickSeconds { get; private set; }
@@ -94,8 +111,8 @@ namespace Haugbui.Config
             SleepFastMode = BindAdmin(Timing, "SleepFastMode", true,
                 "While the player sleeps, the Haugbui works the skipped night in fast mode.");
 
-            CooldownSeconds = BindAdmin(Death, "CooldownSeconds", 3600f,
-                "World-time seconds before a dead Haugbui returns (3600 = about two in-game days).", 0f, 86400f);
+            CooldownDays = BindAdmin(Death, "CooldownDays", 1f,
+                "In-game days before a dead Haugbui may return. Without the Altar it then waits for the next nightfall.", 0f, 30f);
             RestFullHealSeconds = BindAdmin(Death, "RestFullHealSeconds", 3600f,
                 "World-time seconds for a resting Haugbui to heal from zero to full.", 1f, 86400f);
 
@@ -105,6 +122,9 @@ namespace Haugbui.Config
             BedDistance = BindAdmin(Construction, "BedDistance", 50f,
                 "Maximum distance between a tomb and a bed owned by the builder.", 5f, 500f);
             TombSpacing = BindAdmin(Construction, "TombSpacing", 5f, "Minimum distance between two tombs.", 0f, 100f);
+            MaxHaugbuisPerPlayer = BindAdmin(Construction, "MaxHaugbuisPerPlayer", 3,
+                "Servant slots per player and world (one tomb each). WARNING: many Haugbuis can cause performance problems and errors.",
+                1, 10);
             UpgradeRange = BindAdmin(Construction, "UpgradeRange", 8f, "Maximum distance between an upgrade and its tomb.", 2f, 50f);
 
             foreach (PieceRecipe recipe in DefaultRecipes.All)
@@ -114,6 +134,24 @@ namespace Haugbui.Config
             }
 
             CombatDamageMultiplier = BindAdmin(Combat, "DamageMultiplier", 1f, "Multiplier for Haugbui attack damage.", 0.1f, 10f);
+
+            HarvestWildPickables = BindAdmin(Harvest, "WildPickables", false,
+                "Also pick wild plants (berries, mushrooms, thistle...), not only cultivated crops.");
+            HarvestSapCollectors = BindAdmin(Harvest, "SapCollectors", false, "Also empty sap collectors.");
+
+            TributeEnabled = BindAdmin(Tribute, "Enabled", true,
+                "Each shift must be paid with valuables offered at the tomb. Off: the Haugbui works every night for free.");
+            _tributeCosts = BindAdmin(Tribute, "CostPerLevel", TributeTable.CostsToCsv(TributeTable.DefaultCosts),
+                "Cost of one shift in coin units for levels 1..6.");
+            _tributeValues = BindAdmin(Tribute, "Values", TributeTable.ValuesToConfig(TributeTable.DefaultValues),
+                "Valuables that can be offered and their worth in coin units, as Item:Value (item prefab names).");
+            _tributeCosts.SettingChanged += (_, __) => TributeTable = BuildTributeTable();
+            _tributeValues.SettingChanged += (_, __) => TributeTable = BuildTributeTable();
+            TributeOnTombDestroyed = _file.Bind(Tribute, "OnTombDestroyed", "DropCoins",
+                AdminDescription("What happens to the balance when a tomb is destroyed: dropped as Coins, or lost.",
+                    new AcceptableValueList<string>("DropCoins", "Forfeit")));
+            WorkCheckSeconds = BindAdmin(Tribute, "WorkCheckSeconds", 10f,
+                "How often a dormant Haugbui looks for work (or tribute) during its shift.", 2f, 120f);
 
             AwayModeEnabled = BindAdmin(AwayMode, "Enabled", true,
                 "Tombs keep sorting, delivering and refilling smelters while the player is far away.");
@@ -132,6 +170,13 @@ namespace Haugbui.Config
             ConfigEntry<string> entry = _file.Bind(Progression, key, defaults, AdminDescription(description));
             entry.SettingChanged += (_, __) => ProgressionTable = BuildProgressionTable();
             return entry;
+        }
+
+        private TributeTable BuildTributeTable()
+        {
+            TributeTable table = TributeTable.FromConfig(_tributeCosts.Value, _tributeValues.Value, out List<string> warnings);
+            foreach (string warning in warnings) Log.Warning("Config " + Tribute + ": " + warning);
+            return table;
         }
 
         private ProgressionTable BuildProgressionTable()

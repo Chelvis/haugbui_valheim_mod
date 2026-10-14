@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using Haugbui.Core.Creature;
 using Haugbui.Core.Persistence;
+using Haugbui.Core.Tribute;
 using Haugbui.Core.Progression;
 using Haugbui.Core.Structures;
 using Haugbui.Creature;
@@ -10,11 +12,12 @@ using UnityEngine.UI;
 
 namespace Haugbui.UI
 {
-    /// <summary>HB-T-039: status and toggles of one tomb. Opened with alt-interact on the tomb.</summary>
+    /// <summary>HB-T-039/102: status, toggles and tribute of one tomb. Opened with alt-interact on the tomb.</summary>
     internal static class TombPanel
     {
         private const float Width = 420f;
-        private const float Height = 530f;
+        private const float Height = 690f;
+        private const int OfferColumns = 3;
 
         private static readonly (TombToggles Toggle, string Label)[] Toggles =
         {
@@ -26,7 +29,11 @@ namespace Haugbui.UI
         };
 
         private static GameObject _root;
+        private static Text _title;
         private static Text _status;
+        private static Text _tribute;
+        private static string _builtFor;
+        private static readonly List<(string Prefab, Button Button)> Offers = new List<(string, Button)>();
         private static readonly Dictionary<TombToggles, Toggle> ToggleControls = new Dictionary<TombToggles, Toggle>();
         private static readonly Dictionary<TombToggles, Text> ToggleLabels = new Dictionary<TombToggles, Text>();
         private static TombController _tomb;
@@ -35,11 +42,21 @@ namespace Haugbui.UI
 
         public static bool IsOpen => _root != null && _root.activeSelf;
         internal static TombController Current => IsOpen ? _tomb : null;
+        internal static IReadOnlyList<(string Prefab, Button Button)> OfferButtons => Offers;
+        internal static string TributeText => _tribute != null ? _tribute.text : string.Empty;
 
         public static void Open(TombController tomb)
         {
             if (GUIManager.IsHeadless() || GUIManager.CustomGUIFront == null || tomb == null) return;
+            string values = TributeTable.ValuesToConfig(HaugbuiPlugin.Instance.Settings.TributeTable.Values);
+            if (_root != null && _builtFor != values)
+            {
+                if (_root.activeSelf) GUIManager.BlockInput(false);
+                Object.Destroy(_root);
+                _root = null;
+            }
             if (_root == null) Build();
+            _builtFor = values;
             _tomb = tomb;
             _openedAt = Time.time;
             Refresh();
@@ -77,8 +94,8 @@ namespace Haugbui.UI
             GUIManager gui = GUIManager.Instance;
             _root = gui.CreateWoodpanel(GUIManager.CustomGUIFront.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Width, Height, draggable: false);
-            gui.CreateText(Localization.instance.Localize("$haugbui_piece_tomb"), _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0, -35f), gui.AveriaSerifBold, 26, gui.ValheimOrange, true, Color.black, Width - 40f, 40f, false);
+            _title = gui.CreateText(Localization.instance.Localize("$haugbui_piece_tomb"), _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0, -35f), gui.AveriaSerifBold, 26, gui.ValheimOrange, true, Color.black, Width - 40f, 40f, false).GetComponent<Text>();
             _status = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -140f),
                 gui.AveriaSerifBold, 17, Color.white, true, Color.black, Width - 50f, 170f, false).GetComponent<Text>();
 
@@ -99,6 +116,21 @@ namespace Haugbui.UI
                 ToggleLabels[flag] = text;
             }
 
+            _tribute = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -475f),
+                gui.AveriaSerifBold, 17, Color.white, true, Color.black, Width - 50f, 50f, false).GetComponent<Text>();
+            Offers.Clear();
+            IReadOnlyList<KeyValuePair<string, int>> valuables = HaugbuiPlugin.Instance.Settings.TributeTable.Values;
+            for (int i = 0; i < valuables.Count; i++)
+            {
+                string prefab = valuables[i].Key;
+                float x = (i % OfferColumns - (OfferColumns - 1) / 2f) * 128f;
+                float y = -530f - i / OfferColumns * 42f;
+                GameObject button = gui.CreateButton(OfferLabel(prefab, valuables[i].Value), _root.transform, new Vector2(0.5f, 1f),
+                    new Vector2(0.5f, 1f), new Vector2(x, y), 122f, 36f);
+                button.GetComponent<Button>().onClick.AddListener(() => Offer(prefab));
+                Offers.Add((prefab, button.GetComponent<Button>()));
+            }
+
             GameObject storage = gui.CreateButton(Localization.instance.Localize("$haugbui_panel_open_storage"), _root.transform,
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-95f, 40f), 170f, 40f);
             storage.GetComponent<Button>().onClick.AddListener(OpenStorage);
@@ -116,6 +148,12 @@ namespace Haugbui.UI
             TombState state = _tomb.State;
             HaugbuiAttributes attributes = _tomb.Attributes;
             float health = _tomb.Creature != null ? _tomb.Creature.Character.GetHealth() : _tomb.EffectiveHealth(attributes.MaxHealth);
+
+            _title.text = _tomb.ServantName;
+            _tribute.text = TributeLine(_tomb);
+            Inventory inventory = Player.m_localPlayer != null ? Player.m_localPlayer.GetInventory() : null;
+            foreach ((string prefab, Button button) in Offers)
+                button.interactable = inventory != null && inventory.GetAllItems().Exists(i => ItemBridge.PrefabName(i) == prefab);
 
             _status.text = Localization.instance.Localize(
                 $"{structure.LevelLine()}\n" +
@@ -139,6 +177,31 @@ namespace Haugbui.UI
                                           (requirement != null ? $" <color=#999999>({Localization.instance.Localize(requirement)})</color>" : "");
             }
             _refreshing = false;
+        }
+
+        /// <summary>Balance, cost per shift and the shift timer (HB-169).</summary>
+        internal static string TributeLine(TombController tomb)
+        {
+            ShiftTimer timer = tomb.Timer;
+            string time = double.IsNaN(timer.Seconds) ? "" :
+                "\n" + Localization.instance.Localize(timer.InShift ? "$haugbui_panel_shift_left" : "$haugbui_panel_next_shift",
+                    PresencePolicy.FormatCountdown(timer.Seconds));
+            if (!TombController.TributeEnabled) return time.TrimStart('\n');
+            return Localization.instance.Localize("$haugbui_panel_tribute", tomb.State.Balance.ToString(), tomb.ShiftCost.ToString()) + time;
+        }
+
+        private static string OfferLabel(string prefab, int value)
+        {
+            GameObject item = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
+            string name = item != null ? item.GetComponent<ItemDrop>().m_itemData.m_shared.m_name : prefab;
+            return Localization.instance.Localize(name) + " +" + value;
+        }
+
+        private static void Offer(string prefab)
+        {
+            if (_tomb == null) return;
+            if (!_tomb.Offer(prefab, Player.m_localPlayer)) Player.m_localPlayer?.Message(MessageHud.MessageType.Center, "$haugbui_msg_offer_failed");
+            Refresh();
         }
 
         private static string Requirement(TombToggles flag, HaugbuiStructure structure)

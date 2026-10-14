@@ -1798,7 +1798,7 @@
             "No charge on a night without work",
             "Charge once when work appears mid-shift",
             "Insufficient balance keeps it dormant with status text",
-            "Death and resurrection in the same shift does not charge again"
+            "Each return after a death is a new, charged shift (no refund)"
           ],
           "components": [
             "TombController",

@@ -11,7 +11,13 @@ namespace Haugbui.Core.Coordination
         Take,
 
         /// <summary>Move carried items into the target.</summary>
-        Put
+        Put,
+
+        /// <summary>Pick up a ground item into the carried inventory.</summary>
+        PickUp,
+
+        /// <summary>Use the target's own pick/extract action, then pick up what it dropped.</summary>
+        Harvest
     }
 
     /// <summary>One atomic interaction; the executor first flies within reach of <see cref="Target"/>.</summary>
@@ -116,6 +122,19 @@ namespace Haugbui.Core.Coordination
                 return plan;
             }
             return null;
+        }
+
+        /// <summary>Whether any provider has something to do now; reserves nothing (HB-167 work check).</summary>
+        public bool HasCandidates(TContext context)
+        {
+            var found = new List<TaskCandidate>();
+            foreach (ITaskProvider<TContext> provider in _providers)
+            {
+                if (!provider.IsEnabled(context)) continue;
+                provider.Collect(context, found);
+                if (found.Count > 0) return true;
+            }
+            return false;
         }
 
         public void Finish(TaskPlan plan, string holder)

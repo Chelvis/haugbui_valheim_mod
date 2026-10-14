@@ -1,4 +1,5 @@
 using System;
+using Haugbui.Core.Creature;
 using Haugbui.Core.Persistence;
 using Haugbui.Core.Progression;
 using Haugbui.Core.Structures;
@@ -66,8 +67,18 @@ namespace Haugbui.Structures
             if (Kind == StructureKind.Tomb)
             {
                 LoadTombState();
-                TombState = new TombState { Guid = Guid, OwnerId = Player.m_localPlayer.GetPlayerID() };
+                ITimeSource time = TimeSource.Current;
+                TombState = new TombState
+                {
+                    Guid = Guid,
+                    OwnerId = Player.m_localPlayer.GetPlayerID(),
+                    // HB-136: a new tomb starts working at the next nightfall, with or without the Altar.
+                    StartTime = WorldClock.NextDusk(time.Now, time.DayLengthSeconds),
+                };
+                ServantSlot slot = ServantRegistry.Bind(TombState);
+                if (slot == null) Log.Error($"Tomb {Guid}: placed without a free servant slot; it stays empty.");
                 SaveTombState();
+                GetComponent<Creature.TombController>()?.OnStateCreated(slot);
             }
             else if (TombProgression.IsUpgrade(Kind))
             {

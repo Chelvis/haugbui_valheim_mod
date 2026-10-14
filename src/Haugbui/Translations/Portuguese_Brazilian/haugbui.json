@@ -62,6 +62,8 @@
   "haugbui_panel_partially_loaded": "Parte da área de trabalho não está carregada ($1% carregada); objetos lá são ignorados.",
   "haugbui_activity_delivering": "entregando itens pedidos",
   "haugbui_activity_collecting": "esvaziando um Baú de Coleta",
+  "haugbui_activity_harvesting": "colhendo",
+  "haugbui_activity_gathering": "recolhendo itens do chão",
   "haugbui_delivery_edit": "Editar pedidos",
   "haugbui_delivery_hover_open": "$1 pedidos abertos, $2 itens a entregar",
   "haugbui_delivery_edit_line": "Editar",
@@ -75,5 +77,15 @@
   "haugbui_delivery_err_item": "Escolha um item primeiro.",
   "haugbui_delivery_err_amount": "Informe uma quantidade de 1 a 99999.",
   "haugbui_delivery_err_full": "Este baú já tem 10 linhas de pedido.",
-  "haugbui_delivery_err_save": "Não foi possível salvar os pedidos."
+  "haugbui_delivery_err_save": "Não foi possível salvar os pedidos.",
+  "haugbui_msg_max_tombs": "Todos os seus Haugbuis já têm um túmulo.",
+  "haugbui_msg_offer_failed": "Você não tem isso para oferecer.",
+  "haugbui_status_starts_in": "Desperta em $1",
+  "haugbui_status_no_tribute": "Sem tributo: ofereça valores no túmulo",
+  "haugbui_status_no_work": "Dormindo: nada a fazer",
+  "haugbui_status_no_slot": "Nenhum Haugbui está ligado a este túmulo",
+  "haugbui_hover_tribute": "Tributo: $1 (por turno: $2)",
+  "haugbui_panel_tribute": "Tributo: $1 · por turno: $2",
+  "haugbui_panel_shift_left": "O turno termina em $1",
+  "haugbui_panel_next_shift": "Próximo turno em $1"
 }

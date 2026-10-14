@@ -129,6 +129,8 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "WarningPopup", null, MemberKind.Type, Features.Structures),
             M(Valheim, "IPlaced", null, MemberKind.Type, Features.Structures),
             M(Valheim, "StationExtension", "m_connectionPrefab", MemberKind.Field, Features.Structures),
+            M(Valheim, "ZoneSystem", "m_globalKeys", MemberKind.Field, Features.Structures),
+            M(Valheim, "ZoneSystem", "m_globalKeysValues", MemberKind.Field, Features.Structures),
 
             M(Valheim, "BaseAI", "UpdateAI", MemberKind.Method, Features.Creature, "System.Single"),
             M(Valheim, "Character", "m_tamed", MemberKind.Field, Features.Creature),
@@ -201,6 +203,29 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "SapCollector", "Awake", MemberKind.Method, Features.Containers),
             M(Valheim, "SapCollector", "m_nview", MemberKind.Field, Features.Containers),
             M(Valheim, "Bed", "m_nview", MemberKind.Field, Features.Containers),
+
+            M(Valheim, "ItemDrop", "m_nview", MemberKind.Field, Features.Harvest),
+            M(Valheim, "ItemDrop", "GetTimeSinceSpawned", MemberKind.Method, Features.Harvest),
+            M(Valheim, "ItemDrop", "IsPiece", MemberKind.Method, Features.Harvest),
+            M(Valheim, "ItemDrop", "InTar", MemberKind.Method, Features.Harvest),
+            M(Valheim, "ItemDrop", "Load", MemberKind.Method, Features.Harvest),
+            M(Valheim, "ItemDrop", "SetStack", MemberKind.Method, Features.Harvest, "System.Int32"),
+            M(Valheim, "ItemDrop", "CanPickup", MemberKind.Method, Features.Harvest, "System.Boolean"),
+            M(Valheim, "ItemDrop", "RequestOwn", MemberKind.Method, Features.Harvest),
+            M(Valheim, "Player", "GetAllPlayers", MemberKind.Method, Features.Harvest),
+            M(Valheim, "Pickable", "RPC_Pick", MemberKind.Method, Features.Harvest, "System.Int64", "System.Int32"),
+            M(Valheim, "Pickable", "GetPicked", MemberKind.Method, Features.Harvest),
+            M(Valheim, "Pickable", "CanBePicked", MemberKind.Method, Features.Harvest),
+            M(Valheim, "Pickable", "m_harvestable", MemberKind.Field, Features.Harvest),
+            M(Valheim, "Pickable", "m_itemPrefab", MemberKind.Field, Features.Harvest),
+            M(Valheim, "Pickable", "m_amount", MemberKind.Field, Features.Harvest),
+            M(Valheim, "Pickable", "m_aggravateRange", MemberKind.Field, Features.Harvest),
+            M(Valheim, "Beehive", "RPC_Extract", MemberKind.Method, Features.Harvest, "System.Int64"),
+            M(Valheim, "Beehive", "GetHoneyLevel", MemberKind.Method, Features.Harvest),
+            M(Valheim, "Beehive", "m_honeyItem", MemberKind.Field, Features.Harvest),
+            M(Valheim, "SapCollector", "RPC_Extract", MemberKind.Method, Features.Harvest, "System.Int64"),
+            M(Valheim, "SapCollector", "GetLevel", MemberKind.Method, Features.Harvest),
+            M(Valheim, "SapCollector", "m_spawnItem", MemberKind.Field, Features.Harvest),
         };
 
         public static IEnumerable<string> FeaturesOf(IEnumerable<ApiMember> members) =>

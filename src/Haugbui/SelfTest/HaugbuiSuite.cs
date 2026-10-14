@@ -200,8 +200,8 @@ namespace Haugbui.SelfTest
             yield return WaitFor(() => _tomb.Machine.State == HaugbuiState.Dead, 5f);
             _t.Check("dies", _tomb.Machine.State == HaugbuiState.Dead, _tomb.Machine.State.ToString());
             _t.Check("death items moved to tomb storage", _tomb.Carried.IsEmpty && Count("Resin") == before + 5);
-            double cooldown = HaugbuiPlugin.Instance.Settings.CooldownSeconds.Value;
-            _t.Check("cooldown running", _tomb.CooldownRemaining > cooldown - 10, $"{_tomb.CooldownRemaining:0}s");
+            double cooldown = TombController.CooldownSeconds;
+            _t.Check("cooldown running", _tomb.WaitRemaining > cooldown - 10, $"{_tomb.WaitRemaining:0}s");
             yield return new WaitForSeconds(1.2f);
             CountdownLabel label = _tomb.GetComponent<CountdownLabel>();
             _t.Check("countdown label shown", label != null && label.Shown.Length > 0, label?.Shown);
@@ -211,10 +211,12 @@ namespace Haugbui.SelfTest
             _tomb.TickNow();
             _t.Check("stays dead during cooldown at night", _tomb.Creature == null);
             _time.Offset += cooldown + 5;
-            yield return SetTime(Noon);
-            _t.Check("cooldown over at noon: waits for night", _tomb.Creature == null && _tomb.CooldownRemaining == 0);
+            _tomb.TickNow();
+            _t.Check("cooldown over in the night: waits for the next dusk", _tomb.Creature == null && _tomb.WaitRemaining > 0 && _time.IsNight,
+                $"waits {_tomb.WaitRemaining:0}s, night {_time.IsNight}");
+            _time.ToNextDusk();
             yield return SetTime(Night);
-            _t.Check("resurrects at night", _tomb.Creature != null, _tomb.Machine.State.ToString());
+            _t.Check("resurrects at the next dusk", _tomb.Creature != null, _tomb.Machine.State.ToString());
         }
 
         private IEnumerator Altar()

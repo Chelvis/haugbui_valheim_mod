@@ -1,3 +1,5 @@
+using Haugbui.Core.Creature;
+
 namespace Haugbui.Integration
 {
     internal interface ITimeSource
@@ -10,11 +12,14 @@ namespace Haugbui.Integration
         double Now { get; }
     }
 
-    /// <summary>HB-040: EnvMan.IsNight is weather-independent; IsDaylight is not and must never be used here.</summary>
+    /// <summary>
+    /// HB-040: night from world time (WorldClock, same boundaries as EnvMan.IsNight without its smoothing lag), so shift
+    /// ids and stored times agree with it. Weather never matters: EnvMan.IsDaylight must not be used here.
+    /// </summary>
     internal sealed class GameTimeSource : ITimeSource
     {
-        public bool IsNight => EnvMan.IsNight();
-        public float DayFraction => EnvMan.instance != null ? EnvMan.instance.GetDayFraction() : 0.5f;
+        public bool IsNight => WorldClock.IsNight(Now, DayLengthSeconds);
+        public float DayFraction => WorldClock.Fraction(Now, DayLengthSeconds);
         public double DayLengthSeconds => EnvMan.instance != null ? EnvMan.instance.m_dayLengthSec : 1800;
         public double Now => ZNet.instance != null ? ZNet.instance.GetTimeSeconds() : 0;
     }

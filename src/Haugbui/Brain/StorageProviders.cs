@@ -13,12 +13,16 @@ namespace Haugbui.Brain
         public const string SortTombStorage = "sort_tomb";
         public const string Deliver = "deliver";
         public const string Collect = "collect";
+        public const string Harvest = "harvest";
+        public const string Gather = "gather";
 
         // ARCHITECTURE §5.1: deposit → (production) → delivery → (harvest) → collection chest → (ground items).
         public const int DepositPriority = 100;
         public const int DeliverPriority = 70;
+        public const int HarvestPriority = 60;
         public const int SortTombStoragePriority = 50;
         public const int CollectPriority = 45;
+        public const int GatherPriority = 40;
     }
 
     /// <summary>HB-T-046: carried items go into chests that already hold them; no destination → kept, retried later.</summary>
@@ -114,7 +118,8 @@ namespace Haugbui.Brain
     /// <summary>HB-T-049: Collection Chests in the radius are emptied into chests that hold the same items.</summary>
     internal sealed class CollectionProvider : ITaskProvider<WorkContext>
     {
-        public bool IsEnabled(WorkContext context) => context.CollectionChests.Count > 0 && context.Now >= context.NextCollectionScan;
+        public bool IsEnabled(WorkContext context) =>
+            context.CollectionChests.Count > 0 && (context.Probe || context.Now >= context.NextCollectionScan);
 
         public void Collect(WorkContext context, List<TaskCandidate> output)
         {
@@ -134,7 +139,7 @@ namespace Haugbui.Brain
                 });
             }
             // HB-071: look again after one collection interval; while there is work, every planning tick.
-            if (!found) context.Tomb.Worker.NextCollectionScan = context.Now + HaugbuiPlugin.Instance.Settings.CollectionIntervalSeconds.Value;
+            if (!found && !context.Probe) context.Tomb.Worker.NextCollectionScan = context.Now + HaugbuiPlugin.Instance.Settings.CollectionIntervalSeconds.Value;
         }
     }
 

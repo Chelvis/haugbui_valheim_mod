@@ -44,6 +44,21 @@ namespace Haugbui.Core.Persistence
         /// <summary>World time when <see cref="Health"/> was recorded, so dormant regeneration covers unloaded time.</summary>
         public double HealthTime { get; set; } = double.NaN;
 
+        /// <summary>HB-137: the owner's servant slot this tomb is bound to; -1 until bound.</summary>
+        public int SlotIndex { get; set; } = -1;
+
+        /// <summary>HB-166: tribute credit in coin units.</summary>
+        public int Balance { get; set; }
+
+        /// <summary>HB-159: the part of <see cref="Balance"/> paid with cheated valuables.</summary>
+        public int CheatedBalance { get; set; }
+
+        /// <summary>HB-164: last shift paid (WorldClock.ShiftId); WorldClock.NoShift when none.</summary>
+        public long LastPaidShift { get; set; } = long.MinValue;
+
+        /// <summary>HB-136: world time before which a new tomb does not work; NaN for tombs built before that rule.</summary>
+        public double StartTime { get; set; } = double.NaN;
+
         public bool Has(TombToggles toggle) => (Toggles & toggle) == toggle;
 
         public void Set(TombToggles toggle, bool on) => Toggles = on ? Toggles | toggle : Toggles & ~toggle;
@@ -53,14 +68,16 @@ namespace Haugbui.Core.Persistence
     {
         public static readonly TombStateSerializer Instance = new TombStateSerializer();
 
-        public int CurrentVersion => 2;
+        public int CurrentVersion => 3;
 
         public void Write(TombState value, BlobWriter writer)
         {
             writer.Write(value.Guid).Write(value.OwnerId).Write((int)value.Toggles).Write(value.Health)
                 .Write(value.DeathTime).Write(value.LevelCache)
                 .Write(value.CreatureState).Write(value.PositionX).Write(value.PositionY).Write(value.PositionZ)
-                .Write(value.HealthTime);
+                .Write(value.HealthTime)
+                .Write(value.SlotIndex).Write(value.Balance).Write(value.CheatedBalance).Write(value.LastPaidShift)
+                .Write(value.StartTime);
         }
 
         public TombState Read(BlobReader reader)
@@ -80,6 +97,12 @@ namespace Haugbui.Core.Persistence
             state.PositionY = reader.ReadFloat();
             state.PositionZ = reader.ReadFloat();
             state.HealthTime = reader.ReadDouble();
+            if (reader.SchemaVersion < 3) return state;
+            state.SlotIndex = reader.ReadInt();
+            state.Balance = reader.ReadInt();
+            state.CheatedBalance = reader.ReadInt();
+            state.LastPaidShift = reader.ReadLong();
+            state.StartTime = reader.ReadDouble();
             return state;
         }
     }

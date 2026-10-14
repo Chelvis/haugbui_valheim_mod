@@ -31,12 +31,14 @@ namespace Haugbui.Diagnostics.Commands
             var state = tomb.TombState;
             Print(state == null
                 ? "  state: none or unreadable"
-                : $"  owner {state.OwnerId}, toggles {state.Toggles}, health {state.Health}, death {state.DeathTime}, level cache {state.LevelCache}");
+                : $"  owner {state.OwnerId}, toggles {state.Toggles}, health {state.Health}, death {state.DeathTime}, level cache {state.LevelCache}\n" +
+                  $"  slot {state.SlotIndex}, tribute {state.Balance} ({state.CheatedBalance} cheated), last paid shift {state.LastPaidShift}, start {state.StartTime:0}");
 
             var controller = tomb.GetComponent<Creature.TombController>();
             if (controller != null)
             {
-                Print($"  creature {controller.Machine.State}, out {controller.Creature != null}, cooldown {controller.CooldownRemaining:0}s");
+                Print($"  servant {controller.ServantName}, creature {controller.Machine.State}, out {controller.Creature != null}, " +
+                      $"waits {controller.WaitRemaining:0}s, shift cost {controller.ShiftCost}, waiting for {controller.Waiting?.ToString() ?? "-"}");
                 Print("  carried: " + Stacks(controller.Carried.Stacks));
                 Print("  overflow: " + Stacks(controller.Overflow));
             }

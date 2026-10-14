@@ -138,7 +138,7 @@ Most in-game checks are automated. Use a throwaway test world: the suites build,
 15 m around the player and remove everything they created.
 
 - **Manual run:** in the world, `devcommands`, then `haugbui_selftest` (all suites) or
-  `haugbui_selftest basics structures flight transfers haugbui storage chests`. Stand still for about a minute.
+  `haugbui_selftest basics structures flight transfers haugbui storage chests harvest tribute`. Stand still for about a minute.
 - **Unattended run:** in r2modman, *Settings → Set launch parameters*:
   `-console -haugbui-autotest "<character>" "<world>" -haugbui-autotest-quit`, then *Start modded*. The mod picks the
   character and world from the main menu, waits for the spawn, runs every suite, writes the report and quits.
@@ -154,6 +154,8 @@ What the suites cover:
 | transfers | 10 s of random destination-first moves between two chests with forced saves, totals unchanged, also after reload |
 | storage | registry against a scene scan and a brute-force radius query; access rules (own/foreign private chest, dungeon chest, tomb storage, player tombstone, cart, obliterator, auto-destroy crate, foreign ward with and without permission); cheated flag kept, a cheated stack moved next to a clean one stays separate (clean stack stays clean, custom data kept, clean wood never taken from the cheated stack), container in use untouched, 3 s of random transfers with saves and a reload conserve totals; sorting: tomb storage sorted first, wood only into the wood chest, empty chest untouched, item without destination kept and retried once a matching chest appears, chest removed mid-task (task stops, items kept), items back in tomb storage at dawn, totals conserved; two tombs sorting at once (own storage only, no shared reservation), leases released on death mid-task; loaded-area coverage |
 | chests | Collection/Delivery Chests: 10 slots, saved as the wood chest host, name, cost above a wood chest, own look, ledger only on the Delivery Chest, Shift+E hint; access roles; request editor (Shift+E opens it, no equipment listed, spec example 100 Wood/200 Stone/50 Resin/30 Iron, edit, invalid amount), requests and delivered counts survive reload, cancel; collection (wood/stone sorted, item without destination and equipment stay, cheated wood kept apart with its custom data); delivery (exact amount, never above requested, short stock keeps the line open, two chests independent, Collection Chest as a source, taking items out keeps delivered, full chest gets nothing); totals conserved |
+| harvest | Ground items (toggle off → nothing taken; old drops collected in one trip with every drop reserved; drop under 10 s waits; equipment, a drop near the player and an item without destination stay; cheated drop stays cheated), crops (toggle off untouched; ripe carrots harvested with the game's own pick, drops sorted, none left on the ground; sapling and wild berries untouched), hives and nests (full hive → honey, nest → feathers, empty hive ignored, never destroyed, toggle off stops them) |
+| tribute | Runs with the tribute on (other suites turn it off). New tomb starts at the next dusk; night without work: dormant, no charge; work without tribute: "no tribute" on hover; each offer takes one item and adds its value; charged once and emerges; cheated value tracked and spent first; shift timer; panel buttons; Rest/reload in the same shift never charge again; new night without work goes home; work mid-shift charges once; death: no refund, back only at the dusk after the cooldown, charged; Altar: back at cooldown end; TributeEnabled=false; slots named in order, 4th tomb refused, destroyed tomb refunds Coins (cheated part cheated), slot keeps name and death, rebuild inherits the cooldown, Forfeit drops nothing |
 | haugbui | creature prefab (not saved, no drops, tamed, purple material copies, aura parts), dormant at noon / emerges at night / returns inside the dawn lead (fake clock, so no `tod` needed), movement (arrival ≤ 1 m, max speed, no jumps), one creature after a tomb reload, deposit on entering and overflow with full storage, Rest toggle, death (items to storage, cooldown, countdown label, waits for night, resurrects), Altar (works at noon, dark aura on/off, returns when removed), toggle gating and persistence, tomb destruction (carried + overflow dropped, creature gone) |
 
 Not covered by the self-test (still manual, once per release): a real quit/reload from disk and loading the world
@@ -313,6 +315,8 @@ No change to the planner, job model or UI should be necessary.
 - Each completed milestone bumps the version (M1 = 0.0.1, M2 = 0.0.2, M3 = 0.0.3, …) in `Directory.Build.props` and
   `HaugbuiPlugin.PluginVersion`, and is tagged `vX.Y.Z` on `main`.
 - Every in-game feature gets checks in a `haugbui_selftest` suite (`src/Haugbui/SelfTest`).
+- The runner parks the player's servant slots (global keys) before each suite and restores them afterwards, and turns
+  the tribute off for every suite except `tribute`; the fake clock (`FakeTime`) is coherent world time with a 2-hour day.
 - Never commit `.reference/`, game DLLs, publicized assemblies or `Environment.props`.
 - The plugin namespace for game adapters is `Haugbui.Integration`: a `Haugbui.Game` namespace would hide Valheim's
   global `Game` class.

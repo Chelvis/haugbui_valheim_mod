@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using Haugbui.Core.Coordination;
 using Haugbui.Core.Creature;
 using Haugbui.Core.Geometry;
+using Haugbui.Core.Harvest;
+using Haugbui.Core.Persistence;
 using Haugbui.Core.Storage;
 using Haugbui.Core.Structures;
 using Haugbui.Creature;
@@ -9,6 +11,7 @@ using Haugbui.Integration;
 using Haugbui.Registry;
 using Haugbui.Structures;
 using UnityEngine;
+using Reservations = Haugbui.Coordination.Reservations;
 
 namespace Haugbui.Brain
 {
@@ -36,13 +39,45 @@ namespace Haugbui.Brain
         /// <summary>When the Collection Chests are looked at next (HB-071), world time.</summary>
         public double NextCollectionScan;
 
-        public readonly Dictionary<string, Container> ById = new Dictionary<string, Container>();
+        /// <summary>Every object a step of this tick's plans may target, by ZDO id.</summary>
+        public readonly Dictionary<string, MonoBehaviour> Targets = new Dictionary<string, MonoBehaviour>();
         public ContainerSnapshot TombStorage;
 
-        public void Refresh(TombController tomb, IAccessPolicy policy)
+        public Vector3 Center;
+        public float Radius;
+        public IAccessPolicy Policy;
+        public string Holder;
+
+        /// <summary>Only asking whether work exists (HB-167): providers must not change the worker's state.</summary>
+        public bool Probe;
+
+        public bool GroundItems;
+        public bool Harvesting;
+        public HarvestOptions HarvestOptions;
+
+        /// <summary>Drops of this Haugbui's own harvests not picked up yet (HB-093).</summary>
+        public IReadOnlyDictionary<string, ItemDrop> OwnDrops;
+
+        public bool IsFree(string key) => Reservations.Table.IsAvailable(key, Holder);
+
+        public void Refresh(TombController tomb, IAccessPolicy policy, bool probe = false)
         {
             Tomb = tomb;
+            Probe = probe;
+            Policy = policy;
+            Holder = tomb.Guid;
             OwnerId = tomb.State.OwnerId;
+            Center = tomb.transform.position;
+            Radius = tomb.Attributes.Radius;
+            GroundItems = tomb.State.Has(TombToggles.GroundItems);
+            Harvesting = tomb.State.Has(TombToggles.Harvesting);
+            Config.HaugbuiConfig settings = HaugbuiPlugin.Instance.Settings;
+            HarvestOptions = new HarvestOptions
+            {
+                IncludeWildPickables = settings.HarvestWildPickables.Value,
+                IncludeSapCollectors = settings.HarvestSapCollectors.Value,
+            };
+            OwnDrops = tomb.Worker.OwnDrops;
             From = WorldRegistry.ToVec3(tomb.Creature != null ? tomb.Creature.transform.position : tomb.transform.position);
             Now = TimeSource.Current.Now;
             Carried = tomb.Carried;
@@ -52,14 +87,14 @@ namespace Haugbui.Brain
             Sources.Clear();
             CollectionChests.Clear();
             DeliveryChests.Clear();
-            ById.Clear();
+            Targets.Clear();
 
             Container own = tomb.GetComponent<Container>();
             TombStorage = own != null ? Snapshot(own) : null;
-            if (own != null) ById[TombStorage.Id] = own;
+            if (own != null) Targets[TombStorage.Id] = own;
 
             _query.Clear();
-            WorldRegistry.QueryContainers(tomb.transform.position, tomb.Attributes.Radius, _query);
+            WorldRegistry.QueryContainers(Center, Radius, _query);
             foreach (Container container in _query)
             {
                 if (container == null || container == own) continue;
@@ -71,7 +106,7 @@ namespace Haugbui.Brain
                 if (!destination && !source && delivery == null) continue;
 
                 ContainerSnapshot snapshot = Snapshot(container);
-                ById[snapshot.Id] = container;
+                Targets[snapshot.Id] = container;
                 if (destination) Destinations.Add(snapshot);
                 if (source) Sources.Add(snapshot);
                 if (delivery != null) DeliveryChests.Add((snapshot, delivery));
