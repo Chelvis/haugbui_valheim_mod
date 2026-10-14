@@ -1,6 +1,14 @@
 <Project>
   <Import Project="$(MSBuildThisFileDirectory)Environment.props" Condition="Exists('$(MSBuildThisFileDirectory)Environment.props')" />
 
+  <!-- Keeps bin/obj outside the source tree when it is synced between machines, so they never overwrite each other. -->
+  <PropertyGroup Condition="'$(HAUGBUI_BUILD_ROOT)' != ''">
+    <BaseIntermediateOutputPath>$(HAUGBUI_BUILD_ROOT)/obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(HAUGBUI_BUILD_ROOT)/bin/$(MSBuildProjectName)/</BaseOutputPath>
+    <!-- The other machine's in-tree bin/obj arrive through the sync and must not be compiled. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin/**;obj/**</DefaultItemExcludes>
+  </PropertyGroup>
+
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>

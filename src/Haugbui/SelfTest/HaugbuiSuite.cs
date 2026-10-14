@@ -176,7 +176,8 @@ namespace Haugbui.SelfTest
             _tomb.Carried.Restore(new[] { Stack("Wood", 100) });
             _tomb.DepositCarried();
             int overflow = _tomb.Overflow.Where(s => s.Prefab == "Wood").Sum(s => s.Amount);
-            _t.Check("full storage: rest goes to overflow, totals kept", Count("Wood") + overflow == total && overflow > 0,
+            _t.Check("full storage: fills the open stack, rest to overflow, totals kept",
+                Count("Wood") == 50 && Count("Wood") + overflow == total,
                 $"storage {Count("Wood")}, overflow {overflow}, expected total {total}");
             storage.RemoveAll();
         }

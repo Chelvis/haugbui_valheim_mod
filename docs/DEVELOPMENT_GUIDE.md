@@ -37,6 +37,10 @@ Stack: BepInExPack_Valheim 5.4.2351 · Jötunn 2.30.2 · .NET Framework 4.8 · C
      compile-only references; the game provides them at runtime. `nuget.config` maps the packages to the feeds.
    - Debug copies `Haugbui.dll`, `Haugbui.Core.dll`, `.pdb` files and `Translations\` to `MOD_DEPLOYPATH`.
    - Debug builds also contain the spike commands (`haugbui_spike_*`); Release builds do not.
+   - When the source folder is synced between machines (e.g. Google Drive "My computer"), set the environment
+     variable `HAUGBUI_BUILD_ROOT` on all but one of them (e.g. `export HAUGBUI_BUILD_ROOT=~/.cache/haugbui-build`
+     on the Mac): that machine's `bin/` and `obj/` then live outside the tree, so the two never overwrite each other.
+     Pass `-p:MOD_DEPLOYPATH=` there if the shared `Environment.props` points at the other machine's plugins folder.
 
 ## 3. Install locally (without building)
 

@@ -1,4 +1,6 @@
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 
 namespace Haugbui.Core.Tests
@@ -9,6 +11,11 @@ namespace Haugbui.Core.Tests
         {
             get
             {
+                // The build may live outside the source tree (HAUGBUI_BUILD_ROOT), so the build records where it came from.
+                string recorded = typeof(RepoPaths).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+                    .FirstOrDefault(a => a.Key == "RepoRoot")?.Value;
+                if (recorded != null && File.Exists(Path.Combine(recorded, "Haugbui.sln"))) return recorded;
+
                 var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
                 while (dir != null && !File.Exists(Path.Combine(dir.FullName, "Haugbui.sln")))
                     dir = dir.Parent;

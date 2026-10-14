@@ -37,12 +37,15 @@ namespace Haugbui.Creature
             ItemDrop.ItemData template = prefab.GetComponent<ItemDrop>().m_itemData;
             string name = template.m_shared.m_name;
             int before = inventory.CountItems(name, stack.Quality, matchWorldLevel: false);
+            int maxStack = Mathf.Max(1, template.m_shared.m_maxStackSize);
             int left = stack.Amount;
             while (left > 0)
             {
-                ItemDrop.ItemData item = Create(prefab, stack, Mathf.Min(left, Mathf.Max(1, template.m_shared.m_maxStackSize)));
-                if (!inventory.CanAddItem(item) || !inventory.AddItem(item)) break;
-                left -= item.m_stack;
+                // CanAddItem is all-or-nothing, so offer only what fits: room on matching stacks, then empty slots.
+                int room = inventory.FindFreeStackSpace(name, stack.WorldLevel) + inventory.GetEmptySlots() * maxStack;
+                int amount = Mathf.Min(left, Mathf.Min(maxStack, room));
+                if (amount <= 0 || !inventory.AddItem(Create(prefab, stack, amount))) break;
+                left -= amount;
             }
             return inventory.CountItems(name, stack.Quality, matchWorldLevel: false) - before;
         }

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Diagnostics;
-using Haugbui.Structures;
 using Jotunn.Managers;
 using UnityEngine;
 
@@ -22,6 +21,9 @@ namespace Haugbui.Creature
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
         private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+
+        /// <summary>Lighter than the tomb's purple: _Color multiplies the texture, so a dark tint makes the body murky.</summary>
+        public static readonly Color Lilac = new Color(0.82f, 0.66f, 1f);
 
         public static GameObject Prefab { get; private set; }
 
@@ -65,7 +67,7 @@ namespace Haugbui.Creature
         }
 
         /// <summary>
-        /// Purple like the tomb. Always on copies: the source materials are shared with every vanilla Wraith.
+        /// Lilac, a lighter shade of the tomb's purple. Always on copies: the source materials are shared with every vanilla Wraith.
         /// </summary>
         private static void Tint(GameObject root)
         {
@@ -81,7 +83,7 @@ namespace Haugbui.Creature
 
         private static Material Tinted(Material source)
         {
-            Color purple = StructureDefinitions.HaugbuiPurple;
+            Color tint = Lilac;
             var copy = new Material(source) { name = source.name + " (Haugbui)" };
             var changed = new List<string>();
             foreach (int id in new[] { ColorId, TintColorId })
@@ -89,14 +91,14 @@ namespace Haugbui.Creature
                 if (!source.HasProperty(id)) continue;
                 Color original = source.GetColor(id);
                 float value = Mathf.Max(original.r, original.g, original.b);
-                copy.SetColor(id, new Color(purple.r * value, purple.g * value, purple.b * value, original.a));
+                copy.SetColor(id, new Color(tint.r * value, tint.g * value, tint.b * value, original.a));
                 changed.Add($"{(id == ColorId ? "_Color" : "_TintColor")} {original}");
             }
             if (source.HasProperty(EmissionColorId))
             {
                 Color original = source.GetColor(EmissionColorId);
                 float intensity = Mathf.Max(original.r, original.g, original.b);
-                if (intensity > 0f) copy.SetColor(EmissionColorId, purple * intensity);
+                if (intensity > 0f) copy.SetColor(EmissionColorId, tint * intensity);
                 changed.Add($"_EmissionColor {original}");
             }
             MaterialDiagnostics.Add($"{source.name}: shader {source.shader.name}, {(changed.Count > 0 ? string.Join(", ", changed) : "no colour property")}");

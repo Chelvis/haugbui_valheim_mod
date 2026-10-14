@@ -20,7 +20,6 @@ namespace Haugbui.Creature
         private const float MinFlySpeed = 0.05f;
 
         private static readonly List<HaugbuiCreature> Instances = new List<HaugbuiCreature>();
-        private static readonly HashSet<Character> Characters = new HashSet<Character>();
 
         private ZNetView _view;
         private Character _character;
@@ -58,16 +57,9 @@ namespace Haugbui.Creature
             Visuals = gameObject.AddComponent<CreatureVisuals>();
             _lastPosition = transform.position;
             Instances.Add(this);
-            Characters.Add(_character);
         }
 
-        private void OnDestroy()
-        {
-            Instances.Remove(this);
-            Characters.Remove(_character);
-        }
-
-        internal static bool IsHaugbui(Character character) => Characters.Contains(character);
+        private void OnDestroy() => Instances.Remove(this);
 
         internal static HaugbuiCreature Find(string tombGuid)
         {
@@ -113,14 +105,6 @@ namespace Haugbui.Creature
 
             Vector3 position = transform.position;
             float dt = Time.deltaTime;
-            float jump = Vector3.Distance(position, _lastPosition);
-            if (dt > 0 && dt < 0.25f)
-            {
-                MaxFrameJump = Mathf.Max(MaxFrameJump, jump);
-                MaxObservedSpeed = Mathf.Max(MaxObservedSpeed, jump / dt);
-            }
-            _lastPosition = position;
-
             if (!HasTarget)
             {
                 _character.SetMoveDir(Vector3.zero);
@@ -150,6 +134,20 @@ namespace Haugbui.Creature
             _character.SetRun(true);
         }
 
+        /// <summary>
+        /// Speed is sampled per physics step: the body moves only in fixed steps, so a render frame shorter than one
+        /// step can contain a whole step of motion and per-frame speed reads up to 50% high.
+        /// </summary>
+        private void FixedUpdate()
+        {
+            if (_character == null || _view == null || !_view.IsValid() || !_view.IsOwner()) return;
+            Vector3 position = transform.position;
+            float jump = Vector3.Distance(position, _lastPosition);
+            MaxFrameJump = Mathf.Max(MaxFrameJump, jump);
+            MaxObservedSpeed = Mathf.Max(MaxObservedSpeed, jump / Time.fixedDeltaTime);
+            _lastPosition = position;
+        }
+
         internal void ResetTelemetry()
         {
             MaxObservedSpeed = 0;
@@ -171,17 +169,5 @@ namespace Haugbui.Creature
             return false;
         }
 
-        /// <summary>
-        /// The Wraith's flight animation has root motion, and Character.ApplyRootMotion replaces the commanded velocity
-        /// whenever the animation's is larger, so the level speed cap would not hold.
-        /// </summary>
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(Character), nameof(Character.ApplyRootMotion))]
-        private static bool SkipRootMotion(Character __instance)
-        {
-            if (!HaugbuiCreature.IsHaugbui(__instance)) return true;
-            __instance.m_rootMotion = Vector3.zero;
-            return false;
-        }
     }
 }
