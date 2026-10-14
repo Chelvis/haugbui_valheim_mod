@@ -133,6 +133,23 @@ namespace Haugbui.SelfTest
                 $"{Vector3.Distance(creature.transform.position, target):0.00} m");
             _t.Check("never exceeds level max speed", creature.MaxObservedSpeed <= max * 1.15f, $"max {creature.MaxObservedSpeed:0.00} of {max} m/s");
             _t.Check("no position jumps over 1 m", creature.MaxFrameJump < 1f, $"{creature.MaxFrameJump:0.00} m");
+
+            // Back the other way: it must turn round and face where it flies.
+            Vector3 back = SelfTestContext.OnGround(_arena + new Vector3(-10, 0, -6)) + Vector3.up;
+            creature.MoveTo(back);
+            float started = Time.time, worst = 0f;
+            int samples = 0;
+            while (creature != null && !creature.Arrived && Time.time < started + 25f)
+            {
+                if (Time.time > started + 1f && creature.HeadingError > 0f)
+                {
+                    worst = Mathf.Max(worst, creature.HeadingError);
+                    samples++;
+                }
+                yield return null;
+            }
+            if (creature == null) yield break;
+            _t.Check("faces its flight direction (under 20° after turning)", samples > 10 && worst < 20f, $"worst {worst:0}° over {samples} samples");
             creature.Stop();
             _tomb.Machine.TryEnter(HaugbuiState.Idle);
         }

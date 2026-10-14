@@ -18,11 +18,14 @@ namespace Haugbui.Creature
         private const float Acceleration = 4f;
         private const float TravelAltitude = 1.5f;
         private const float MinFlySpeed = 0.05f;
+        private const float TurnDegreesPerSecond = 360f;
+        private const float MinHeadingSpeed = 0.3f;
 
         private static readonly List<HaugbuiCreature> Instances = new List<HaugbuiCreature>();
 
         private ZNetView _view;
         private Character _character;
+        private Rigidbody _body;
         private Vector3? _target;
         private Collider _targetCollider;
         private float _speed;
@@ -48,6 +51,7 @@ namespace Haugbui.Creature
         {
             _view = GetComponent<ZNetView>();
             _character = GetComponent<Character>();
+            _body = GetComponent<Rigidbody>();
             if (_view == null || !_view.IsValid()) return;
 
             BaseAI ai = GetComponent<BaseAI>();
@@ -132,6 +136,43 @@ namespace Haugbui.Creature
             _character.m_flyFastSpeed = speed;
             _character.SetMoveDir((aim - position).normalized);
             _character.SetRun(true);
+        }
+
+        /// <summary>
+        /// Faces where it flies: yaw only, smoothly, toward the horizontal velocity, or toward the goal while slow. The
+        /// vanilla flight turn (Character.UpdateRotation at the prefab's m_flyTurnSpeed) did not turn the Haugbui.
+        /// </summary>
+        private void LateUpdate()
+        {
+            if (_character == null || _view == null || !_view.IsValid() || !_view.IsOwner() || _character.IsDead()) return;
+            Vector3 heading = _body != null ? _body.linearVelocity : Vector3.zero;
+            heading.y = 0f;
+            if (heading.magnitude < MinHeadingSpeed)
+            {
+                if (!HasTarget) return;
+                heading = (_targetCollider != null ? _targetCollider.ClosestPoint(transform.position) : _target.Value) - transform.position;
+                heading.y = 0f;
+                if (heading.magnitude < 0.05f) return;
+            }
+            Quaternion want = Quaternion.LookRotation(heading.normalized);
+            Quaternion yaw = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+            transform.rotation = Quaternion.RotateTowards(yaw, want, TurnDegreesPerSecond * Time.deltaTime);
+            _character.SetLookDir(heading);
+        }
+
+        /// <summary>Angle between where it faces and where it moves, both flattened; 0 while nearly still.</summary>
+        internal float HeadingError
+        {
+            get
+            {
+                if (_body == null) return 0f;
+                Vector3 velocity = _body.linearVelocity;
+                velocity.y = 0f;
+                if (velocity.magnitude < 0.5f) return 0f;
+                Vector3 forward = transform.forward;
+                forward.y = 0f;
+                return Vector3.Angle(forward, velocity);
+            }
         }
 
         /// <summary>
