@@ -2348,6 +2348,105 @@
           "requirements": [
             "HB-046"
           ]
+        },
+        {
+          "id": "HB-T-108",
+          "title": "Optional fallback: ground items and harvest into a Collection Chest",
+          "description": "Config GroundFallbackToCollectionChest (default OFF). When ON, ground items and harvest products with no storage destination (§8.1) are deposited into the nearest Collection Chest in range with room (identical-data stacking, HB-061); never into tomb storage. Collection Chests still only release items that have a destination, so nothing loops.",
+          "priority": "P2",
+          "dependencies": [
+            "HB-T-054",
+            "HB-T-049"
+          ],
+          "acceptance_criteria": [
+            "OFF: behaviour unchanged (not picked up)",
+            "ON: items without destination go to a Collection Chest, never to tomb storage",
+            "No pick-up/deposit loop between Collection Chest and ground"
+          ],
+          "components": [
+            "Brain",
+            "Config"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Self-test: both config values"
+            ]
+          },
+          "requirements": [
+            "HB-091",
+            "HB-066"
+          ]
+        },
+        {
+          "id": "HB-T-109",
+          "title": "Optional strict item data (StrictItemData)",
+          "description": "Config StrictItemData (General, default ON). ON: current HB-061 behaviour (merge only identical item data). OFF: vanilla stacking semantics for destinations (any stack with the same item, quality and world level; cheated taint and custom data as vanilla), while sources still give identical items, a cheated flag is never cleared, nothing is marked cheated out of nothing and station RPCs keep the source's flag (never a clean item into a cheated queue). Tribute keeps tracking the cheated part of the balance in both modes.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-043",
+            "HB-T-061"
+          ],
+          "acceptance_criteria": [
+            "ON: behaviour unchanged (identical-data stacking; existing checks pass)",
+            "OFF: a clean item tops up a same-kind cheated stack (stack stays cheated); a cheated item joining a clean stack makes it cheated, as vanilla",
+            "OFF: no cheated item ever becomes clean (sources, deposits, stations)",
+            "Item totals conserved in both modes"
+          ],
+          "components": [
+            "Haugbui.Core",
+            "Integration",
+            "Config"
+          ],
+          "testing": {
+            "automated": [
+              "Core: selector, carried inventory and transfers in both modes; random transfers never clear a cheated flag"
+            ],
+            "manual": [
+              "Self-test: both config values (totals conserved; OFF never clears a cheated flag)"
+            ]
+          },
+          "requirements": [
+            "HB-061",
+            "HB-180"
+          ]
+        },
+        {
+          "id": "HB-T-110",
+          "title": "Same-owner tomb spacing and territories",
+          "description": "Placement: a tomb within TombSpacingSameOwner (default 100 m) of another tomb of the same owner is refused with haugbui_msg_tomb_too_close_own; other players' tombs keep TombSpacing (5 m). TerritoryMode (default ON): every work target (Collection/Delivery Chests, stations and jobs, harvestables, ground items, storage chests as deposit destinations) belongs only to the nearest of the owner's tombs whose radius contains it; storage chests used as sources for deliveries and production stay shared by every Haugbui of that owner covering them. Other owners' tombs are not affected.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-013",
+            "HB-T-041",
+            "HB-T-064"
+          ],
+          "acceptance_criteria": [
+            "Second tomb of the same owner closer than 100 m is refused with its own message; another player's tomb at 6 m is allowed",
+            "With two overlapping tombs of one owner, a target is worked only by the nearest tomb's Haugbui",
+            "A storage chest in the overlap is a source for both Haugbuis but a deposit destination only for the nearest",
+            "TerritoryMode OFF restores the previous shared behaviour"
+          ],
+          "components": [
+            "Structures",
+            "Brain",
+            "Haugbui.Core",
+            "Config"
+          ],
+          "testing": {
+            "automated": [
+              "Core: placement spacing by owner; territory owner = nearest covering tomb, ties stable"
+            ],
+            "manual": [
+              "Self-test: spacing refusal; two tombs with TombSpacingSameOwner lowered for the test, overlap split"
+            ]
+          },
+          "requirements": [
+            "HB-004",
+            "HB-155",
+            "HB-156",
+            "HB-158"
+          ]
         }
       ]
     },
@@ -2765,6 +2864,64 @@
             "HB-022",
             "HB-023",
             "HB-024"
+          ]
+        },
+        {
+          "id": "HB-T-106",
+          "title": "Custom build-menu icons",
+          "description": "Replace the vanilla item icons of the eight pieces with icons drawn by the product owner: PNG, square 128x128, transparent, Valheim style, in art/icons/ (tomb, offering, treasure, bracelets, longsword, altar, collection chest, delivery chest). Copy them next to the plugin and load with Jötunn AssetUtils.LoadSpriteFromFile; fall back to the current item icon when a file is missing.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-015",
+            "HB-T-019",
+            "HB-T-020",
+            "HB-T-021",
+            "HB-T-048",
+            "HB-T-050"
+          ],
+          "acceptance_criteria": [
+            "Each piece shows its custom icon in the hammer menu",
+            "Missing file falls back with a warning"
+          ],
+          "components": [
+            "Structures",
+            "Assets"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Self-test: every piece has a non-null icon and reports custom vs fallback"
+            ]
+          },
+          "requirements": [
+            "HB-002"
+          ]
+        },
+        {
+          "id": "HB-T-107",
+          "title": "Optional custom 3D models (AssetBundle)",
+          "description": "If the product owner provides own or licensed models: Blender → Unity 6000.0.x project (game runs Unity 6000.0.75) → prefabs → AssetBundle shipped with the plugin and loaded with Jötunn AssetUtils; materials mapped to Valheim shaders (Jötunn shader helpers). Replaces the kitbash look per structure only; host-prefab persistence unchanged. Never ship assets extracted from Valheim.",
+          "priority": "P2",
+          "dependencies": [
+            "HB-T-099"
+          ],
+          "acceptance_criteria": [
+            "A structure can switch from kitbash to bundle model by definition",
+            "Lighting matches vanilla pieces",
+            "Missing bundle falls back to the kitbash"
+          ],
+          "components": [
+            "Structures",
+            "Assets"
+          ],
+          "testing": {
+            "automated": [],
+            "manual": [
+              "Self-test pictures"
+            ]
+          },
+          "requirements": [
+            "HB-002"
           ]
         }
       ]

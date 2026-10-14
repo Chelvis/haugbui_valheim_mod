@@ -20,6 +20,7 @@ namespace Haugbui.Structures
 
         public static float BedDistance { get; set; } = 50f;
         public static float TombSpacing { get; set; } = 5f;
+        public static float SameOwnerSpacing { get; set; } = 100f;
 
         public static void TrackBed(Bed bed) => Beds.Add(bed);
 
@@ -29,8 +30,10 @@ namespace Haugbui.Structures
             {
                 Beds.RemoveWhere(b => b == null);
                 IEnumerable<BedInfo> beds = Beds.Select(b => new BedInfo(StructureRegistry.ToVec3(b.transform.position), b.GetOwner()));
+                var tombs = StructureRegistry.Tombs
+                    .Select(t => (StructureRegistry.ToVec3(t.transform.position), t.TombState?.OwnerId ?? 0L)).ToList();
                 PlacementResult result = PlacementRules.CheckTomb(StructureRegistry.ToVec3(position), player.GetPlayerID(), beds,
-                    StructureRegistry.Tombs.Select(t => StructureRegistry.ToVec3(t.transform.position)), BedDistance, TombSpacing);
+                    tombs, BedDistance, TombSpacing, SameOwnerSpacing);
                 // HB-138: one tomb per servant slot.
                 if (result == PlacementResult.Ok && !Integration.ServantRegistry.HasVacantSlot(player.GetPlayerID())) return PlacementResult.MaxTombs;
                 return result;

@@ -205,7 +205,7 @@ namespace Haugbui.Core.Tests
         public int RoomFor(ItemStack item)
         {
             int max = Math.Max(1, item.MaxStack);
-            return _items.Where(i => i.StacksWith(item)).Sum(i => max - i.Amount) + (_slots - _items.Count) * max;
+            return _items.Where(i => StackingRules.CanJoin(i, item)).Sum(i => max - i.Amount) + (_slots - _items.Count) * max;
         }
 
         public int Add(ItemStack item)
@@ -215,10 +215,10 @@ namespace Haugbui.Core.Tests
             if (FailRandom != null && FailRandom.NextDouble() < AddShortfallRate) left = FailRandom.Next(0, left + 1);
             int added = left;
             int max = Math.Max(1, item.MaxStack);
-            foreach (ItemStack stack in _items.Where(i => i.StacksWith(item)))
+            foreach (ItemStack stack in _items.Where(i => StackingRules.CanJoin(i, item)))
             {
                 int put = Math.Min(left, max - stack.Amount);
-                stack.Amount += put;
+                if (put > 0) StackingRules.Join(stack, item, put);
                 left -= put;
             }
             while (left > 0)
@@ -228,6 +228,22 @@ namespace Haugbui.Core.Tests
                 left -= put;
             }
             return added;
+        }
+
+        public int CountKind(ItemStack item) => _items.Where(i => i.SameKind(item)).Sum(i => i.Amount);
+
+        public int RemoveKind(ItemStack item, int amount)
+        {
+            int removed = Remove(item, amount);
+            foreach (ItemStack stack in _items.Where(i => i.SameKind(item)).ToList())
+            {
+                if (removed >= amount) break;
+                int take = Math.Min(amount - removed, stack.Amount);
+                stack.Amount -= take;
+                removed += take;
+            }
+            _items.RemoveAll(i => i.Amount <= 0);
+            return removed;
         }
 
         public int Remove(ItemStack item, int amount)
@@ -265,6 +281,8 @@ namespace Haugbui.Core.Tests
         public int Count(ItemStack item) => _inner.Count(item);
         public int RoomFor(ItemStack item) => _inner.RoomFor(item);
         public int Add(ItemStack item) => _inner.Add(item);
+        public int CountKind(ItemStack item) => _inner.CountKind(item);
+        public int RemoveKind(ItemStack item, int amount) => _inner.RemoveKind(item, amount);
 
         public int Remove(ItemStack item, int amount)
         {
@@ -363,9 +381,25 @@ namespace Haugbui.Core.Tests
             Assert.That(b.Count(Items.Make("Wood", 0)), Is.EqualTo(5));
         }
 
-        [Test]
-        public void Ten_thousand_random_transfers_with_injected_failures_conserve_totals()
+        [TestCase(true)]
+        [TestCase(false)]
+        public void Ten_thousand_random_transfers_with_injected_failures_conserve_totals(bool strict)
         {
+            StackingRules.StrictItemData = strict;
+            try
+            {
+                RandomTransfers(strict);
+            }
+            finally
+            {
+                StackingRules.StrictItemData = true;
+            }
+        }
+
+        private static void RandomTransfers(bool strict)
+        {
+            // The fixture is built with strict stacking, so clean and cheated stacks start apart in both modes.
+            StackingRules.StrictItemData = true;
             var random = new Random(20261013);
             var containers = Enumerable.Range(0, 4).Select(i => new FakeContainer("c" + i, 8 + i)).ToList();
             var carried = new CarriedInventory(3, 150);
@@ -380,6 +414,7 @@ namespace Haugbui.Core.Tests
                 }
             Dictionary<string, int> expected = Totals(containers, carried);
             int cheatedBefore = CheatedTotal(containers, carried);
+            StackingRules.StrictItemData = strict;
 
             foreach (FakeContainer c in containers)
             {
@@ -397,16 +432,20 @@ namespace Haugbui.Core.Tests
                 foreach (FakeContainer c in containers) c.InUse = random.NextDouble() < 0.05;
                 ItemStack item = Items.Make(Prefabs[random.Next(Prefabs.Length)], 0);
                 item.Cheated = random.Next(10) == 0;
+                int cheatedBeforeMove = CheatedTotal(containers, carried);
                 TransferRecord r = engine.Move(new FlakySource(source, random, 0.1), destination, item, random.Next(1, 80));
                 Assert.That(r.Conserved, Is.True, r.ToString());
+                Assert.That(CheatedTotal(containers, carried), Is.GreaterThanOrEqualTo(cheatedBeforeMove), "a cheated flag was cleared");
                 if (r.Status == TransferStatus.Moved) moved++;
                 if (r.Status == TransferStatus.RolledBack) rolledBack++;
             }
             foreach (FakeContainer c in containers) c.InUse = false;
 
             Assert.That(Totals(containers, carried), Is.EqualTo(expected));
-            Assert.That(CheatedTotal(containers, carried), Is.EqualTo(cheatedBefore), "no item changed its cheated flag");
-            Assert.That(moved, Is.GreaterThan(1000));
+            if (strict) Assert.That(CheatedTotal(containers, carried), Is.EqualTo(cheatedBefore), "no item changed its cheated flag");
+            else Assert.That(CheatedTotal(containers, carried), Is.GreaterThan(cheatedBefore), "vanilla stacking taints joined stacks");
+            // Vanilla stacking absorbs clean items into cheated stacks, so fewer clean moves find anything.
+            Assert.That(moved, Is.GreaterThan(strict ? 1000 : 200));
             Assert.That(rolledBack, Is.GreaterThan(10), "failures were injected");
             Assert.That(carried.Weight, Is.LessThanOrEqualTo(150f));
         }

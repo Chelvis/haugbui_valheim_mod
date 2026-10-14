@@ -106,6 +106,7 @@ namespace Haugbui.Registry
         {
             WorldRegistry.Clear();
             Coordination.Reservations.Clear();
+            Brain.ProductionStatus.Clear();
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(Container), nameof(Container.Awake))]

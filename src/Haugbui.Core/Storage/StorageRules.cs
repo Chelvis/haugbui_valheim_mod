@@ -18,13 +18,13 @@ namespace Haugbui.Core.Storage
 
         public bool Contains(ItemStack item) => Items.Any(i => i.SameKind(item) && i.Amount > 0);
 
-        /// <summary>Room on identical stacks plus empty slots: a stack with other data (cheated, custom data) is never topped up.</summary>
+        /// <summary>Room on the stacks the item may join (<see cref="StackingRules"/>) plus empty slots.</summary>
         public int RoomFor(ItemStack item) => StackRoomFor(item) + FreeSlots * Math.Max(1, item.MaxStack);
 
         public int StackRoomFor(ItemStack item)
         {
             int maxStack = Math.Max(1, item.MaxStack);
-            return Items.Where(i => i.StacksWith(item)).Sum(i => Math.Max(0, maxStack - i.Amount));
+            return Items.Where(i => StackingRules.CanJoin(i, item)).Sum(i => Math.Max(0, maxStack - i.Amount));
         }
 
         public ContainerSnapshot Clone() => new ContainerSnapshot
@@ -38,10 +38,10 @@ namespace Haugbui.Core.Storage
             int accepted = Math.Max(0, Math.Min(amount, RoomFor(item)));
             int maxStack = Math.Max(1, item.MaxStack);
             int left = accepted;
-            foreach (ItemStack stack in Items.Where(i => i.StacksWith(item)))
+            foreach (ItemStack stack in Items.Where(i => StackingRules.CanJoin(i, item)))
             {
                 int put = Math.Min(left, Math.Max(0, maxStack - stack.Amount));
-                stack.Amount += put;
+                if (put > 0) StackingRules.Join(stack, item, put);
                 left -= put;
             }
             while (left > 0)

@@ -50,6 +50,16 @@ namespace Haugbui.Integration
             return ItemBridge.Identical(_drop.m_itemData, item) ? _drop.m_itemData.m_stack : 0;
         }
 
+        public int CountKind(ItemStack item)
+        {
+            if (!IsLive(_drop)) return 0;
+            _drop.Load();
+            return ItemBridge.SameKind(_drop.m_itemData, item) ? _drop.m_itemData.m_stack : 0;
+        }
+
+        /// <summary>A drop is only ever a source; nothing is added to it, so nothing needs rolling back.</summary>
+        public int RemoveKind(ItemStack item, int amount) => Remove(item, amount);
+
         public int RoomFor(ItemStack item) => 0;
 
         public int Add(ItemStack item) => 0;

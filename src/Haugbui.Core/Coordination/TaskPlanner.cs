@@ -17,7 +17,13 @@ namespace Haugbui.Core.Coordination
         PickUp,
 
         /// <summary>Use the target's own pick/extract action, then pick up what it dropped.</summary>
-        Harvest
+        Harvest,
+
+        /// <summary>Put carried inputs into a production station through its own RPC.</summary>
+        Feed,
+
+        /// <summary>Put carried fuel into a production station through its own RPC.</summary>
+        Fuel
     }
 
     /// <summary>One atomic interaction; the executor first flies within reach of <see cref="Target"/>.</summary>
@@ -52,6 +58,10 @@ namespace Haugbui.Core.Coordination
         public string Kind { get; internal set; }
         public IReadOnlyList<TaskStep> Steps { get; }
         public IReadOnlyList<string> Keys { get; internal set; } = Array.Empty<string>();
+
+        /// <summary>What the plan works for, e.g. the station whose job it serves.</summary>
+        public string Tag { get; set; } = string.Empty;
+
         public TaskStep Current => _index < Steps.Count ? Steps[_index] : null;
         public bool IsDone => _index >= Steps.Count;
         public int CompletedSteps => _index;

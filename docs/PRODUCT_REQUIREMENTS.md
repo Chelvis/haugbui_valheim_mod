@@ -33,8 +33,10 @@ impossible (see ARCHITECTURE §15).
   (it self-destructs when empty — see feasibility §2.2).
 - **HB-003** Placement is valid only within **50 m** (config) of a bed whose owner is the placing player. The ghost
   turns invalid and the hover/centre message says why: "$haugbui_msg_need_bed".
-- **HB-004** Multiple tombs are allowed. Placement is blocked only within **5 m** (config) of another tomb, to keep
-  visuals and upgrade ownership unambiguous ("$haugbui_msg_tomb_too_close"). Operational areas may overlap freely.
+- **HB-004** Multiple tombs are allowed. Placement is blocked within **5 m** (config `TombSpacing`) of another player's
+  tomb, to keep visuals and upgrade ownership unambiguous ("$haugbui_msg_tomb_too_close"), and within **100 m** (config
+  `TombSpacingSameOwner`) of another tomb of the same owner ("$haugbui_msg_tomb_too_close_own") [Decision 2026-10-14].
+  Operational areas may still overlap; overlapping areas of one owner are split into territories (HB-155).
 - **HB-005** Each tomb has an owner (its creator). Only the owner can manage it (in single-player always true).
 - **HB-006** The tomb shows on hover: name, level, Haugbui state, HP, cooldown remaining.
 - **HB-007** The tomb has its own storage (10 slots) used for death recovery, resting deposits and overflow; the owner
@@ -178,6 +180,13 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
   custom data); otherwise it uses an empty slot or another destination, or keeps the item and retries (HB-065). It never
   sets the cheated flag and carries the source's flag exactly, including into station RPCs (e.g. `RPC_AddOre(name,
   cheated)`). Taking items for a delivery or job takes identical items only, so a cheated item never comes out clean.
+  **This strict rule is configurable** [Decision 2026-10-14]: config `StrictItemData` (General, default ON). With it OFF
+  the Haugbui stacks like a player moving items: it tops up any stack of the same item, quality and world level, and the
+  vanilla rules apply to the result (a cheated item joining a stack makes the stack cheated; the stack keeps its own
+  custom data and crafter). Even OFF it never does what vanilla would not: it never clears a cheated flag, never marks
+  an item cheated out of nothing, takes identical items from its sources, and station RPCs carry the source's flag (a
+  clean item is never fed into a station whose queue is cheated). The tribute balance tracks its cheated part in both
+  modes.
 
 ### 8.1 Storage rule
 
@@ -359,12 +368,20 @@ Whenever its tomb is destroyed, it returns as soon as a new tomb is built.
 
 ### 16.1 Multiple Haugbuis (brief §15)
 
-- **HB-155** Overlapping operational areas are allowed (only tomb spacing HB-004 is enforced).
+- **HB-155** Overlapping operational areas are allowed. **Territories** [Decision 2026-10-14, config `TerritoryMode`,
+  default ON]: where the radii of one owner's tombs overlap, every work target belongs only to the nearest of that
+  owner's tombs whose radius contains it, and only that tomb's Haugbui acts on it. Work targets: Collection Chests,
+  Delivery Chests, production stations and their jobs, harvestables (crops, hives, nests), ground items, and storage
+  chests used as deposit destinations. Storage chests used as a source (taking items for a delivery or a production
+  job) stay shared by every Haugbui of that owner whose radius covers them; reservations prevent conflicts. Tombs of
+  different owners are not affected. Rationale: several servants on one base must still leave work for the player.
 - **HB-156** Two Haugbuis never target the same ground item, harvestable, station step or delivery line at the same
-  time (lease reservations); never exceed container capacity; never compete for the same station outputs.
+  time (lease reservations, and territories for one owner, HB-155); never exceed container capacity; never compete for
+  the same station outputs.
 - **HB-157** A station job has exactly one owning tomb (persisted); reservations expire safely on death, despawn,
   rest or reload and are never persisted.
-- **HB-158** Haugbuis cooperate on different tasks in the same area (e.g. one sorts, one delivers).
+- **HB-158** Haugbuis cooperate on different tasks in the same area (e.g. one sorts, one delivers); with territories
+  (HB-155) one owner's Haugbuis share only storage chests as sources.
 
 ## 17. Tomb management UI
 
@@ -462,6 +479,11 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-14 | Servant identity (§14.1) | Servants live in per-player world slots (default 3, configurable), outlive their tomb, cannot be dismissed |
 | 2026-10-14 | Tribute (§17.1) | Paid per shift with a credit balance offered at the tomb panel; charged only when there is work; values Coins 1 / Amber 5 / AmberPearl 10 / Ruby 20 / SilverNecklace 30 |
 | 2026-10-13 | Cheated flag on moved items (HB-061) | Never marks anything cheated: merges only identical item data, carries the flag exactly |
-| 2026-10-14 | M6 implementation choices (to confirm) | Night, shifts and dusk computed from world time (same boundaries as `EnvMan.IsNight`); with `TributeEnabled = false` the Haugbui works every night without the work check; ground items and harvests are taken only when a chest can store the product (HB-065/091); the panel's Offer button takes one item per click |
+| 2026-10-14 | Ground items and harvest without a destination (HB-T-108) | Not picked up (default). Optional config: deposit them in any Collection Chest in range, never in tomb storage |
+| 2026-10-14 | M6 implementation choices (confirmed by the product owner 2026-10-14) | Night, shifts and dusk computed from world time (same boundaries as `EnvMan.IsNight`); with `TributeEnabled = false` the Haugbui works every night without the work check; ground items and harvests are taken only when a chest can store the product (HB-065/091); the panel's Offer button takes one item per click |
+| 2026-10-14 | Cheated flag at smelters (HB-061, M7 implementation choice) | The smelter keeps one cheated flag for its whole queue (the last item added sets it), so the Haugbui only adds items with the queue's flag (clean first when it is empty) and never feeds cheated fuel (fuel loses the flag) |
+| 2026-10-14 | Station job takeover (HB-118, M7 implementation choice) | Another Haugbui takes over a job only while the owning tomb is not loaded/able and has not worked it for `JobTakeoverMinutes` (default 10) of world time |
+| 2026-10-14 | Item data "code of conduct" (HB-061) | Optional: `StrictItemData` (default ON) keeps identical-data stacking; OFF stacks like vanilla (cheated taint and custom data follow vanilla), but never clears a cheated flag nor marks items cheated out of nothing |
+| 2026-10-14 | Several servants of one owner (HB-004/155) | Same-owner tombs at least 100 m apart (`TombSpacingSameOwner`); with `TerritoryMode` (default ON) each work target belongs to the nearest of the owner's tombs covering it; storage chests stay shared as sources only. "Something must be left for the player to do" |
 
 Open: none.

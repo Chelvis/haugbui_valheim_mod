@@ -44,6 +44,7 @@ namespace Haugbui.Config
 
         public ConfigEntry<bool> DebugLogging { get; private set; }
         public ConfigEntry<string> EffectsQuality { get; private set; }
+        public ConfigEntry<bool> StrictItemData { get; private set; }
 
         public ConfigEntry<float> DawnReturnLeadSeconds { get; private set; }
         public ConfigEntry<float> CollectionIntervalSeconds { get; private set; }
@@ -53,9 +54,12 @@ namespace Haugbui.Config
         public ConfigEntry<float> RestFullHealSeconds { get; private set; }
 
         public ConfigEntry<int> ProductionUnlockLevel { get; private set; }
+        public ConfigEntry<float> JobTakeoverMinutes { get; private set; }
 
         public ConfigEntry<float> BedDistance { get; private set; }
         public ConfigEntry<float> TombSpacing { get; private set; }
+        public ConfigEntry<float> TombSpacingSameOwner { get; private set; }
+        public ConfigEntry<bool> TerritoryMode { get; private set; }
         public ConfigEntry<int> MaxHaugbuisPerPlayer { get; private set; }
         public ConfigEntry<float> UpgradeRange { get; private set; }
 
@@ -92,6 +96,13 @@ namespace Haugbui.Config
             Log.DebugEnabled = DebugLogging.Value;
             EffectsQuality = _file.Bind(General, "EffectsQuality", "Normal",
                 new ConfigDescription("Particle density of Haugbui effects.", new AcceptableValueList<string>("Low", "Normal")));
+            StrictItemData = BindAdmin(General, "StrictItemData", true,
+                "ON: the Haugbui only adds items to stacks with identical data (quality, world level, cheated flag, crafter, " +
+                "custom data), so it never makes a clean item cheated or a cheated item clean. OFF: it stacks like a player " +
+                "moving items (same item, quality and world level; a cheated item makes the stack cheated, the stack keeps its " +
+                "own custom data), but it never clears a cheated flag.");
+            Core.Storage.StackingRules.StrictItemData = StrictItemData.Value;
+            StrictItemData.SettingChanged += (_, __) => Core.Storage.StackingRules.StrictItemData = StrictItemData.Value;
 
             _carryCapacity = BindLevels("CarryCapacity", ProgressionTable.ToCsv(ProgressionTable.DefaultCarryCapacity),
                 "Carry weight per level 1..6.");
@@ -118,10 +129,17 @@ namespace Haugbui.Config
 
             ProductionUnlockLevel = BindAdmin(Production, "ProductionUnlockLevel", 2,
                 "Tomb level that unlocks production automation.", ProgressionTable.MinLevel, ProgressionTable.MaxLevel);
+            JobTakeoverMinutes = BindAdmin(Production, "JobTakeoverMinutes", 10f,
+                "Minutes of world time after which another Haugbui may take over a station job whose tomb stopped working it.", 1f, 1440f);
 
             BedDistance = BindAdmin(Construction, "BedDistance", 50f,
                 "Maximum distance between a tomb and a bed owned by the builder.", 5f, 500f);
             TombSpacing = BindAdmin(Construction, "TombSpacing", 5f, "Minimum distance between two tombs.", 0f, 100f);
+            TombSpacingSameOwner = BindAdmin(Construction, "TombSpacingSameOwner", 100f,
+                "Minimum distance between two tombs of the same player.", 0f, 1000f);
+            TerritoryMode = BindAdmin(Construction, "TerritoryMode", true,
+                "Where the areas of one player's tombs overlap, each chest, station, crop or ground item belongs only to the " +
+                "nearest of those tombs; storage chests stay shared as sources for deliveries and production.");
             MaxHaugbuisPerPlayer = BindAdmin(Construction, "MaxHaugbuisPerPlayer", 3,
                 "Servant slots per player and world (one tomb each). WARNING: many Haugbuis can cause performance problems and errors.",
                 1, 10);

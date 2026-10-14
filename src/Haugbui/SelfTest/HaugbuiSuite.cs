@@ -120,6 +120,23 @@ namespace Haugbui.SelfTest
             yield return Emerge();
             HaugbuiCreature creature = _tomb.Creature;
             if (creature == null) yield break;
+            _t.Check("spawned creature is tamed", creature.Character.IsTamed());
+            _t.Check("not an enemy of the player (green health bar)", !BaseAI.IsEnemy(_t.Player, creature.Character));
+
+            int animations = creature.Visuals.InteractionAnimations, halved = creature.Visuals.InteractionAnimationsHalved;
+            creature.Visuals.Pulse();
+            bool swinging = false;
+            float swingEnd = Time.time + 1f;
+            while (Time.time < swingEnd && !swinging)
+            {
+                swinging = creature.GetComponent<Humanoid>().InAttack();
+                yield return null;
+            }
+            _t.Check("interaction plays the attack animation", creature.Visuals.InteractionAnimations > animations && swinging,
+                $"started {creature.Visuals.InteractionAnimations - animations}, in attack state {swinging}");
+            _t.Check("interaction animation starts halfway (no wind-up)", creature.Visuals.InteractionAnimationsHalved > halved,
+                $"halved {creature.Visuals.InteractionAnimationsHalved - halved}");
+            yield return new WaitForSeconds(1.5f);
 
             _tomb.Machine.TryEnter(HaugbuiState.Traveling);
             float max = _tomb.Attributes.MaxSpeed;
@@ -223,6 +240,12 @@ namespace Haugbui.SelfTest
             CountdownLabel label = _tomb.GetComponent<CountdownLabel>();
             _t.Check("countdown label shown", label != null && label.Shown.Length > 0, label?.Shown);
             _t.Check("countdown label has a font", label != null && label.HasFont);
+            Camera camera = Utils.GetMainCamera();
+            Transform text = label != null ? label.Label : null;
+            if (camera != null && text != null)
+                _t.Check("countdown label reads the right way (not mirrored)",
+                    Vector3.Dot(text.forward, text.position - camera.transform.position) > 0f, $"forward {text.forward}");
+            else _t.Skip("countdown label reads the right way (not mirrored)", "no main camera");
             _t.Check("death time saved", !double.IsNaN(_tomb.State.DeathTime));
 
             _tomb.TickNow();

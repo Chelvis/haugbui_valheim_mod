@@ -15,9 +15,13 @@ namespace Haugbui.Brain
         public const string Collect = "collect";
         public const string Harvest = "harvest";
         public const string Gather = "gather";
+        public const string ProductionOutputs = "production_outputs";
+        public const string ProductionFeed = "production_feed";
 
-        // ARCHITECTURE §5.1: deposit → (production) → delivery → (harvest) → collection chest → (ground items).
+        // ARCHITECTURE §5.1: deposit → production outputs → production feeding → delivery → harvest → collection chest → ground items.
         public const int DepositPriority = 100;
+        public const int ProductionOutputsPriority = 80;
+        public const int ProductionFeedPriority = 75;
         public const int DeliverPriority = 70;
         public const int HarvestPriority = 60;
         public const int SortTombStoragePriority = 50;

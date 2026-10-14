@@ -211,7 +211,7 @@ Default priority order (configurable later): Combat (interrupt) → deposit when
 output pickup (avoid ground clutter) → production feeding → delivery requests → harvesting → collection chest →
 ground items → idle hover near tomb.
 
-M6 priorities: deposit 100, delivery 70, leftover drops of its own harvests 61, harvesting 60, sorting tomb storage 50,
+M7 priorities: production outputs 80, production feeding 75 (§9). M6 priorities: deposit 100, delivery 70, leftover drops of its own harvests 61, harvesting 60, sorting tomb storage 50,
 Collection Chests 45, ground items 40. Harvest and ground-item tasks are one trip through the nearest targets (next
 stop ≤ 10 m from the last, ≤ 8 stops) whose items the carried inventory can take whole (`PickupRoute`, Core); both
 require a storage destination for the product (HB-065/091). A harvest step calls the target's own RPC
@@ -221,6 +221,12 @@ destination first). Drops that do not fit are remembered for 5 minutes and colle
 (HB-093). Crops are `Pickable.m_harvestable` (the scythe's flag); wild pickables and sap collectors only by config.
 
 ## 6. Coordination between Haugbuis
+
+- **Same owner (HB-T-110, decision 2026-10-14):** tombs of one owner are at least `TombSpacingSameOwner` (100 m) apart.
+  With `TerritoryMode` each `WorkContext` lists the owner's loaded tombs and keeps only targets whose nearest covering
+  tomb (`Territory.OwnerOf`, Core; ties to the lowest GUID) is its own: deposit destinations, Collection and Delivery
+  Chests, stations (a job claimed by another tomb of the same owner is taken over at once), crops, hives, nests and
+  ground items. Plain storage chests stay shared as sources. Other owners are not affected.
 
 - `ReservationService` (singleton per world session) maps `ReservationKey` (`ZDOID` of target + optional item
   prefab hash/slot) to `{tombId, leaseExpiry}`. Leases default 30 s, renewed while the task runs, released on
@@ -295,7 +301,12 @@ and `AddItem(ItemData)` sets `m_cheated` on the target stack when a cheated item
 `ItemBridge.AddTo` tops up identical stacks and then fills empty slots through the private
 `Inventory.AddItem(item, amount, x, y)`, which stacks only onto the item in that slot and never writes `m_cheated`
 (it raises `Changed` only while a local player exists, so `AddTo` raises it otherwise). Room and the storage selector
-count identical stacks plus empty slots. Verified pitfall: every ZDO key change
+count identical stacks plus empty slots. **Optional (HB-T-109, decision 2026-10-14):** with `StrictItemData` OFF,
+`StackingRules` lets an item top up any chest stack of the same item, quality and world level and applies the vanilla
+result (a cheated item makes the stack cheated; the stack keeps its own custom data and crafter). Sources still give
+identical items and the carried inventory stays strict, so no flag is ever cleared; the transfer record then measures
+the whole kind and a rollback removes identical items first, then the same kind. The smelter queue rule becomes "never
+a clean item into a cheated queue". Verified pitfall: every ZDO key change
 on a piece (support, snow, Haugbui state) bumps `DataRevision`, so container freshness cannot be judged by comparing
 revisions; only "never loaded yet" (`m_lastRevision == uint.MaxValue`, inventory still empty in memory) blocks writes.
 `haugbui_ledger` prints the recent records; a non-conserved record is logged as an error.
@@ -355,35 +366,59 @@ Fallback (standard Jötunn prefabs) stays documented only.
 ## 9. Production adapters
 
 ```csharp
-interface IStationAdapter {
-  bool CanHandle(GameObject station);
-  StationKind Kind { get; }                       // Smelter, Fermenter, Cooking, FuelOnly
-  IReadOnlyList<RecipeOption> GetRecipes();        // from m_conversion (read at runtime)
-  StationSnapshot Read();                          // queue size, fuel, ready outputs, blocked reasons
-  int InputCapacity(RecipeOption r);               // free queue slots
-  int FuelNeeded();                                // to keep the queue burning
-  void Feed(ItemData input, bool cheated);         // InvokeRPC("RPC_AddOre"/"RPC_AddItem")
-  void AddFuel();                                  // InvokeRPC("RPC_AddFuel")
-  Vector3 OutputPoint { get; }                     // ground drops are collected around it
-  int YieldPerInput(RecipeOption r);               // 1 for smelters; m_producedItems for fermenter
-  bool IsBlocked(out string reasonToken);          // no roof, no wind, smoke blocked, exposed...
+interface IStationAdapter {                       // Integration/StationAdapters/
+  bool CanHandle(MonoBehaviour station);
+  StationKind Kind(MonoBehaviour station);       // Smelter, Fermenter, Cooking, FuelOnly
+  ZNetView View(MonoBehaviour station);
+  string Name(MonoBehaviour station);
+  IReadOnlyList<StationRecipe> Recipes(MonoBehaviour station);   // from m_conversion at runtime; input "" = fuel only
+  StationState Read(MonoBehaviour station);      // queue, queued inputs, fuel, fuel prefabs, pending outputs,
+                                                 // flag the queue already carries, blocked reason
+  bool FeedOne(MonoBehaviour station, string prefab, bool cheated);  // own RPC; true when the station took it
+  bool FuelOne(MonoBehaviour station);
+  Vector3 OutputPoint(MonoBehaviour station);
 }
 ```
 
-- Adapters live in `Integration/StationAdapters/`; `StationAdapterRegistry` picks the first adapter whose `CanHandle` is true.
-  Adding a station = one new adapter class + registration + localization keys (see DEVELOPMENT_GUIDE).
-- `ProductionJob` (Core) tracks `supplied` (inputs fed by Haugbuis) and `produced` (= supplied × yield, confirmed when
-  outputs are collected). Finite target counts **products of this job**; the job stops feeding when
-  `supplied × yield ≥ target`, then completes after outputs are collected.
-- Inputs are taken from eligible storage minus quantities reserved by Delivery Chest requests (`DeliveryLedger`).
-- `CookingStationAdapter` is **dawn-aware**: without the Altar it only loads an item if cook time + collection margin ends
-  before the Haugbui must return; done items have top task priority (prevents burning).
+- `StationAdapterRegistry.For(station)` returns the first adapter whose `CanHandle` is true and whose game-API feature
+  passed the startup self-check. M7 round 1: `SmelterAdapter` (smelter, blast furnace, charcoal kiln, eitr refinery,
+  windmill, spinning wheel; hot tub and frost kiln as fuel-only) and `ShieldGeneratorAdapter`. Crafting stations and the
+  obliterator have no adapter (HB-122), so Shift+E on them opens nothing.
+- Job: `StationJobState` blob `haugbui_job` (v2) on the station ZDO: enabled, recipe input/output, mode, target, supplied,
+  produced, owning tomb GUID, owner last-seen world time. `ProductionJob` (Core) holds the math: finite target = products
+  of this job; inputs wanted = ceil((target − supplied × yield) / yield); produced is counted when the Haugbui picks
+  outputs up at the output point, capped at supplied × yield; a finite job is complete when produced ≥ target, or when
+  everything is supplied and the station holds nothing of it any more (outputs taken by someone else). A new recipe
+  resets the counters; other edits keep them.
+- Ownership (`JobOwnership`, HB-118): the first tomb that plans an unowned enabled job claims it and refreshes
+  `OwnerSeen` at most once a minute. Another tomb ignores it while the owner tomb is loaded with production enabled and
+  covers the station, and takes it over only after `JobTakeoverMinutes` of world time without the owner seeing it.
+- `WorkContext` lists the loaded stations in the radius with an enabled job this tomb owns or may claim (ward check,
+  station ZDO owned here) and the job's output drops within 3 m of the output point. `ProductionProvider` adds:
+  - output trips (priority 80): `PickUp` steps reserving each drop; the worker credits the job (HB-063, also with the
+    ground toggle off);
+  - feeding trips (priority 75, key `station:<ZDOID>`): `Take` inputs and fuel from storage sources minus Delivery Chest
+    reservations (`SupplyPlanner`, HB-087; carried items first, nearest chests), then `Fuel` and `Feed` steps. A trip is
+    made when half the queue is free or it is empty, or to finish a finite job; fuel covers the queue after the trip,
+    never above capacity (`StationFill`). Fuel-only stations are topped up when at most half full.
+- `Feed`/`Fuel` steps put one unit at a time through the station's own RPC (`RPC_AddOre(name, cheated)`,
+  `RPC_AddFuel`) and remove the carried unit only after the station's ZDO shows it was taken (destination first).
+- **Cheated flag (HB-061).** The smelter keeps one `cheatedQueued` flag for its whole queue and its windmill stack, set
+  by the last item added. So the Haugbui feeds only items whose flag equals the queue's while the queue or the stack
+  holds anything, and picks clean items first for an empty station; fuel is always clean, since `RPC_AddFuel` drops the
+  flag.
+- Statuses (HB-115/117/119/120): complete, finishing, waiting for an item, manual use (the queue holds another input:
+  nothing is fed and nothing is removed until it empties), blocked (needs roof, smoke blocked, no wind), recipe not
+  discovered (owner's known materials, checked again when the job runs). `ProductionStatus` keeps the last one per
+  station for the panel and the switch hover line.
+- Panel (`UI/ProductionPanel`): Shift+E on a station switch (`Switch.Interact` prefix with `alt`; same ward rule as using
+  it). Enable/disable, recipe dropdown (discovered materials only), finite/infinite, amount, progress, owner, status;
+  below `ProductionUnlockLevel` or with the tomb's Production toggle off it says so.
+- Later in M7: `FermenterAdapter`, `CookingStationAdapter` (dawn-aware: loads a slot only if the item is done before
+  the Haugbui must return, removes done items before burning), sleep fast mode (§14.1).
 - No adapter for `CraftingStation` recipes in v1 (PRD HB-122). A V2 `RecipeCraftingAdapter` would gather
   `m_resources`, check `IsRecipeKnown`, station level and `CheckUsable`, and swap resources for products in one frame;
   `IStationAdapter` already allows adding it without touching the planner.
-- Manual use is respected: the Haugbui never removes queued inputs; it only tops up to capacity, so a player can
-  still add items manually. A station whose queue holds a different input than the job recipe is left alone until
-  empty ("manual use detected" status).
 
 ## 10. Combat
 
@@ -424,7 +459,7 @@ validates and writes the ZDO (future MP: routed RPC to the owner).
 
 - `HaugbuiConfig` sections: `General` (debug logging, effects quality), `Progression` (per-level arrays as CSV strings
   with defaults from the spec), `Timing` (tick intervals), `Death` (`CooldownDays`), `Production` (unlock
-  level, allowed station kinds), `Construction` (bed distance, tomb spacing, `MaxHaugbuisPerPlayer`), `Combat`,
+  level, `JobTakeoverMinutes`), `General.StrictItemData` (HB-061 strict stacking, default ON), `Construction` (bed distance, tomb spacing, `MaxHaugbuisPerPlayer`), `Combat`,
   `Harvest` (wild pickables, sap collectors), `Tribute` (enabled, cost per level, values, `OnTombDestroyed`,
   `WorkCheckSeconds`). Admin-only attributes set for future sync.
 - Localization keys: `haugbui_<area>_<name>` in `Translations/English/haugbui.json` and

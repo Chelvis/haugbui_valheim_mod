@@ -40,5 +40,7 @@ namespace Haugbui.Integration
         public int RoomFor(ItemStack item) => ItemBridge.RoomFor(_container.GetInventory(), item);
         public int Add(ItemStack item) => ItemBridge.AddTo(_container.GetInventory(), item);
         public int Remove(ItemStack item, int amount) => ItemBridge.RemoveFrom(_container.GetInventory(), item, amount);
+        public int CountKind(ItemStack item) => ItemBridge.CountKind(_container.GetInventory(), item);
+        public int RemoveKind(ItemStack item, int amount) => ItemBridge.RemoveKind(_container.GetInventory(), item, amount);
     }
 }

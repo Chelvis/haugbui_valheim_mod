@@ -53,7 +53,7 @@ namespace Haugbui.Brain
             {
                 if (!DropEndpoint.IsLive(drop)) continue;
                 Vector3 position = drop.transform.position;
-                if ((position - context.Center).sqrMagnitude > radiusSq) continue;
+                if ((position - context.Center).sqrMagnitude > radiusSq || !context.Mine(position)) continue;
                 string id = DropEndpoint.IdOf(drop);
                 if (context.OwnDrops.ContainsKey(id) || !context.IsFree(GatherKeys.Drop(id))) continue;
                 if (GroundItemRules.Check(Facts(drop, context)) != GroundItemVerdict.Eligible) continue;
@@ -100,7 +100,7 @@ namespace Haugbui.Brain
             WorldRegistry.Harvestables.Query(WorldRegistry.ToVec3(context.Center), context.Radius, _query);
             foreach (MonoBehaviour target in _query)
             {
-                if (target == null) continue;
+                if (target == null || !context.Mine(target.transform.position)) continue;
                 string id = HarvestGateway.IdOf(target);
                 if (!context.IsFree(GatherKeys.Harvest(id))) continue;
                 ItemStack product = HarvestGateway.ExpectedProduct(target);

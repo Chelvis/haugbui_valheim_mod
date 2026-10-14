@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Haugbui.Core.Creature;
 
 namespace Haugbui.Core.Storage
@@ -18,13 +19,19 @@ namespace Haugbui.Core.Storage
         int RoomFor(ItemStack item);
 
         /// <summary>
-        /// Adds up to item.Amount, never more than <see cref="RoomFor"/>, keeping its data exactly: tops up identical stacks
-        /// only and never changes the cheated flag of anything. Returns the amount added.
+        /// Adds up to item.Amount, never more than <see cref="RoomFor"/>: tops up the stacks <see cref="StackingRules"/>
+        /// allows (identical data by default) and never clears a cheated flag. Returns the amount added.
         /// </summary>
         int Add(ItemStack item);
 
         /// <summary>Removes only identical items, so a cheated item never comes out clean; returns the amount removed.</summary>
         int Remove(ItemStack item, int amount);
+
+        /// <summary>Amount of the same item, quality and world level, whatever its other data.</summary>
+        int CountKind(ItemStack item);
+
+        /// <summary>Rollback only: removes identical items first, then any of the same kind; returns the amount removed.</summary>
+        int RemoveKind(ItemStack item, int amount);
     }
 
     public enum TransferStatus
@@ -78,9 +85,9 @@ namespace Haugbui.Core.Storage
             reason = destination.Unavailable();
             if (reason != null) return Finish(record, TransferStatus.DestinationUnavailable, reason);
 
-            record.SourceBefore = record.SourceAfter = source.Count(item);
-            record.DestinationBefore = record.DestinationAfter = destination.Count(item);
-            int n = Math.Min(amount, record.SourceBefore);
+            record.SourceBefore = record.SourceAfter = Measured(source, item);
+            record.DestinationBefore = record.DestinationAfter = Measured(destination, item);
+            int n = Math.Min(amount, source.Count(item));
             if (n <= 0) return Finish(record, TransferStatus.NothingToMove, null);
             n = Math.Min(n, destination.RoomFor(item));
             if (n <= 0) return Finish(record, TransferStatus.NoRoom, null);
@@ -106,7 +113,10 @@ namespace Haugbui.Core.Storage
             record.Moved = removed;
             if (removed < added)
             {
-                int undone = SafeRemove(destination, item, added - removed);
+                // With vanilla stacking the added items may have joined a stack with other data (StackingRules).
+                int undone = StackingRules.StrictItemData
+                    ? SafeRemove(destination, item, added - removed)
+                    : SafeRemoveKind(destination, item, added - removed);
                 Measure(record, source, destination, item);
                 return Finish(record, TransferStatus.RolledBack,
                     $"source gave {removed}/{added}, undone {undone}" + (undone < added - removed ? " (duplicate left)" : ""));
@@ -127,10 +137,26 @@ namespace Haugbui.Core.Storage
             }
         }
 
+        private static int SafeRemoveKind(IItemEndpoint endpoint, ItemStack item, int amount)
+        {
+            try
+            {
+                return Math.Max(0, Math.Min(amount, endpoint.RemoveKind(item, amount)));
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
+        }
+
+        /// <summary>Identical items in strict mode; the whole kind with vanilla stacking, where a moved item may join other data.</summary>
+        private static int Measured(IItemEndpoint endpoint, ItemStack item) =>
+            StackingRules.StrictItemData ? endpoint.Count(item) : endpoint.CountKind(item);
+
         private static void Measure(TransferRecord record, IItemEndpoint source, IItemEndpoint destination, ItemStack item)
         {
-            record.SourceAfter = source.Count(item);
-            record.DestinationAfter = destination.Count(item);
+            record.SourceAfter = Measured(source, item);
+            record.DestinationAfter = Measured(destination, item);
         }
 
         private TransferRecord Finish(TransferRecord record, TransferStatus status, string reason)
@@ -159,5 +185,17 @@ namespace Haugbui.Core.Storage
         public int RoomFor(ItemStack item) => _inventory.CanAccept(item.Copy(int.MaxValue / 2));
         public int Add(ItemStack item) => _inventory.Add(item);
         public int Remove(ItemStack item, int amount) => _inventory.Remove(item, amount);
+        public int CountKind(ItemStack item) => _inventory.Stacks.Where(s => s.SameKind(item)).Sum(s => s.Amount);
+
+        public int RemoveKind(ItemStack item, int amount)
+        {
+            int removed = _inventory.Remove(item, amount);
+            foreach (ItemStack stack in _inventory.Stacks.Where(s => s.SameKind(item)).ToList())
+            {
+                if (removed >= amount) break;
+                removed += _inventory.Remove(stack, amount - removed);
+            }
+            return removed;
+        }
     }
 }

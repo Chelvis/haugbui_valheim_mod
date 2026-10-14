@@ -85,6 +85,35 @@ namespace Haugbui.Core.Tests
             Assert.That(result, Is.EqualTo(expected));
         }
 
+        [TestCase(99f, Me, PlacementResult.OwnTombTooClose)]
+        [TestCase(100f, Me, PlacementResult.Ok)]
+        [TestCase(6f, Someone, PlacementResult.Ok)]
+        [TestCase(4f, Someone, PlacementResult.TombTooClose)]
+        public void Own_tombs_keep_a_larger_spacing(float otherX, long owner, PlacementResult expected)
+        {
+            PlacementResult result = PlacementRules.CheckTomb(Vec3.Zero, Me, new[] { Bed(10, Me) },
+                new[] { (new Vec3(otherX, 0, 0), owner) }, BedDistance, Spacing, 100f);
+
+            Assert.That(result, Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void Territory_goes_to_the_nearest_covering_tomb()
+        {
+            var tombs = new[] { ("a", new Vec3(0, 0, 0), 50f), ("b", new Vec3(60, 0, 0), 50f) };
+            Assert.That(Territory.OwnerOf(new Vec3(20, 0, 0), tombs), Is.EqualTo("a"));
+            Assert.That(Territory.OwnerOf(new Vec3(40, 0, 0), tombs), Is.EqualTo("b"));
+            Assert.That(Territory.OwnerOf(new Vec3(30, 0, 0), tombs), Is.EqualTo("a"), "a tie goes to the lowest GUID");
+            Assert.That(Territory.OwnerOf(new Vec3(200, 0, 0), tombs), Is.Null);
+        }
+
+        [Test]
+        public void Territory_ignores_a_nearer_tomb_whose_radius_does_not_reach()
+        {
+            var tombs = new[] { ("near", new Vec3(0, 0, 0), 5f), ("far", new Vec3(30, 0, 0), 50f) };
+            Assert.That(Territory.OwnerOf(new Vec3(8, 0, 0), tombs), Is.EqualTo("far"));
+        }
+
         [Test]
         public void Upgrade_needs_a_tomb_in_range()
         {

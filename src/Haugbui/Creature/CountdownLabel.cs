@@ -20,6 +20,8 @@ namespace Haugbui.Creature
 
         internal bool HasFont => _text != null && _text.font != null;
 
+        internal Transform Label => _text != null ? _text.transform : null;
+
         internal string Shown => _text != null && _text.gameObject.activeSelf ? _text.text : string.Empty;
 
         private void Start()
@@ -30,7 +32,8 @@ namespace Haugbui.Creature
             go.SetActive(false);
             go.transform.SetParent(transform, false);
             go.transform.localPosition = Vector3.up * 2.4f;
-            go.AddComponent<Billboard>();
+            // Billboard points +forward at the camera, but TMP text reads from its -forward side: invert it.
+            go.AddComponent<Billboard>().m_invert = true;
             _text = go.AddComponent<TextMeshPro>();
             if (_font == null)
                 _font = Resources.FindObjectsOfTypeAll<TMP_FontAsset>().OrderByDescending(f => f.name.Contains("Averia")).FirstOrDefault();

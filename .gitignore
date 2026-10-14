@@ -12,3 +12,7 @@ Packages/
 # Google Drive sync temp files
 .tmp.drivedownload/
 .tmp.driveupload/
+
+# Self-test results dropped into the root (never committed)
+haugbui_selftest*/
+LogOutput.log

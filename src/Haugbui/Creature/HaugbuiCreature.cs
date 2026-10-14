@@ -57,6 +57,10 @@ namespace Haugbui.Creature
             BaseAI ai = GetComponent<BaseAI>();
             if (ai != null) ai.enabled = false;
             CreaturePrefab.MakeIncorporeal(_character);
+            // Character.m_tamed is not serialized, so the prefab's value never reaches an instance; the ZDO key keeps it
+            // for every peer (Character.IsTamed). Tamed: players see a friendly green health bar (BaseAI.IsEnemy).
+            _character.m_tamed = true;
+            if (_view.IsOwner()) _view.GetZDO().Set(ZDOVars.s_tamed, true);
             _character.m_onDeath += () => Died?.Invoke();
             Visuals = gameObject.AddComponent<CreatureVisuals>();
             _lastPosition = transform.position;

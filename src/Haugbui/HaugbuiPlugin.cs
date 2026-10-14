@@ -51,6 +51,7 @@ namespace Haugbui
             Settings.UpgradeRange.SettingChanged += (_, __) => ApplyConstructionSettings();
             Settings.BedDistance.SettingChanged += (_, __) => ApplyConstructionSettings();
             Settings.TombSpacing.SettingChanged += (_, __) => ApplyConstructionSettings();
+            Settings.TombSpacingSameOwner.SettingChanged += (_, __) => ApplyConstructionSettings();
 
             _harmony = new Harmony(PluginGuid);
             _harmony.PatchAll(typeof(HaugbuiPlugin).Assembly);
@@ -86,6 +87,7 @@ namespace Haugbui
             StructureRegistry.Update();
             UI.TombPanel.Update();
             UI.DeliveryPanel.Update();
+            UI.ProductionPanel.Update();
         }
 
         private void OnDestroy()
@@ -110,6 +112,7 @@ namespace Haugbui
             StructureRegistry.UpgradeRange = Settings.UpgradeRange.Value;
             PlacementCheck.BedDistance = Settings.BedDistance.Value;
             PlacementCheck.TombSpacing = Settings.TombSpacing.Value;
+            PlacementCheck.SameOwnerSpacing = Settings.TombSpacingSameOwner.Value;
         }
     }
 }

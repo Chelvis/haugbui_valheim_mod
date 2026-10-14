@@ -42,6 +42,7 @@ namespace Haugbui.SelfTest
                 Registry();
                 yield return Access();
                 yield return Transfers();
+                yield return VanillaStacking();
                 yield return Sorting();
                 yield return TwoTombs();
                 LoadedAreaChecks();
@@ -395,6 +396,100 @@ namespace Haugbui.SelfTest
         }
 
         private Vector3 Ground(Vector3 offset) => SelfTestContext.OnGround(_arena + offset);
+
+        /// <summary>HB-T-109: StrictItemData OFF stacks like vanilla but never clears a cheated flag; totals conserved.</summary>
+        private IEnumerator VanillaStacking()
+        {
+            _t.Check("StrictItemData is ON by default", (bool)HaugbuiPlugin.Instance.Settings.StrictItemData.DefaultValue);
+            Container c = Chest(new Vector3(4, 0, -4), ("Wood", 10));
+            Container tombContainer = _tomb.GetComponent<Container>();
+            Inventory storage = tombContainer.GetInventory();
+            if (!_t.Check("vanilla stacking chest placed", c != null)) yield break;
+            yield return null;
+            var tomb = new ContainerEndpoint(tombContainer);
+            var chest = new ContainerEndpoint(c);
+            var carried = new CarriedEndpoint("carried:test", _tomb.Carried);
+            StackingRules.StrictItemData = false;
+            try
+            {
+                AddCheated(storage, "Wood", 5);
+                ItemStack cheatedWood = ItemBridge.FromItemData(storage.GetAllItems().First(i => i.m_cheated));
+                TransferRecord joined = Reservations.Transfers.Move(tomb, chest, cheatedWood, 5);
+                List<ItemDrop.ItemData> wood = c.GetInventory().GetAllItems().Where(i => ItemBridge.PrefabName(i) == "Wood").ToList();
+                _t.Check("OFF: a cheated item joins the clean stack and makes it cheated, as vanilla",
+                    joined.Moved == 5 && joined.Conserved && wood.Count == 1 && wood[0].m_stack == 15 && wood[0].m_cheated, Describe(wood));
+                _t.Check("OFF: the stack keeps its own custom data", wood.Count == 1 && !wood[0].m_customData.ContainsKey("haugbui_selftest"));
+
+                Add(tombContainer, "Wood", 5);
+                TransferRecord clean = Reservations.Transfers.Move(tomb, chest, Stack("Wood", 0), 5);
+                wood = c.GetInventory().GetAllItems().Where(i => ItemBridge.PrefabName(i) == "Wood").ToList();
+                _t.Check("OFF: a clean item never clears a cheated stack", clean.Moved == 5 && wood.Count == 1 && wood[0].m_stack == 20 && wood[0].m_cheated,
+                    Describe(wood));
+
+                foreach ((string prefab, int amount) in new[] { ("Stone", 30), ("Resin", 20) }) Add(tombContainer, prefab, amount);
+                AddCheated(storage, "Stone", 7);
+                var endpoints = new List<IItemEndpoint> { tomb, chest, carried };
+                Dictionary<string, int> before = WithCarried(Totals(new[] { tombContainer, c }));
+                int cheatedLow = Cheated(tombContainer, c), duplicates = 0, cleared = 0, moves = 0;
+                float end = Time.time + 2f;
+                while (Time.time < end)
+                {
+                    for (int i = 0; i < 5; i++)
+                    {
+                        IItemEndpoint source = endpoints[UnityEngine.Random.Range(0, endpoints.Count)];
+                        IItemEndpoint destination = endpoints[UnityEngine.Random.Range(0, endpoints.Count)];
+                        if (source == destination) continue;
+                        ItemStack item = Stack(Prefabs[UnityEngine.Random.Range(0, Prefabs.Length)], 0);
+                        item.Cheated = UnityEngine.Random.value < 0.3f;
+                        TransferRecord r = Reservations.Transfers.Move(source, destination, item, UnityEngine.Random.Range(1, 40));
+                        if (!r.Conserved) duplicates++;
+                        if (r.Moved > 0) moves++;
+                        int cheatedNow = Cheated(tombContainer, c);
+                        if (cheatedNow < cheatedLow) cleared++;
+                        cheatedLow = Mathf.Max(cheatedLow, cheatedNow);
+                    }
+                    yield return null;
+                }
+                Dictionary<string, int> after = WithCarried(Totals(new[] { tombContainer, c }));
+                _t.Check("OFF: random transfers conserve totals", Same(before, after) && duplicates == 0 && moves > 20,
+                    $"{moves} moves, {duplicates} duplicates, {Format(before)} → {Format(after)}");
+                _t.Check("OFF: no cheated item ever became clean", cleared == 0, $"{cleared} moves lowered the cheated count");
+            }
+            finally
+            {
+                StackingRules.StrictItemData = HaugbuiPlugin.Instance.Settings.StrictItemData.Value;
+            }
+            _tomb.Carried.TakeAll();
+            storage.RemoveAll();
+            ZNetScene.instance.Destroy(c.gameObject);
+            yield return SelfTestContext.WaitFrames(2);
+        }
+
+        private int Cheated(params Container[] containers) =>
+            containers.SelectMany(x => x.GetInventory().GetAllItems()).Where(i => i.m_cheated).Sum(i => i.m_stack)
+            + _tomb.Carried.Stacks.Where(st => st.Cheated).Sum(st => st.Amount);
+
+        private static void AddCheated(Inventory inventory, string prefab, int amount)
+        {
+            GameObject go = ObjectDB.instance.GetItemPrefab(prefab);
+            ItemDrop.ItemData item = go.GetComponent<ItemDrop>().m_itemData.Clone();
+            item.m_dropPrefab = go;
+            item.m_stack = amount;
+            item.m_cheated = true;
+            item.m_worldLevel = (byte)Game.m_worldLevel;
+            item.m_customData["haugbui_selftest"] = "kept";
+            // The test fixture goes into an empty slot so it never joins a clean stack.
+            for (int y = 0; y < inventory.GetHeight(); y++)
+                for (int x = 0; x < inventory.GetWidth(); x++)
+                    if (inventory.GetItemAt(x, y) == null)
+                    {
+                        inventory.AddItem(item, amount, x, y);
+                        return;
+                    }
+        }
+
+        private static string Describe(IEnumerable<ItemDrop.ItemData> items) =>
+            string.Join(", ", items.Select(i => $"{i.m_stack}{(i.m_cheated ? " cheated" : "")}"));
 
         private Container Chest(Vector3 offset, params (string Prefab, int Amount)[] items)
         {

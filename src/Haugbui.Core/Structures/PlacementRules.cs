@@ -51,6 +51,7 @@ namespace Haugbui.Core.Structures
         Ok,
         NeedOwnBed,
         TombTooClose,
+        OwnTombTooClose,
         NeedTomb,
         UpgradeExists,
         MaxTombs
@@ -64,6 +65,7 @@ namespace Haugbui.Core.Structures
             {
                 case PlacementResult.NeedOwnBed: return "haugbui_msg_need_bed";
                 case PlacementResult.TombTooClose: return "haugbui_msg_tomb_too_close";
+                case PlacementResult.OwnTombTooClose: return "haugbui_msg_tomb_too_close_own";
                 case PlacementResult.NeedTomb: return "haugbui_msg_need_tomb";
                 case PlacementResult.UpgradeExists: return "haugbui_msg_upgrade_exists";
                 case PlacementResult.MaxTombs: return "haugbui_msg_max_tombs";
@@ -82,6 +84,18 @@ namespace Haugbui.Core.Structures
                                             && Vec3.Distance(b.Position, position) <= bedDistance);
             if (!ownBedNear) return PlacementResult.NeedOwnBed;
             if (otherTombs.Any(t => Vec3.Distance(t, position) < tombSpacing)) return PlacementResult.TombTooClose;
+            return PlacementResult.Ok;
+        }
+
+        /// <summary>HB-004: any tomb within <paramref name="tombSpacing"/>; the placer's own tombs within <paramref name="sameOwnerSpacing"/>.</summary>
+        public static PlacementResult CheckTomb(
+            Vec3 position, long placerId, IEnumerable<BedInfo> beds, IReadOnlyCollection<(Vec3 Position, long OwnerId)> otherTombs,
+            float bedDistance, float tombSpacing, float sameOwnerSpacing)
+        {
+            PlacementResult result = CheckTomb(position, placerId, beds, otherTombs.Select(t => t.Position), bedDistance, tombSpacing);
+            if (result != PlacementResult.Ok) return result;
+            if (otherTombs.Any(t => t.OwnerId == placerId && Vec3.Distance(t.Position, position) < sameOwnerSpacing))
+                return PlacementResult.OwnTombTooClose;
             return PlacementResult.Ok;
         }
 

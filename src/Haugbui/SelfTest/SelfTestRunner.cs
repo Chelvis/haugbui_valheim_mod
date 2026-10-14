@@ -17,7 +17,7 @@ namespace Haugbui.SelfTest
     /// </summary>
     internal static class SelfTestRunner
     {
-        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute" };
+        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute", "production", "territory" };
 
         public static string OutputFolder => Path.Combine(BepInEx.Paths.BepInExRootPath, "haugbui_selftest");
 
@@ -55,6 +55,8 @@ namespace Haugbui.SelfTest
                     case "chests": body = new ChestSuite(context).Run(); break;
                     case "harvest": body = new HarvestSuite(context).Run(); break;
                     case "tribute": body = new TributeSuite(context).Run(); break;
+                    case "production": body = new ProductionSuite(context).Run(); break;
+                    case "territory": body = new TerritorySuite(context).Run(); break;
                     default:
                         context.Suite = suite;
                         context.Fail("unknown suite", suite);
@@ -64,9 +66,14 @@ namespace Haugbui.SelfTest
                 long player = Player.m_localPlayer.GetPlayerID();
                 Dictionary<string, string> parked = Integration.ServantRegistry.Park(player);
                 Creature.TombController.TributeSuspendedForTests = suite != "tribute";
+                // Older suites place several tombs close together; only the territory suite uses the HB-T-110 rules.
+                Structures.PlacementCheck.SameOwnerSpacing = suite == "territory" ? HaugbuiPlugin.Instance.Settings.TombSpacingSameOwner.Value : 0f;
+                Brain.WorkContext.TerritorySuspendedForTests = suite != "territory";
                 yield return Guard(context, suite, body);
                 Integration.TimeSource.Override = null;
                 Creature.TombController.TributeSuspendedForTests = false;
+                Structures.PlacementCheck.SameOwnerSpacing = HaugbuiPlugin.Instance.Settings.TombSpacingSameOwner.Value;
+                Brain.WorkContext.TerritorySuspendedForTests = false;
                 context.Cleanup();
                 yield return SelfTestContext.WaitFrames(5);
                 Integration.ServantRegistry.Unpark(player, parked);

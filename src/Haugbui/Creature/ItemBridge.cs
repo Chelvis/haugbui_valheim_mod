@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Core.Creature;
+using Haugbui.Core.Storage;
 using UnityEngine;
 
 namespace Haugbui.Creature
@@ -44,7 +45,11 @@ namespace Haugbui.Creature
             return true;
         }
 
-        /// <summary>Room on identical stacks plus empty slots, the way <see cref="AddTo"/> fills them.</summary>
+        /// <summary>HB-T-109: a stack the item may top up — identical data, or the same kind with vanilla stacking.</summary>
+        public static bool Joinable(ItemDrop.ItemData item, ItemStack stack) =>
+            StackingRules.StrictItemData ? Identical(item, stack) : SameKind(item, stack);
+
+        /// <summary>Room on joinable stacks plus empty slots, the way <see cref="AddTo"/> fills them.</summary>
         public static int RoomFor(Inventory inventory, ItemStack stack)
         {
             GameObject prefab = Prefab(stack);
@@ -52,8 +57,31 @@ namespace Haugbui.Creature
             int maxStack = MaxStack(prefab);
             int room = inventory.GetEmptySlots() * maxStack;
             foreach (ItemDrop.ItemData item in inventory.GetAllItems())
-                if (Identical(item, stack)) room += Mathf.Max(0, maxStack - item.m_stack);
+                if (Joinable(item, stack)) room += Mathf.Max(0, maxStack - item.m_stack);
             return room;
+        }
+
+        /// <summary>Items of the same item, quality and world level, whatever their other data.</summary>
+        public static int CountKind(Inventory inventory, ItemStack stack)
+        {
+            int count = 0;
+            if (inventory == null) return 0;
+            foreach (ItemDrop.ItemData item in inventory.GetAllItems())
+                if (SameKind(item, stack)) count += item.m_stack;
+            return count;
+        }
+
+        /// <summary>Rollback only: identical items first, then any of the same kind.</summary>
+        public static int RemoveKind(Inventory inventory, ItemStack stack, int amount)
+        {
+            int removed = RemoveFrom(inventory, stack, amount);
+            foreach (ItemDrop.ItemData item in inventory.GetAllItems().Where(i => SameKind(i, stack)).ToList())
+            {
+                if (removed >= amount) break;
+                int take = Mathf.Min(amount - removed, item.m_stack);
+                if (inventory.RemoveItem(item, take)) removed += take;
+            }
+            return removed;
         }
 
         /// <summary>Items identical to <paramref name="stack"/>; the transfer unit, so flags never change on the way.</summary>
@@ -111,8 +139,9 @@ namespace Haugbui.Creature
         }
 
         /// <summary>
-        /// Tops up identical stacks, then fills empty slots. Never the public Inventory.AddItem overloads: they merge by
-        /// name, quality and world level only, and AddItem(ItemData) marks the whole target stack cheated.
+        /// Tops up joinable stacks (<see cref="Joinable"/>), then fills empty slots. Never the public Inventory.AddItem
+        /// overloads: they merge by name, quality and world level only, and AddItem(ItemData) marks the whole target stack
+        /// cheated. With vanilla stacking (StrictItemData off) the same taint is applied here on purpose, and only that.
         /// </summary>
         /// <returns>The amount actually added, measured by counting the inventory before and after.</returns>
         public static int AddTo(Inventory inventory, ItemStack stack)
@@ -120,14 +149,17 @@ namespace Haugbui.Creature
             GameObject prefab = Prefab(stack);
             if (inventory == null || prefab == null || stack.Amount <= 0) return 0;
 
-            int before = Count(inventory, stack);
+            bool strict = StackingRules.StrictItemData;
+            int before = strict ? Count(inventory, stack) : CountKind(inventory, stack);
             int maxStack = MaxStack(prefab);
             int left = stack.Amount;
             foreach (ItemDrop.ItemData item in inventory.GetAllItems().ToList())
             {
                 if (left <= 0) break;
-                if (!Identical(item, stack) || item.m_stack >= maxStack) continue;
-                left -= PlaceAt(inventory, prefab, stack, Mathf.Min(left, maxStack - item.m_stack), item.m_gridPos);
+                if (!Joinable(item, stack) || item.m_stack >= maxStack) continue;
+                int placed = PlaceAt(inventory, prefab, stack, Mathf.Min(left, maxStack - item.m_stack), item.m_gridPos);
+                if (placed > 0 && stack.Cheated) item.m_cheated = true;
+                left -= placed;
             }
             for (int y = 0; y < inventory.GetHeight() && left > 0; y++)
             {
@@ -137,7 +169,7 @@ namespace Haugbui.Creature
                     left -= PlaceAt(inventory, prefab, stack, Mathf.Min(left, maxStack), new Vector2i(x, y));
                 }
             }
-            int added = Count(inventory, stack) - before;
+            int added = (strict ? Count(inventory, stack) : CountKind(inventory, stack)) - before;
             // The slot overload only raises Changed (which saves the container) while a local player exists.
             if (added > 0 && !Player.m_localPlayerExists) inventory.Changed();
             return added;

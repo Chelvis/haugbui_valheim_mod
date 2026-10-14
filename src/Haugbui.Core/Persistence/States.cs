@@ -163,30 +163,40 @@ namespace Haugbui.Core.Persistence
         public int Supplied { get; set; }
         public int Produced { get; set; }
         public string TombGuid { get; set; } = string.Empty;
+
+        /// <summary>World time the owning tomb last saw this job (HB-118 takeover); NaN when never.</summary>
+        public double OwnerSeen { get; set; } = double.NaN;
     }
 
     public sealed class StationJobSerializer : IBlobSerializer<StationJobState>
     {
         public static readonly StationJobSerializer Instance = new StationJobSerializer();
 
-        public int CurrentVersion => 1;
+        /// <summary>v2 adds the owner's last-seen time.</summary>
+        public int CurrentVersion => 2;
 
         public void Write(StationJobState value, BlobWriter writer)
         {
             writer.Write(value.Enabled).Write(value.InputPrefab).Write(value.OutputPrefab).Write((int)value.Mode)
-                .Write(value.Target).Write(value.Supplied).Write(value.Produced).Write(value.TombGuid);
+                .Write(value.Target).Write(value.Supplied).Write(value.Produced).Write(value.TombGuid)
+                .Write(value.OwnerSeen);
         }
 
-        public StationJobState Read(BlobReader reader) => new StationJobState
+        public StationJobState Read(BlobReader reader)
         {
-            Enabled = reader.ReadBool(),
-            InputPrefab = reader.ReadString(),
-            OutputPrefab = reader.ReadString(),
-            Mode = (JobMode)reader.ReadInt(),
-            Target = reader.ReadInt(),
-            Supplied = reader.ReadInt(),
-            Produced = reader.ReadInt(),
-            TombGuid = reader.ReadString(),
-        };
+            var job = new StationJobState
+            {
+                Enabled = reader.ReadBool(),
+                InputPrefab = reader.ReadString(),
+                OutputPrefab = reader.ReadString(),
+                Mode = (JobMode)reader.ReadInt(),
+                Target = reader.ReadInt(),
+                Supplied = reader.ReadInt(),
+                Produced = reader.ReadInt(),
+                TombGuid = reader.ReadString(),
+            };
+            if (reader.SchemaVersion >= 2) job.OwnerSeen = reader.ReadDouble();
+            return job;
+        }
     }
 }

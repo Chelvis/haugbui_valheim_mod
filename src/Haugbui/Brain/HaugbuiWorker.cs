@@ -3,10 +3,13 @@ using System.Linq;
 using Haugbui.Core.Coordination;
 using Haugbui.Core.Creature;
 using Haugbui.Core.Geometry;
+using Haugbui.Core.Persistence;
+using Haugbui.Core.Production;
 using Haugbui.Core.Storage;
 using Haugbui.Creature;
 using Haugbui.Diagnostics;
 using Haugbui.Integration;
+using Haugbui.Integration.StationAdapters;
 using Haugbui.Registry;
 using Haugbui.Structures;
 using UnityEngine;
@@ -43,6 +46,7 @@ namespace Haugbui.Brain
             _planner = new TaskPlanner<WorkContext>(Reservations.Table, new ITaskProvider<WorkContext>[]
             {
                 new DepositProvider(),
+                new ProductionProvider(),
                 new DeliveryProvider(),
                 new OwnDropsProvider(),
                 new HarvestProvider(),
@@ -64,6 +68,9 @@ namespace Haugbui.Brain
         public int Deliveries { get; private set; }
         public int Harvests { get; private set; }
         public int PickUps { get; private set; }
+        public int Fed { get; private set; }
+        public int Fuelled { get; private set; }
+        public int OutputsCollected { get; private set; }
 
         /// <summary>Drops of its own harvests still on the ground (HB-093); session only.</summary>
         public IReadOnlyDictionary<string, ItemDrop> OwnDrops => _ownDrops;
@@ -91,6 +98,8 @@ namespace Haugbui.Brain
                         case TaskKinds.Collect: return "$haugbui_activity_collecting";
                         case TaskKinds.Harvest: return "$haugbui_activity_harvesting";
                         case TaskKinds.Gather: return "$haugbui_activity_gathering";
+                        case TaskKinds.ProductionFeed: return "$haugbui_activity_supplying";
+                        case TaskKinds.ProductionOutputs: return "$haugbui_activity_collecting_outputs";
                         default: return "$haugbui_activity_sorting";
                     }
                 }
@@ -222,7 +231,12 @@ namespace Haugbui.Brain
             switch (step.Kind)
             {
                 case StepKind.PickUp:
-                    return PickUp((ItemDrop)target) > 0;
+                    int picked = PickUp((ItemDrop)target);
+                    if (picked > 0 && Plan.Kind == TaskKinds.ProductionOutputs) CreditOutputs(picked);
+                    return picked > 0;
+                case StepKind.Feed:
+                case StepKind.Fuel:
+                    return Supply(step, target);
                 case StepKind.Harvest:
                     return Harvest(target);
                 default:
@@ -257,6 +271,54 @@ namespace Haugbui.Brain
             PickUps++;
             _tomb.Creature?.Visuals?.Pulse();
             return record.Moved;
+        }
+
+        /// <summary>
+        /// HB-061/HB-T-061: one unit at a time through the station's own RPC with the item's cheated flag; the carried
+        /// unit is removed only after the station took it (destination first).
+        /// </summary>
+        private bool Supply(TaskStep step, MonoBehaviour station)
+        {
+            IStationAdapter adapter = StationAdapterRegistry.For(station);
+            if (adapter == null) return false;
+            int done = 0;
+            for (int i = 0; i < step.Amount; i++)
+            {
+                ItemStack unit = _tomb.Carried.Stacks.FirstOrDefault(s => s.Prefab == step.Item.Prefab && s.Cheated == step.Item.Cheated);
+                if (unit == null) break;
+                bool taken = step.Kind == StepKind.Feed
+                    ? adapter.FeedOne(station, unit.Prefab, unit.Cheated)
+                    : adapter.FuelOne(station);
+                if (!taken) break;
+                _tomb.Carried.Remove(unit, 1);
+                done++;
+            }
+            if (done <= 0) return false;
+            if (step.Kind == StepKind.Fuel) Fuelled += done;
+            else
+            {
+                Fed += done;
+                StationJobs.Edit(station, job =>
+                {
+                    ProductionJob.RecordSupplied(job, done);
+                    return true;
+                });
+            }
+            _tomb.Creature?.Visuals?.Pulse();
+            return true;
+        }
+
+        /// <summary>HB-112: products count when the Haugbui picks them up at the station's output point.</summary>
+        private void CreditOutputs(int amount)
+        {
+            OutputsCollected += amount;
+            if (!_context.Targets.TryGetValue(Plan.Tag, out MonoBehaviour station) || station == null) return;
+            StationJobs.Edit(station, job =>
+            {
+                StationRecipe recipe = StationAdapterRegistry.For(station)?.Recipes(station)
+                    .FirstOrDefault(r => r.Input == job.InputPrefab && r.Output == job.OutputPrefab);
+                return ProductionJob.RecordProduced(job, amount, recipe?.Yield ?? 1) > 0;
+            });
         }
 
         private void PruneOwnDrops()
@@ -345,7 +407,7 @@ namespace Haugbui.Brain
             {
                 case Container container: return container.m_nview;
                 case ItemDrop drop: return drop.m_nview;
-                default: return HarvestGateway.ViewOf(target);
+                default: return StationAdapterRegistry.For(target)?.View(target) ?? HarvestGateway.ViewOf(target);
             }
         }
 
