@@ -37,6 +37,7 @@ namespace Haugbui.SelfTest
         public string OutputFolder { get; }
         public string Suite { get; set; } = "";
         public List<TestResult> Results { get; } = new List<TestResult>();
+        public int MonstersCleared { get; set; }
         public Player Player => Player.m_localPlayer;
 
         public bool Check(string name, bool condition, string detail = "")
@@ -143,6 +144,59 @@ namespace Haugbui.SelfTest
             done(recreated != null ? recreated.gameObject : null);
         }
 
+        /// <summary>
+        /// Removes hostile creatures near the player (no drops), so a wandering monster cannot hit a Haugbui under test.
+        /// Players, tamed creatures and Haugbui test creatures are kept.
+        /// </summary>
+        public static int ClearMonsters(Vector3 center, float radius)
+        {
+            int removed = 0;
+            foreach (Character character in Character.GetAllCharacters().ToList())
+            {
+                if (character == null || character.IsPlayer() || character.IsTamed() || character.IsDead()) continue;
+                if (character.GetComponent<MonsterAI>() == null) continue;
+                if (character.GetComponent<Creature.HaugbuiCreature>() != null || character.GetComponent<Spikes.FlightSpikeController>() != null) continue;
+                if (Vector3.Distance(character.transform.position, center) > radius) continue;
+                ZNetView view = character.GetComponent<ZNetView>();
+                if (view == null || !view.IsValid() || !view.IsOwner()) continue;
+                ZNetScene.instance.Destroy(character.gameObject);
+                removed++;
+            }
+            return removed;
+        }
+
+        public static IEnumerator WaitFor(Func<bool> condition, float timeout)
+        {
+            float end = Time.time + timeout;
+            while (Time.time < end && !condition()) yield return null;
+        }
+
+        /// <summary>Places a Haugbui piece through the vanilla placement flow (creator, OnPlaced), without resources.</summary>
+        public Haugbui.Structures.HaugbuiStructure PlaceStructure(Haugbui.Core.Structures.StructureKind kind, Vector3 position)
+        {
+            Piece piece = ZNetScene.instance.GetPrefab(Haugbui.Structures.StructureDefinitions.For(kind).PieceId)?.GetComponent<Piece>();
+            if (piece == null) return null;
+            Player.PlacePiece(piece, position, Quaternion.identity, doAttack: false);
+            Haugbui.Structures.HaugbuiStructure placed = Haugbui.Structures.StructureRegistry.Loaded
+                .Where(s => s.Kind == kind && Vector3.Distance(s.transform.position, position) < 0.1f)
+                .OrderByDescending(s => s.GetInstanceID())
+                .FirstOrDefault();
+            return placed != null ? Track(placed) : null;
+        }
+
+        /// <summary>Places a vanilla piece as the local player built it (creator set), without resources.</summary>
+        public GameObject PlaceVanilla(string prefabName, Vector3 position, Quaternion rotation)
+        {
+            Piece piece = ZNetScene.instance.GetPrefab(prefabName)?.GetComponent<Piece>();
+            if (piece == null) return null;
+            Player.PlacePiece(piece, position, rotation, doAttack: false);
+            Piece placed = UnityEngine.Object.FindObjectsByType<Piece>(FindObjectsSortMode.None)
+                .Where(p => p != null && Utils.GetPrefabName(p.gameObject) == prefabName && Vector3.Distance(p.transform.position, position) < 0.1f)
+                .OrderByDescending(p => p.GetInstanceID())
+                .FirstOrDefault();
+            return placed != null ? Track(placed.gameObject) : null;
+        }
+
         public static IEnumerator WaitFrames(int frames)
         {
             for (int i = 0; i < frames; i++) yield return null;
@@ -157,6 +211,7 @@ namespace Haugbui.SelfTest
             int skip = Results.Count(r => r.Status == TestStatus.Skip);
             sb.AppendLine($"Haugbui {HaugbuiPlugin.PluginVersion} self-test on Valheim {Version.GetVersionString()} — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine($"RESULT: {(fail == 0 ? "PASS" : "FAIL")} — {pass} passed, {fail} failed, {skip} skipped in {duration.TotalSeconds:0.0}s");
+            sb.AppendLine($"Hostile creatures removed near the player during the run: {MonstersCleared}");
             sb.AppendLine();
             foreach (IGrouping<string, TestResult> suite in Results.GroupBy(r => r.Suite))
             {

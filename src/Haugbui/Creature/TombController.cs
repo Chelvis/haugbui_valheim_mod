@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Haugbui.Brain;
 using Haugbui.Core.Creature;
 using Haugbui.Core.Persistence;
 using Haugbui.Core.Progression;
@@ -33,6 +34,7 @@ namespace Haugbui.Creature
         private bool _destroyed;
         private bool _resumeChecked;
         private int _lastSavedHash;
+        private Core.Scheduling.TickHandle _planTick;
 
         public static IReadOnlyList<TombController> All => Instances;
 
@@ -41,6 +43,11 @@ namespace Haugbui.Creature
         internal List<ItemStack> Overflow { get; private set; } = new List<ItemStack>();
         internal HaugbuiCreature Creature { get; private set; }
         internal HaugbuiStructure Structure => _tomb;
+        internal HaugbuiWorker Worker { get; private set; }
+        internal string Guid => _tomb.Guid;
+
+        /// <summary>The creature is out and this peer runs its logic.</summary>
+        internal bool CanWork => !_destroyed && State != null && IsOwner && Creature != null && Machine.IsOut;
         internal TombState State => _tomb != null ? _tomb.TombState : null;
         internal bool IsOwner => _tomb != null && _tomb.View != null && _tomb.View.IsValid() && _tomb.View.IsOwner();
         internal HaugbuiAttributes Attributes => HaugbuiPlugin.Instance.Settings.ProgressionTable.ForLevel(_tomb.Progress.Level);
@@ -64,6 +71,7 @@ namespace Haugbui.Creature
             _tomb = GetComponent<HaugbuiStructure>();
             Machine = new HaugbuiStateMachine(() => TimeSource.Current.Now);
             Carried = new CarriedInventory(1, 1);
+            Worker = new HaugbuiWorker(this);
             if (_tomb.Zdo == null) return;
 
             var store = new ZdoBlobStore(_tomb.Zdo);
@@ -78,11 +86,15 @@ namespace Haugbui.Creature
             if (wear != null) wear.m_onDestroyed += OnTombDestroyed;
             gameObject.AddComponent<CountdownLabel>();
             Instances.Add(this);
+            _planTick = HaugbuiPlugin.Instance.Scheduler.Register("plan:" + _tomb.Guid,
+                HaugbuiPlugin.Instance.Settings.PlanningIntervalSeconds.Value, Worker.Tick, Time.timeAsDouble);
         }
 
         private void OnDestroy()
         {
             Instances.Remove(this);
+            HaugbuiPlugin.Instance?.Scheduler?.Unregister(_planTick);
+            Worker?.ReleaseAll();
             // Zone unload or logout: the creature goes with the tomb; the saved state resumes it on the next load.
             if (Creature != null && Creature.View != null && Creature.View.IsValid() && Creature.View.IsOwner() && ZNetScene.instance != null)
                 ZNetScene.instance.Destroy(Creature.gameObject);
@@ -190,6 +202,7 @@ namespace Haugbui.Creature
         {
             if (Machine.IsOut && Creature == null)
             {
+                Worker.ReleaseAll();
                 // Destroyed by something else than death (e.g. removed with a command): count it as back inside.
                 Machine.Restore(HaugbuiState.Dormant);
                 EnteredTomb();
@@ -197,6 +210,7 @@ namespace Haugbui.Creature
             }
             if (Creature == null) return;
 
+            bool working = Worker.Step();
             Creature.SetState(Machine.State);
             switch (Machine.State)
             {
@@ -204,6 +218,7 @@ namespace Haugbui.Creature
                     if (Machine.TimeInState >= EmergeSeconds) Machine.TryEnter(HaugbuiState.Idle);
                     break;
                 case HaugbuiState.Idle:
+                    if (working) break;
                     Creature.MaxSpeed = Mathf.Min(IdleSpeed, Attributes.MaxSpeed);
                     if (!Creature.HasTarget || Creature.Arrived) Creature.MoveTo(IdlePoint());
                     break;
@@ -288,6 +303,7 @@ namespace Haugbui.Creature
 
         private void Enter()
         {
+            Worker.ReleaseAll();
             if (Creature != null)
             {
                 RecordHealth(Creature.Character.GetHealth(), Creature.Character.GetMaxHealth());
@@ -310,6 +326,7 @@ namespace Haugbui.Creature
         private void OnCreatureDied()
         {
             if (!IsOwner || State == null) return;
+            Worker.ReleaseAll();
             if (Creature != null) PlayEffect(Creature.transform.position);
             Creature = null;
             Machine.Kill();
@@ -380,6 +397,7 @@ namespace Haugbui.Creature
         {
             if (!IsOwner || _destroyed) return;
             _destroyed = true;
+            Worker.ReleaseAll();
             Vector3 at = transform.position + Vector3.up * 0.5f;
             List<ItemStack> all = DepositPlanner.Merge(Carried.Stacks, Overflow);
             int dropped = all.Sum(s => ItemBridge.Drop(s, at));

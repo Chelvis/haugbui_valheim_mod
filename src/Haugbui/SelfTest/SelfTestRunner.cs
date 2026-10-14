@@ -17,7 +17,7 @@ namespace Haugbui.SelfTest
     /// </summary>
     internal static class SelfTestRunner
     {
-        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui" };
+        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage" };
 
         public static string OutputFolder => Path.Combine(BepInEx.Paths.BepInExRootPath, "haugbui_selftest");
 
@@ -40,6 +40,7 @@ namespace Haugbui.SelfTest
             Log.Info($"Self-test started: {string.Join(", ", suites)}");
             Player.m_localPlayer?.Message(MessageHud.MessageType.Center, "Haugbui self-test running…");
 
+            HaugbuiPlugin.Instance.StartCoroutine(KeepAreaClear(context));
             foreach (string suite in suites)
             {
                 IEnumerator body;
@@ -50,6 +51,7 @@ namespace Haugbui.SelfTest
                     case "flight": body = new FlightSuite(context).Run(); break;
                     case "transfers": body = new TransferSuite(context).Run(); break;
                     case "haugbui": body = new HaugbuiSuite(context).Run(); break;
+                    case "storage": body = new StorageSuite(context).Run(); break;
                     default:
                         context.Suite = suite;
                         context.Fail("unknown suite", suite);
@@ -70,6 +72,26 @@ namespace Haugbui.SelfTest
             Player.m_localPlayer?.Message(MessageHud.MessageType.Center, summary);
             Running = false;
             Finished?.Invoke(context);
+        }
+
+        private const float MonsterClearRadius = 80f;
+
+        /// <summary>Monsters that wander in during the run would fight the Haugbuis under test.</summary>
+        private static IEnumerator KeepAreaClear(SelfTestContext context)
+        {
+            while (Running)
+            {
+                if (Player.m_localPlayer != null)
+                {
+                    int removed = SelfTestContext.ClearMonsters(Player.m_localPlayer.transform.position, MonsterClearRadius);
+                    if (removed > 0)
+                    {
+                        context.MonstersCleared += removed;
+                        Log.Info($"Self-test: removed {removed} hostile creature(s) within {MonsterClearRadius} m.");
+                    }
+                }
+                yield return new WaitForSeconds(1f);
+            }
         }
 
         /// <summary>Runs a suite step by step so an exception fails that suite instead of stopping the whole run.</summary>

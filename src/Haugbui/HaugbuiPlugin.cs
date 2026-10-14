@@ -22,7 +22,7 @@ namespace Haugbui
         public const string PluginGuid = "com.kelvinmarques.haugbui";
         public const string PluginName = "Haugbui";
         // Keep in sync with HaugbuiVersion in Directory.Build.props.
-        public const string PluginVersion = "0.0.3";
+        public const string PluginVersion = "0.0.4";
 
         private Harmony _harmony;
         private bool _piecesRegistered;
@@ -43,6 +43,8 @@ namespace Haugbui
             };
             Settings.MaxTicksPerFrame.SettingChanged += (_, __) => Scheduler.MaxTicksPerFrame = Settings.MaxTicksPerFrame.Value;
             Scheduler.TickFailed += (handle, e) => Log.ErrorRateLimited("tick:" + handle.Name, $"Tick {handle.Name} failed: {e}");
+            Coordination.Reservations.Table.LeaseSeconds = Settings.ReservationLeaseSeconds.Value;
+            Settings.ReservationLeaseSeconds.SettingChanged += (_, __) => Coordination.Reservations.Table.LeaseSeconds = Settings.ReservationLeaseSeconds.Value;
 
             GameApiSelfCheck.Run();
             ApplyConstructionSettings();
@@ -62,6 +64,9 @@ namespace Haugbui
             CommandManager.Instance.AddConsoleCommand(new StatusCommand());
             CommandManager.Instance.AddConsoleCommand(new DumpPrefabsCommand());
             CommandManager.Instance.AddConsoleCommand(new DumpTombCommand());
+            CommandManager.Instance.AddConsoleCommand(new ReservationsCommand());
+            CommandManager.Instance.AddConsoleCommand(new LedgerCommand());
+            CommandManager.Instance.AddConsoleCommand(new RegistryCommand());
 #if DEBUG
             CommandManager.Instance.AddConsoleCommand(new Spikes.TransferSaveSpikeCommand());
             CommandManager.Instance.AddConsoleCommand(new Spikes.RemoteWorkSpikeCommand());

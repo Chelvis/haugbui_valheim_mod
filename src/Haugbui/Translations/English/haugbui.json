@@ -53,5 +53,11 @@
   "haugbui_panel_needs_longsword": "needs the Fallen King's Longsword",
   "haugbui_panel_needs_level": "needs tomb level $1",
   "haugbui_panel_open_storage": "Tomb storage",
-  "haugbui_panel_close": "Close"
+  "haugbui_panel_close": "Close",
+  "haugbui_panel_activity": "Activity:",
+  "haugbui_activity_none": "nothing to do",
+  "haugbui_activity_sorting": "sorting the tomb storage",
+  "haugbui_activity_storing": "storing items in chests",
+  "haugbui_activity_no_destination": "keeping items: no chest holds them yet",
+  "haugbui_panel_partially_loaded": "Part of the work area is not loaded ($1% loaded); objects there are ignored."
 }

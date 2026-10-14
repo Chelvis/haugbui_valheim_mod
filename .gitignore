@@ -8,3 +8,7 @@ publicized_assemblies/
 Packages/
 *-progress.md
 .DS_Store
+
+# Google Drive sync temp files
+.tmp.drivedownload/
+.tmp.driveupload/

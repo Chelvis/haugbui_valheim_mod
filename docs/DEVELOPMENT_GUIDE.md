@@ -69,8 +69,8 @@ cooldown math, state-machine transitions, localization key parity.
    1.0 format: a folder of `_main.N.*` and `*.chunk` files) before destructive tests.
 3. Useful commands: `tod 0.5` (noon) / `tod 0` (midnight), `skiptime <seconds>`, `env ThunderStorm`, `resetenv`,
    `spawn Greydwarf 3`, `god`, `nocost`, `killall`, `save`, `wind 0 1`. Some cheats can block achievements in 1.0.
-4. Haugbui commands (HB-T-010): `haugbui_status`, `haugbui_dump_tomb`, `haugbui_reservations`, `haugbui_plan`
-   (dry run), `haugbui_cleanup`, `haugbui_kill`, `haugbui_cooldown_skip`.
+4. Haugbui commands (HB-T-010): `haugbui_status`, `haugbui_dump_tomb`, `haugbui_reservations`, `haugbui_ledger`,
+   `haugbui_registry`; planned: `haugbui_plan` (dry run), `haugbui_cleanup`, `haugbui_kill`, `haugbui_cooldown_skip`.
 5. `haugbui_dump_prefabs` (HB-T-091) writes `BepInEx\haugbui_prefabs.json` with station conversions, capacities,
    crafting recipes and item names from the installed game. Run it after each game update and attach the file when
    planning changes on the Mac.
@@ -138,7 +138,7 @@ Most in-game checks are automated. Use a throwaway test world: the suites build,
 15 m around the player and remove everything they created.
 
 - **Manual run:** in the world, `devcommands`, then `haugbui_selftest` (all suites) or
-  `haugbui_selftest basics structures flight transfers haugbui`. Stand still for about a minute.
+  `haugbui_selftest basics structures flight transfers haugbui storage`. Stand still for about a minute.
 - **Unattended run:** in r2modman, *Settings → Set launch parameters*:
   `-console -haugbui-autotest "<character>" "<world>" -haugbui-autotest-quit`, then *Start modded*. The mod picks the
   character and world from the main menu, waits for the spawn, runs every suite, writes the report and quits.
@@ -152,6 +152,7 @@ What the suites cover:
 | structures | bed/spacing/upgrade rules and their results, ZDO saved as the vanilla host, tomb state, levels 1→6 in any order, abilities, combat warning, tomb storage, reload of every structure (look, refund, level, items), **mod-missing simulation** (tomb loads as a plain chest with items and keys, then comes back), removing an upgrade, rebinding to a rebuilt tomb |
 | flight | non-persistent flyer crosses a wall back and forth for 25 s, never stuck, stays above ground, takes damage |
 | transfers | 10 s of random destination-first moves between two chests with forced saves, totals unchanged, also after reload |
+| storage | registry against a scene scan and a brute-force radius query; access rules (own/foreign private chest, dungeon chest, tomb storage, player tombstone, cart, obliterator, auto-destroy crate, foreign ward with and without permission); cheated flag kept, container in use untouched, 3 s of random transfers with saves and a reload conserve totals; sorting: tomb storage sorted first, wood only into the wood chest, empty chest untouched, item without destination kept and retried once a matching chest appears, chest removed mid-task (task stops, items kept), items back in tomb storage at dawn, totals conserved; two tombs sorting at once (own storage only, no shared reservation), leases released on death mid-task; loaded-area coverage |
 | haugbui | creature prefab (not saved, no drops, tamed, purple material copies, aura parts), dormant at noon / emerges at night / returns inside the dawn lead (fake clock, so no `tod` needed), movement (arrival ≤ 1 m, max speed, no jumps), one creature after a tomb reload, deposit on entering and overflow with full storage, Rest toggle, death (items to storage, cooldown, countdown label, waits for night, resurrects), Altar (works at noon, dark aura on/off, returns when removed), toggle gating and persistence, tomb destruction (carried + overflow dropped, creature gone) |
 
 Not covered by the self-test (still manual, once per release): a real quit/reload from disk and loading the world

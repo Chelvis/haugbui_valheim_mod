@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Haugbui.Core.Creature;
 using UnityEngine;
 
@@ -13,12 +15,71 @@ namespace Haugbui.Creature
             Quality = item.m_quality,
             Variant = item.m_variant,
             WorldLevel = item.m_worldLevel,
+            Cheated = item.m_cheated,
+            CrafterId = item.m_crafterID,
+            CrafterName = item.m_crafterName ?? string.Empty,
+            CustomData = item.m_customData != null ? new Dictionary<string, string>(item.m_customData) : new Dictionary<string, string>(),
             UnitWeight = item.m_shared.m_weight,
             MaxStack = item.m_shared.m_maxStackSize,
         };
 
+        public static string PrefabName(ItemDrop.ItemData item) => item.m_dropPrefab != null ? item.m_dropPrefab.name : string.Empty;
+
+        /// <summary>The game's stacking rule (Inventory.FindFreeStackItem) against a Core stack.</summary>
+        public static bool SameKind(ItemDrop.ItemData item, ItemStack stack) =>
+            PrefabName(item) == stack.Prefab && item.m_quality == stack.Quality && item.m_worldLevel == stack.WorldLevel;
+
+        /// <summary>Room for <paramref name="stack"/> the way Inventory.AddItem(ItemData) fills it: same-kind stacks, then empty slots.</summary>
+        public static int RoomFor(Inventory inventory, ItemStack stack)
+        {
+            GameObject prefab = Prefab(stack);
+            if (inventory == null || prefab == null) return 0;
+            int maxStack = Mathf.Max(1, prefab.GetComponent<ItemDrop>().m_itemData.m_shared.m_maxStackSize);
+            int room = inventory.GetEmptySlots() * maxStack;
+            foreach (ItemDrop.ItemData item in inventory.GetAllItems())
+                if (SameKind(item, stack)) room += Mathf.Max(0, maxStack - item.m_stack);
+            return room;
+        }
+
+        public static int Count(Inventory inventory, ItemStack stack)
+        {
+            int count = 0;
+            if (inventory == null) return 0;
+            foreach (ItemDrop.ItemData item in inventory.GetAllItems())
+                if (SameKind(item, stack)) count += item.m_stack;
+            return count;
+        }
+
+        /// <summary>Removes identical items first, then others of the same kind; returns the amount removed.</summary>
+        public static int RemoveFrom(Inventory inventory, ItemStack stack, int amount)
+        {
+            if (inventory == null || amount <= 0) return 0;
+            var identical = new List<ItemDrop.ItemData>();
+            var similar = new List<ItemDrop.ItemData>();
+            foreach (ItemDrop.ItemData item in inventory.GetAllItems())
+            {
+                if (!SameKind(item, stack)) continue;
+                if (FromItemData(item).StacksWith(stack)) identical.Add(item);
+                else similar.Add(item);
+            }
+            int left = amount;
+            foreach (ItemDrop.ItemData item in identical.Concat(similar))
+            {
+                if (left <= 0) break;
+                int take = Mathf.Min(left, item.m_stack);
+                if (inventory.RemoveItem(item, take)) left -= take;
+            }
+            return amount - left;
+        }
+
         public static bool IsTransportable(ItemDrop.ItemData item) =>
             ItemRules.IsTransportable((GameItemType)(int)item.m_shared.m_itemType, item.IsEquipable());
+
+        public static bool IsTransportable(ItemStack stack)
+        {
+            ItemDrop drop = Prefab(stack)?.GetComponent<ItemDrop>();
+            return drop != null && IsTransportable(drop.m_itemData);
+        }
 
         public static void RefreshShared(ItemStack stack)
         {
@@ -34,20 +95,18 @@ namespace Haugbui.Creature
             GameObject prefab = Prefab(stack);
             if (inventory == null || prefab == null) return 0;
 
-            ItemDrop.ItemData template = prefab.GetComponent<ItemDrop>().m_itemData;
-            string name = template.m_shared.m_name;
-            int before = inventory.CountItems(name, stack.Quality, matchWorldLevel: false);
-            int maxStack = Mathf.Max(1, template.m_shared.m_maxStackSize);
+            int before = Count(inventory, stack);
+            int maxStack = Mathf.Max(1, prefab.GetComponent<ItemDrop>().m_itemData.m_shared.m_maxStackSize);
             int left = stack.Amount;
             while (left > 0)
             {
-                // CanAddItem is all-or-nothing, so offer only what fits: room on matching stacks, then empty slots.
-                int room = inventory.FindFreeStackSpace(name, stack.WorldLevel) + inventory.GetEmptySlots() * maxStack;
-                int amount = Mathf.Min(left, Mathf.Min(maxStack, room));
+                // AddItem keeps what it already stacked when the rest does not fit, so offer only what fits, by the
+                // same quality-aware rule AddItem uses (CanAddItem ignores quality).
+                int amount = Mathf.Min(left, Mathf.Min(maxStack, RoomFor(inventory, stack)));
                 if (amount <= 0 || !inventory.AddItem(Create(prefab, stack, amount))) break;
                 left -= amount;
             }
-            return inventory.CountItems(name, stack.Quality, matchWorldLevel: false) - before;
+            return Count(inventory, stack) - before;
         }
 
         /// <returns>The amount dropped on the ground (0 for an unknown item prefab, which is logged by the caller).</returns>
@@ -74,10 +133,14 @@ namespace Haugbui.Creature
             item.m_quality = stack.Quality;
             item.m_variant = stack.Variant;
             item.m_worldLevel = stack.WorldLevel;
+            item.m_cheated = stack.Cheated;
+            item.m_crafterID = stack.CrafterId;
+            item.m_crafterName = stack.CrafterName ?? string.Empty;
+            item.m_customData = new Dictionary<string, string>(stack.CustomData ?? new Dictionary<string, string>());
             return item;
         }
 
-        private static GameObject Prefab(ItemStack stack) =>
+        internal static GameObject Prefab(ItemStack stack) =>
             string.IsNullOrEmpty(stack.Prefab) || ObjectDB.instance == null ? null : ObjectDB.instance.GetItemPrefab(stack.Prefab);
     }
 }

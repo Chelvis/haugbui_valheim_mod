@@ -53,5 +53,11 @@
   "haugbui_panel_needs_longsword": "requer a Espada Longa do Rei Caído",
   "haugbui_panel_needs_level": "requer túmulo nível $1",
   "haugbui_panel_open_storage": "Depósito do túmulo",
-  "haugbui_panel_close": "Fechar"
+  "haugbui_panel_close": "Fechar",
+  "haugbui_panel_activity": "Atividade:",
+  "haugbui_activity_none": "nada a fazer",
+  "haugbui_activity_sorting": "organizando o depósito do túmulo",
+  "haugbui_activity_storing": "guardando itens nos baús",
+  "haugbui_activity_no_destination": "guardando itens: nenhum baú tem esse item ainda",
+  "haugbui_panel_partially_loaded": "Parte da área de trabalho não está carregada ($1% carregada); objetos lá são ignorados."
 }

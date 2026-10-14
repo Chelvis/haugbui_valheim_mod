@@ -15,18 +15,8 @@ namespace Haugbui.SelfTest
     /// <summary>M3: creature prefab, presence by day/night/Altar/Rest, movement, deposit, death and cooldown, destruction.</summary>
     internal sealed class HaugbuiSuite
     {
-        private sealed class FakeTime : ITimeSource
-        {
-            public float Fraction = 0.5f;
-            public double Offset = 100000;
-            public bool IsNight => Fraction <= PresencePolicy.Dawn || Fraction >= PresencePolicy.Dusk;
-            public float DayFraction => Fraction;
-            public double DayLengthSeconds => 1800;
-            public double Now => Offset + Time.timeAsDouble;
-        }
-
-        private const float Noon = 0.5f;
-        private const float Night = 0.9f;
+        private const float Noon = FakeTime.Noon;
+        private const float Night = FakeTime.Night;
 
         private readonly SelfTestContext _t;
         private readonly FakeTime _time = new FakeTime();
@@ -97,6 +87,8 @@ namespace Haugbui.SelfTest
             yield return SelfTestContext.WaitFrames(3);
             _tomb = tomb.GetComponent<TombController>();
             _t.Check("tomb has a controller", _tomb != null);
+            // Storage work is covered by the storage suite; chests near the test spot must not change these checks.
+            if (_tomb != null) _tomb.Worker.Paused = true;
         }
 
         private IEnumerator DayAndNight()
@@ -152,6 +144,7 @@ namespace Haugbui.SelfTest
             yield return _t.Reload(_tomb.gameObject, go => reloaded = go);
             _tomb = reloaded != null ? reloaded.GetComponent<TombController>() : null;
             if (!_t.Check("tomb reloaded", _tomb != null)) yield break;
+            _tomb.Worker.Paused = true;
             yield return new WaitForSeconds(1.5f);
             _t.Check("one creature after reload, resumed", CountCreatures() == 1 && _tomb.Creature != null, $"{CountCreatures()} creatures");
         }
@@ -257,6 +250,7 @@ namespace Haugbui.SelfTest
             yield return _t.Reload(_tomb.gameObject, go => reloaded = go);
             _tomb = reloaded != null ? reloaded.GetComponent<TombController>() : null;
             if (!_t.Check("tomb reloaded for toggles", _tomb != null)) yield break;
+            _tomb.Worker.Paused = true;
             _t.Check("toggles persist across reload", _tomb.State != null && !_tomb.State.Has(TombToggles.Harvesting) && _tomb.State.Has(TombToggles.GroundItems));
         }
 
@@ -293,11 +287,7 @@ namespace Haugbui.SelfTest
             yield return SelfTestContext.WaitFrames(2);
         }
 
-        private static IEnumerator WaitFor(Func<bool> condition, float timeout)
-        {
-            float end = Time.time + timeout;
-            while (Time.time < end && !condition()) yield return null;
-        }
+        private static IEnumerator WaitFor(Func<bool> condition, float timeout) => SelfTestContext.WaitFor(condition, timeout);
 
         private static int CountCreatures() => HaugbuiCreature.All.Count(c => c != null && !c.Character.IsDead());
 
@@ -314,17 +304,7 @@ namespace Haugbui.SelfTest
             return stack;
         }
 
-        private HaugbuiStructure Place(StructureKind kind, Vector3 position)
-        {
-            Piece piece = ZNetScene.instance.GetPrefab(StructureDefinitions.For(kind).PieceId)?.GetComponent<Piece>();
-            if (piece == null) return null;
-            _t.Player.PlacePiece(piece, position, Quaternion.identity, doAttack: false);
-            HaugbuiStructure placed = StructureRegistry.Loaded
-                .Where(s => s.Kind == kind && Vector3.Distance(s.transform.position, position) < 0.1f)
-                .OrderByDescending(s => s.GetInstanceID())
-                .FirstOrDefault();
-            return placed != null ? _t.Track(placed) : null;
-        }
+        private HaugbuiStructure Place(StructureKind kind, Vector3 position) => _t.PlaceStructure(kind, position);
     }
 }
 #endif

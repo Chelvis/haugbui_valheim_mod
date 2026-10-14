@@ -47,6 +47,7 @@ namespace Haugbui.SelfTest
     {
         private static readonly string[] WallPrefabs = { "woodwall", "stone_wall_2x1", "wood_wall_roof" };
         private const float Seconds = 25f;
+        private const int WallStack = 4;
 
         private readonly SelfTestContext _t;
 
@@ -59,12 +60,31 @@ namespace Haugbui.SelfTest
             Vector3 forward = player.transform.forward;
             Vector3 wallPosition = SelfTestContext.OnGround(player.transform.position - forward * 12f);
 
-            GameObject wall = WallPrefabs.Select(name => _t.SpawnVanilla(name, wallPosition, Quaternion.LookRotation(forward)))
-                .FirstOrDefault(go => go != null);
-            if (wall == null) _t.Skip("wall to fly through", "no known wall prefab found");
+            // A stack, so the path crosses the wall whatever the piece's pivot height (a single one sat half underground).
+            string wallPrefab = WallPrefabs.FirstOrDefault(name => ZNetScene.instance.GetPrefab(name) != null);
+            var walls = new List<GameObject>();
+            if (wallPrefab == null) _t.Skip("wall to fly through", "no known wall prefab found");
+            else
+            {
+                for (int i = 0; i < WallStack; i++)
+                {
+                    GameObject wall = _t.SpawnVanilla(wallPrefab, wallPosition + Vector3.up * (2f * i), Quaternion.LookRotation(forward));
+                    WearNTear wear = wall != null ? wall.GetComponent<WearNTear>() : null;
+                    if (wear != null) wear.m_noSupportWear = false;
+                    if (wall != null) walls.Add(wall);
+                }
+            }
 
             Vector3 a = SelfTestContext.OnGround(wallPosition - forward * 4f) + Vector3.up * 1.2f;
             Vector3 b = SelfTestContext.OnGround(wallPosition + forward * 4f) + Vector3.up * 1.2f;
+            yield return null;
+            if (walls.Count > 0)
+            {
+                Vector3 top = Vector3.up * 0.3f;
+                bool crosses = Physics.Linecast(a + top, b + top, out RaycastHit wallHit, LayerMask.GetMask("piece", "piece_nonsolid", "Default", "static_solid"))
+                               && walls.Any(w => wallHit.collider.transform.IsChildOf(w.transform));
+                _t.Check("flight path crosses the wall", crosses, $"{walls.Count}x {wallPrefab}" + (crosses ? "" : ", nothing hit between the patrol points"));
+            }
             FlightSpikeController flyer = _t.Track(FlightSpike.Spawn(a, 4f));
             if (!_t.Check("spawn non-persistent flyer", flyer != null)) yield break;
             _t.Check("flyer is not saved", !flyer.GetComponent<ZNetView>().GetZDO().Persistent);

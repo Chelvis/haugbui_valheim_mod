@@ -115,8 +115,12 @@ flowchart LR
 ```
 
 - `WorldRegistry` keeps live sets of containers, stations, pickables, beehives, item drops, beds, Haugbui
-  structures, populated by Harmony postfixes on `Awake`/`OnDestroy` (vanilla has no container list) plus
-  `ItemDrop.s_instances`. Queries use a coarse spatial hash (cell 16 m).
+  structures, populated by Harmony postfixes on `Awake` (`ShieldGenerator.Start`; vanilla has no container list); a
+  small `RegistryTracker` component removes the entry when Unity destroys the object, since most of these classes have
+  no `OnDestroy`. Item drops and characters move, so they come from `ItemDrop.s_instances` and
+  `Character.GetAllCharacters()`. Static objects use a spatial hash (cell 16 m, queries fill a caller-owned list and do
+  not allocate); carts, ships and attached sub-containers are not indexed. The registry is cleared on world load
+  (`ZNetScene.Awake`) and `haugbui_registry` compares it with a full scene scan.
 - `TombComponent` (owner-only `Update` at a configurable tick, default 0.5 s) decides whether the creature should exist
   (night/level/cooldown/resting), spawns it at the tomb (emergence VFX) or recalls it.
 - The creature's `HaugbuiController` runs the state machine at its own tick (default 0.25 s) with movement in `Update`.
@@ -191,6 +195,21 @@ ground items → idle hover near tomb.
   of world time, another tomb may take over. The Delivery Chest is served by any Haugbui (ledger is on the chest).
 - Capacity races are impossible in single-player because all transfers are single-frame on the same peer;
   reservations prevent *planning* conflicts (two Haugbuis flying to the same drop).
+- M4 keys: sorting a tomb storage reserves `take:<container ZDOID>` (only its own tomb uses it, the key makes that
+  explicit). Deposits reserve nothing: the destination's room is re-read when the item is put, and what does not fit
+  stays carried and is re-planned. Leases use game time (`Time.timeAsDouble`), the lease length is
+  `Advanced.ReservationLeaseSeconds`, and `haugbui_reservations` lists them.
+
+### 6.1 Worker (M4)
+
+`HaugbuiWorker` (one per tomb, on the owner) plans every `PlanningIntervalSeconds` through the shared `TickScheduler`
+while the creature is Idle and no return is pending, and right after a step that moved items. Providers: deposit
+carried items (priority 100), sort tomb storage (50). A step resolves its target from the registry snapshot of that
+planning tick; a target that is gone or unloaded aborts the task (HB-033: unloaded is "unavailable", never "empty").
+Travel has a timeout; a step that moved nothing puts the item kind on the `RetryBackoff` (2 s doubling to 60 s of world
+time), which also marks kinds without a destination so sources skip them (HB-065). Death, entering the tomb, despawn
+or unload release every lease of that tomb. The panel shows the activity and, every 10 s, the share of the
+operational disc in loaded zones (`ZoneSystem.IsZoneLoaded` + `ZNetScene.InActiveArea`).
 
 ## 7. Inventory and transfer service
 
@@ -213,6 +232,16 @@ ground items → idle hover near tomb.
 4. Persist: containers save themselves via `OnContainerChanged` (owner); carried inventory is serialised into the tomb
    ZDO immediately.
 5. Debug ledger (when `DebugLogging`): log `{tomb, op, item, n, src, dst, totals before/after}` to detect drift.
+
+Implementation (M4): `TransferEngine` (Core) runs these steps over `IItemEndpoint`s — `ContainerEndpoint` (vanilla
+container: loaded, ZDO owner, not in use, inventory loaded) and `CarriedEndpoint`. A source that gives less than was
+added (exception or short removal) has the surplus taken back from the destination; the property test runs 10 000
+random transfers with injected failures. `ItemStack` keeps the cheated flag, crafter and custom data (blob v2).
+Depositing onto an existing stack follows vanilla stacking: the stack becomes cheated if a cheated item joins it, and
+the joining items' custom data is not kept (same as a player stacking by hand). Verified pitfall: every ZDO key change
+on a piece (support, snow, Haugbui state) bumps `DataRevision`, so container freshness cannot be judged by comparing
+revisions; only "never loaded yet" (`m_lastRevision == uint.MaxValue`, inventory still empty in memory) blocks writes.
+`haugbui_ledger` prints the recent records; a non-conserved record is logged as an error.
 
 **Interruption rule:** whenever the Haugbui stops working (dawn, Rest toggle, death, tomb unloaded, combat flee that
 ends at the tomb), everything it carries is moved to **tomb storage**, which the player can open at any time. When it

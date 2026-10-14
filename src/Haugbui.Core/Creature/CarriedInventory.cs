@@ -12,6 +12,12 @@ namespace Haugbui.Core.Creature
         public int Quality { get; set; } = 1;
         public int Variant { get; set; }
         public int WorldLevel { get; set; }
+        public bool Cheated { get; set; }
+        public long CrafterId { get; set; }
+        public string CrafterName { get; set; } = string.Empty;
+
+        /// <summary>Never null; the game's per-item custom data.</summary>
+        public Dictionary<string, string> CustomData { get; set; } = new Dictionary<string, string>();
 
         /// <summary>Not persisted: refreshed from the item prefab when loaded.</summary>
         public float UnitWeight { get; set; }
@@ -21,14 +27,37 @@ namespace Haugbui.Core.Creature
 
         public float Weight => UnitWeight * Amount;
 
+        /// <summary>The game's stacking rule (Inventory.FindFreeStackItem): same item, quality and world level.</summary>
+        public bool SameKind(ItemStack other) =>
+            other.Prefab == Prefab && other.Quality == Quality && other.WorldLevel == WorldLevel;
+
+        /// <summary>Identical item data, so merging the two loses nothing (HB-061).</summary>
         public bool StacksWith(ItemStack other) =>
-            other.Prefab == Prefab && other.Quality == Quality && other.Variant == Variant && other.WorldLevel == WorldLevel;
+            SameKind(other) && other.Variant == Variant && other.Cheated == Cheated && other.CrafterId == CrafterId
+            && other.CrafterName == CrafterName && SameCustomData(other.CustomData, CustomData);
 
         public ItemStack Copy(int amount) => new ItemStack
         {
             Prefab = Prefab, Amount = amount, Quality = Quality, Variant = Variant, WorldLevel = WorldLevel,
+            Cheated = Cheated, CrafterId = CrafterId, CrafterName = CrafterName,
+            CustomData = new Dictionary<string, string>(CustomData ?? new Dictionary<string, string>()),
             UnitWeight = UnitWeight, MaxStack = MaxStack
         };
+
+        /// <summary>Key of the existing-item storage rule and of retry bookkeeping.</summary>
+        public string KindKey => $"{Prefab}|q{Quality}|w{WorldLevel}";
+
+        public override string ToString() => $"{Prefab} x{Amount}" + (Quality > 1 ? $" q{Quality}" : "") + (Cheated ? " (cheated)" : "");
+
+        private static bool SameCustomData(Dictionary<string, string> a, Dictionary<string, string> b)
+        {
+            int countA = a?.Count ?? 0, countB = b?.Count ?? 0;
+            if (countA != countB) return false;
+            if (countA == 0) return true;
+            foreach (KeyValuePair<string, string> pair in a)
+                if (!b.TryGetValue(pair.Key, out string value) || value != pair.Value) return false;
+            return true;
+        }
     }
 
     /// <summary>The Haugbui's own inventory, limited by slots and weight from its level (HB-031).</summary>
@@ -84,6 +113,27 @@ namespace Haugbui.Core.Creature
             return toAdd;
         }
 
+        /// <summary>Amount of the same kind (game stacking rule), whatever its other data.</summary>
+        public int Count(ItemStack item) => _stacks.Where(s => s.SameKind(item)).Sum(s => s.Amount);
+
+        /// <summary>Removes identical items first, then any of the same kind. Returns the amount removed.</summary>
+        public int Remove(ItemStack item, int amount)
+        {
+            if (amount <= 0) return 0;
+            int left = amount;
+            foreach (ItemStack stack in _stacks.Where(s => s.StacksWith(item)).Concat(_stacks.Where(s => s.SameKind(item) && !s.StacksWith(item))).ToList())
+            {
+                if (left <= 0) break;
+                int taken = Math.Min(left, stack.Amount);
+                stack.Amount -= taken;
+                left -= taken;
+            }
+            _stacks.RemoveAll(s => s.Amount <= 0);
+            int removed = amount - left;
+            if (removed > 0) Changed?.Invoke();
+            return removed;
+        }
+
         /// <summary>Removes and returns everything, e.g. to deposit it.</summary>
         public List<ItemStack> TakeAll()
         {
@@ -105,13 +155,20 @@ namespace Haugbui.Core.Creature
     {
         public static readonly ItemStacksSerializer Instance = new ItemStacksSerializer();
 
-        public int CurrentVersion => 1;
+        /// <summary>v2 adds cheated flag, crafter and custom data.</summary>
+        public int CurrentVersion => 2;
 
         public void Write(List<ItemStack> value, BlobWriter writer)
         {
             writer.Write(value.Count);
             foreach (ItemStack s in value)
+            {
                 writer.Write(s.Prefab).Write(s.Amount).Write(s.Quality).Write(s.Variant).Write(s.WorldLevel);
+                writer.Write(s.Cheated).Write(s.CrafterId).Write(s.CrafterName);
+                Dictionary<string, string> data = s.CustomData ?? new Dictionary<string, string>();
+                writer.Write(data.Count);
+                foreach (KeyValuePair<string, string> pair in data) writer.Write(pair.Key).Write(pair.Value);
+            }
         }
 
         public List<ItemStack> Read(BlobReader reader)
@@ -121,14 +178,24 @@ namespace Haugbui.Core.Creature
             var result = new List<ItemStack>(count);
             for (int i = 0; i < count; i++)
             {
-                result.Add(new ItemStack
+                var stack = new ItemStack
                 {
                     Prefab = reader.ReadString(),
                     Amount = reader.ReadInt(),
                     Quality = reader.ReadInt(),
                     Variant = reader.ReadInt(),
                     WorldLevel = reader.ReadInt(),
-                });
+                };
+                if (reader.SchemaVersion >= 2)
+                {
+                    stack.Cheated = reader.ReadBool();
+                    stack.CrafterId = reader.ReadLong();
+                    stack.CrafterName = reader.ReadString();
+                    int pairs = reader.ReadInt();
+                    if (pairs < 0 || pairs > 1000) throw new ArgumentException("custom data count out of range");
+                    for (int p = 0; p < pairs; p++) stack.CustomData[reader.ReadString()] = reader.ReadString();
+                }
+                result.Add(stack);
             }
             return result;
         }

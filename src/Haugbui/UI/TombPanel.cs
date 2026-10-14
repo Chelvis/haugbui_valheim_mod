@@ -14,7 +14,7 @@ namespace Haugbui.UI
     internal static class TombPanel
     {
         private const float Width = 420f;
-        private const float Height = 470f;
+        private const float Height = 530f;
 
         private static readonly (TombToggles Toggle, string Label)[] Toggles =
         {
@@ -79,8 +79,8 @@ namespace Haugbui.UI
                 Vector2.zero, Width, Height, draggable: false);
             gui.CreateText(Localization.instance.Localize("$haugbui_piece_tomb"), _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0, -35f), gui.AveriaSerifBold, 26, gui.ValheimOrange, true, Color.black, Width - 40f, 40f, false);
-            _status = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -115f),
-                gui.AveriaSerifBold, 17, Color.white, true, Color.black, Width - 50f, 110f, false).GetComponent<Text>();
+            _status = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -140f),
+                gui.AveriaSerifBold, 17, Color.white, true, Color.black, Width - 50f, 170f, false).GetComponent<Text>();
 
             for (int i = 0; i < Toggles.Length; i++)
             {
@@ -88,13 +88,13 @@ namespace Haugbui.UI
                 GameObject go = gui.CreateToggle(_root.transform, 28f, 28f);
                 RectTransform rect = (RectTransform)go.transform;
                 rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
-                rect.anchoredPosition = new Vector2(45f, -200f - i * 38f);
+                rect.anchoredPosition = new Vector2(45f, -260f - i * 38f);
                 Toggle toggle = go.GetComponent<Toggle>();
                 toggle.onValueChanged.AddListener(on => OnToggle(flag, on));
                 ToggleControls[flag] = toggle;
 
                 Text text = gui.CreateText(Localization.instance.Localize(label), _root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                    new Vector2(70f + (Width - 110f) / 2f, -200f - i * 38f), gui.AveriaSerifBold, 17, Color.white, true, Color.black,
+                    new Vector2(70f + (Width - 110f) / 2f, -260f - i * 38f), gui.AveriaSerifBold, 17, Color.white, true, Color.black,
                     Width - 110f, 30f, false).GetComponent<Text>();
                 ToggleLabels[flag] = text;
             }
@@ -122,7 +122,12 @@ namespace Haugbui.UI
                 $"$haugbui_panel_health {Mathf.CeilToInt(health)}/{attributes.MaxHealth:0}\n" +
                 $"$haugbui_panel_state {Localization.instance.Localize(_tomb.StatusLine())}\n" +
                 $"$haugbui_panel_carried {_tomb.Carried.Weight:0.#}/{attributes.CarryCapacity:0}" +
-                (_tomb.Overflow.Count > 0 ? "  $haugbui_panel_overflow" : ""));
+                (_tomb.Overflow.Count > 0 ? "  $haugbui_panel_overflow" : "") +
+                $"\n$haugbui_panel_activity {_tomb.Worker.Activity ?? "$haugbui_activity_none"}") +
+                (_tomb.Worker.PartiallyLoaded
+                    ? "\n<color=#e0b050>" + Localization.instance.Localize("$haugbui_panel_partially_loaded",
+                        Mathf.FloorToInt(_tomb.Worker.Coverage * 100f).ToString()) + "</color>"
+                    : "");
 
             foreach ((TombToggles flag, string label) in Toggles)
             {
