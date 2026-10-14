@@ -59,5 +59,21 @@
   "haugbui_activity_sorting": "organizando o depósito do túmulo",
   "haugbui_activity_storing": "guardando itens nos baús",
   "haugbui_activity_no_destination": "guardando itens: nenhum baú tem esse item ainda",
-  "haugbui_panel_partially_loaded": "Parte da área de trabalho não está carregada ($1% carregada); objetos lá são ignorados."
+  "haugbui_panel_partially_loaded": "Parte da área de trabalho não está carregada ($1% carregada); objetos lá são ignorados.",
+  "haugbui_activity_delivering": "entregando itens pedidos",
+  "haugbui_activity_collecting": "esvaziando um Baú de Coleta",
+  "haugbui_delivery_edit": "Editar pedidos",
+  "haugbui_delivery_hover_open": "$1 pedidos abertos, $2 itens a entregar",
+  "haugbui_delivery_edit_line": "Editar",
+  "haugbui_delivery_search": "Buscar…",
+  "haugbui_delivery_amount": "Quantidade",
+  "haugbui_delivery_request": "Pedir",
+  "haugbui_delivery_clear": "Limpar prontos",
+  "haugbui_delivery_done": "pronto",
+  "haugbui_delivery_remaining": "faltam $1",
+  "haugbui_delivery_readonly": "Estes pedidos não puderam ser lidos e foram mantidos intactos.",
+  "haugbui_delivery_err_item": "Escolha um item primeiro.",
+  "haugbui_delivery_err_amount": "Informe uma quantidade de 1 a 99999.",
+  "haugbui_delivery_err_full": "Este baú já tem 10 linhas de pedido.",
+  "haugbui_delivery_err_save": "Não foi possível salvar os pedidos."
 }

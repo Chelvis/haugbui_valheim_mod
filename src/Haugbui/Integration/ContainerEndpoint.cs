@@ -16,6 +16,7 @@ namespace Haugbui.Integration
         }
 
         public string Id { get; }
+        public Container Container => _container;
 
         public static string IdOf(Container container) =>
             container != null && container.m_nview != null && container.m_nview.GetZDO() != null

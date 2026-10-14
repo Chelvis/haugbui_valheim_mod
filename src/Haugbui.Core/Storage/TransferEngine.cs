@@ -11,16 +11,19 @@ namespace Haugbui.Core.Storage
         /// <summary>Null when usable now; otherwise a short reason (in use, not owner, not loaded...).</summary>
         string Unavailable();
 
-        /// <summary>Amount of the same kind (item, quality, world level).</summary>
+        /// <summary>Amount identical to <paramref name="item"/> (<see cref="ItemStack.StacksWith"/>).</summary>
         int Count(ItemStack item);
 
         /// <summary>How many of <paramref name="item"/> can be added without exceeding any limit.</summary>
         int RoomFor(ItemStack item);
 
-        /// <summary>Adds up to item.Amount, never more than <see cref="RoomFor"/>; returns the amount added.</summary>
+        /// <summary>
+        /// Adds up to item.Amount, never more than <see cref="RoomFor"/>, keeping its data exactly: tops up identical stacks
+        /// only and never changes the cheated flag of anything. Returns the amount added.
+        /// </summary>
         int Add(ItemStack item);
 
-        /// <summary>Removes identical items first, then others of the same kind; returns the amount removed.</summary>
+        /// <summary>Removes only identical items, so a cheated item never comes out clean; returns the amount removed.</summary>
         int Remove(ItemStack item, int amount);
     }
 

@@ -31,7 +31,10 @@ namespace Haugbui.Core.Creature
         public bool SameKind(ItemStack other) =>
             other.Prefab == Prefab && other.Quality == Quality && other.WorldLevel == WorldLevel;
 
-        /// <summary>Identical item data, so merging the two loses nothing (HB-061).</summary>
+        /// <summary>
+        /// Identical item data, so merging the two loses nothing (HB-061): the only rule for topping up a stack. Never
+        /// merge on <see cref="SameKind"/> alone, which would taint a clean stack with a cheated one.
+        /// </summary>
         public bool StacksWith(ItemStack other) =>
             SameKind(other) && other.Variant == Variant && other.Cheated == Cheated && other.CrafterId == CrafterId
             && other.CrafterName == CrafterName && SameCustomData(other.CustomData, CustomData);
@@ -113,15 +116,17 @@ namespace Haugbui.Core.Creature
             return toAdd;
         }
 
-        /// <summary>Amount of the same kind (game stacking rule), whatever its other data.</summary>
-        public int Count(ItemStack item) => _stacks.Where(s => s.SameKind(item)).Sum(s => s.Amount);
+        /// <summary>Amount identical to <paramref name="item"/>.</summary>
+        public int Count(ItemStack item) => _stacks.Where(s => s.StacksWith(item)).Sum(s => s.Amount);
 
-        /// <summary>Removes identical items first, then any of the same kind. Returns the amount removed.</summary>
+        public int CountPrefab(string prefab) => _stacks.Where(s => s.Prefab == prefab).Sum(s => s.Amount);
+
+        /// <summary>Removes only identical items. Returns the amount removed.</summary>
         public int Remove(ItemStack item, int amount)
         {
             if (amount <= 0) return 0;
             int left = amount;
-            foreach (ItemStack stack in _stacks.Where(s => s.StacksWith(item)).Concat(_stacks.Where(s => s.SameKind(item) && !s.StacksWith(item))).ToList())
+            foreach (ItemStack stack in _stacks.Where(s => s.StacksWith(item)).ToList())
             {
                 if (left <= 0) break;
                 int taken = Math.Min(left, stack.Amount);

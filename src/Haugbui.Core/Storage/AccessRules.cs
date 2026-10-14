@@ -17,7 +17,10 @@ namespace Haugbui.Core.Storage
         StorageDestination,
 
         /// <summary>Gives items for deliveries and production (HB-064, HB-084, HB-113).</summary>
-        StorageSource
+        StorageSource,
+
+        /// <summary>Receives the items of its own requests (HB-084): Delivery Chests only.</summary>
+        DeliveryTarget
     }
 
     /// <summary>Facts about one container, read from the game.</summary>
@@ -71,16 +74,18 @@ namespace Haugbui.Core.Storage
 
         /// <summary>
         /// Tomb storage is only ever used by its own tomb (not through this rule); Collection Chests are sources, never
-        /// destinations; Delivery Chests serve their own requests only (M5).
+        /// destinations; Delivery Chests only receive their own requests and never give items.
         /// </summary>
         private static bool IsAllowedRole(StructureKind kind, ContainerUse use)
         {
             switch (kind)
             {
                 case StructureKind.None:
-                    return true;
+                    return use != ContainerUse.DeliveryTarget;
                 case StructureKind.CollectionChest:
                     return use == ContainerUse.StorageSource;
+                case StructureKind.DeliveryChest:
+                    return use == ContainerUse.DeliveryTarget;
                 default:
                     return false;
             }

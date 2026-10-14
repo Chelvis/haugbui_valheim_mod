@@ -7,6 +7,7 @@ using Haugbui.Creature;
 using Haugbui.Diagnostics;
 using Haugbui.Integration;
 using Haugbui.Registry;
+using Haugbui.Structures;
 using UnityEngine;
 using Reservations = Haugbui.Coordination.Reservations;
 
@@ -36,7 +37,9 @@ namespace Haugbui.Brain
             _planner = new TaskPlanner<WorkContext>(Reservations.Table, new ITaskProvider<WorkContext>[]
             {
                 new DepositProvider(),
+                new DeliveryProvider(),
                 new SortTombStorageProvider(),
+                new CollectionProvider(),
             });
             _carried = new CarriedEndpoint("carried:" + tomb.Guid, tomb.Carried);
         }
@@ -49,7 +52,11 @@ namespace Haugbui.Brain
         public int Aborts { get; private set; }
         public int Takes { get; private set; }
         public int Puts { get; private set; }
+        public int Deliveries { get; private set; }
         public IAccessPolicy Policy { get; set; } = SinglePlayerAccessPolicy.Instance;
+
+        /// <summary>World time of the next Collection Chest check (HB-071).</summary>
+        public double NextCollectionScan { get; set; }
 
         /// <summary>Self-test isolation for checks that need an idle Haugbui.</summary>
         public bool Paused { get; set; }
@@ -61,7 +68,16 @@ namespace Haugbui.Brain
         {
             get
             {
-                if (Plan != null) return Plan.Kind == TaskKinds.Deposit ? "$haugbui_activity_storing" : "$haugbui_activity_sorting";
+                if (Plan != null)
+                {
+                    switch (Plan.Kind)
+                    {
+                        case TaskKinds.Deposit: return "$haugbui_activity_storing";
+                        case TaskKinds.Deliver: return "$haugbui_activity_delivering";
+                        case TaskKinds.Collect: return "$haugbui_activity_collecting";
+                        default: return "$haugbui_activity_sorting";
+                    }
+                }
                 if (!_tomb.Carried.IsEmpty && _tomb.Machine.IsOut) return "$haugbui_activity_no_destination";
                 return null;
             }
@@ -168,16 +184,26 @@ namespace Haugbui.Brain
             TransferRecord record = step.Kind == StepKind.Take
                 ? Reservations.Transfers.Move(target, _carried, step.Item, step.Amount)
                 : Reservations.Transfers.Move(_carried, target, step.Item, step.Amount);
+            bool delivery = Plan.Kind == TaskKinds.Deliver;
             if (record.Moved <= 0)
             {
-                NoDestination.Fail(step.Item.KindKey, TimeSource.Current.Now);
+                // A delivery step that moved nothing says nothing about storage destinations.
+                if (!delivery) NoDestination.Fail(step.Item.KindKey, TimeSource.Current.Now);
                 return false;
             }
             if (step.Kind == StepKind.Take) Takes++;
             else
             {
                 Puts++;
-                NoDestination.Succeed(step.Item.KindKey);
+                if (delivery)
+                {
+                    DeliveryChest chest = target.Container.GetComponent<DeliveryChest>();
+                    int counted = chest != null ? chest.RecordDelivered(step.Item.Prefab, record.Moved) : 0;
+                    Deliveries += counted;
+                    if (counted < record.Moved)
+                        Log.Debug($"Tomb {_tomb.Guid}: delivered {record.Moved} {step.Item.Prefab}, ledger counted {counted}.");
+                }
+                else NoDestination.Succeed(step.Item.KindKey);
             }
             _tomb.Creature?.Visuals?.Pulse();
             return true;

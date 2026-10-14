@@ -81,12 +81,23 @@ namespace Haugbui.Structures
 
             GameObject prefab = piece.PiecePrefab;
             prefab.AddComponent<HaugbuiStructure>().m_kind = (int)definition.Kind;
-            Container container = prefab.GetComponent<Container>();
-            if (container != null && definition.Kind == StructureKind.Tomb) container.m_name = "$haugbui_tomb_storage";
+            ConfigureContainer(prefab.GetComponent<Container>(), definition.Kind);
             StructureVisuals.Apply(prefab, definition);
             PieceManager.Instance.AddPiece(piece);
             Placeholders[definition.Kind] = prefab;
             Log.Debug($"Registered {definition.PieceId} on host {definition.Host}");
+        }
+
+        private static void ConfigureContainer(Container container, StructureKind kind)
+        {
+            string name = StructureDefinitions.ContainerName(kind);
+            if (container == null || name == null) return;
+            container.m_name = name;
+            if (container.m_inventory != null) container.m_inventory.m_name = name;
+            if (!StructureDefinitions.IsChest(kind)) return;
+            // The host already has 5x2; set it anyway so a changed host prefab cannot change HB-070/080.
+            container.m_width = StructureDefinitions.ChestWidth;
+            container.m_height = StructureDefinitions.ChestHeight;
         }
 
         private static Sprite ItemIcon(string item)
@@ -120,12 +131,7 @@ namespace Haugbui.Structures
                 return;
             }
 
-            Container container = piece.GetComponent<Container>();
-            if (container != null && kind == StructureKind.Tomb)
-            {
-                container.m_name = "$haugbui_tomb_storage";
-                if (container.m_inventory != null) container.m_inventory.m_name = container.m_name;
-            }
+            ConfigureContainer(piece.GetComponent<Container>(), kind);
 
             StructureVisuals.Apply(piece.gameObject, definition);
             piece.gameObject.AddComponent<HaugbuiStructure>().m_kind = (int)kind;
@@ -151,27 +157,56 @@ namespace Haugbui.Structures
 
         [HarmonyPostfix]
         [HarmonyPatch(typeof(Container), nameof(Container.GetHoverText))]
-        private static void TombHover(Container __instance, ref string __result)
+        private static void HaugbuiHover(Container __instance, ref string __result)
         {
             HaugbuiStructure structure = __instance.GetComponent<HaugbuiStructure>();
-            if (structure == null || structure.Kind != StructureKind.Tomb || string.IsNullOrEmpty(__result)) return;
+            if (structure == null || string.IsNullOrEmpty(__result)) return;
+            if (structure.Kind == StructureKind.Tomb) TombHover(__instance, structure, ref __result);
+            else if (structure.Kind == StructureKind.DeliveryChest) DeliveryHover(__instance, ref __result);
+        }
 
-            int firstBreak = __result.IndexOf('\n');
-            string actions = firstBreak >= 0 ? __result.Substring(firstBreak) : string.Empty;
-            var controller = __instance.GetComponent<Creature.TombController>();
+        private static void TombHover(Container container, HaugbuiStructure structure, ref string result)
+        {
+            int firstBreak = result.IndexOf('\n');
+            string actions = firstBreak >= 0 ? result.Substring(firstBreak) : string.Empty;
+            var controller = container.GetComponent<Creature.TombController>();
             string status = controller != null ? "\n" + controller.StatusLine() : "";
-            __result = Localization.instance.Localize($"$haugbui_piece_tomb\n{structure.LevelLine()}{status}") + actions +
-                       Localization.instance.Localize("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_panel_open");
+            result = Localization.instance.Localize($"$haugbui_piece_tomb\n{structure.LevelLine()}{status}") + actions +
+                     Localization.instance.Localize("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_panel_open");
+        }
+
+        private static void DeliveryHover(Container container, ref string result)
+        {
+            DeliveryChest chest = container.GetComponent<DeliveryChest>();
+            if (chest == null) return;
+            int open = 0, remaining = 0;
+            foreach (Core.Persistence.DeliveryRequest line in chest.Ledger.OpenLines)
+            {
+                open++;
+                remaining += line.Remaining;
+            }
+            result += Localization.instance.Localize("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_delivery_edit") +
+                      (open > 0 ? "\n" + Localization.instance.Localize("$haugbui_delivery_hover_open", open.ToString(), remaining.ToString()) : "");
         }
 
         [HarmonyPrefix]
         [HarmonyPatch(typeof(Container), nameof(Container.Interact))]
-        private static bool TombPanelOnAltInteract(Container __instance, bool hold, bool alt, ref bool __result)
+        private static bool PanelOnAltInteract(Container __instance, Humanoid character, bool hold, bool alt, ref bool __result)
         {
             if (!alt || hold) return true;
             var controller = __instance.GetComponent<Creature.TombController>();
-            if (controller == null) return true;
-            UI.TombPanel.Open(controller);
+            if (controller != null)
+            {
+                UI.TombPanel.Open(controller);
+                __result = true;
+                return false;
+            }
+            DeliveryChest chest = __instance.GetComponent<DeliveryChest>();
+            if (chest == null) return true;
+            // Same access rule as opening the chest; otherwise vanilla refuses with its own message.
+            if (__instance.m_checkGuardStone && !PrivateArea.CheckAccess(__instance.transform.position, 0f, flash: false)) return true;
+            if (!__instance.CheckAccess(Game.instance.GetPlayerProfile().GetPlayerID())) return true;
+            UI.DeliveryPanel.Open(chest);
             __result = true;
             return false;
         }

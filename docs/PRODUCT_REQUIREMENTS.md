@@ -173,14 +173,19 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
   item where `IsEquipable()` is true (weapons, tools, armor, clothing/capes, utility/accessories, trinkets, ammo,
   torches, shields) nor Customization/None. Classification uses the game's item data, never names.
 - **HB-061** The Haugbui never creates or deletes items; all moves preserve item data (quality, world level, cheated
-  flag, custom data).
+  flag, custom data). Items must never end up marked as cheated because of the Haugbui [Decision 2026-10-13]: it merges
+  items into an existing stack only when their data is identical (quality, world level, variant, cheated flag, crafter,
+  custom data); otherwise it uses an empty slot or another destination, or keeps the item and retries (HB-065). It never
+  sets the cheated flag and carries the source's flag exactly, including into station RPCs (e.g. `RPC_AddOre(name,
+  cheated)`). Taking items for a delivery or job takes identical items only, so a cheated item never comes out clean.
 
 ### 8.1 Storage rule
 
-- **HB-062** It deposits an item only into a storage container that already contains ≥1 item of the same prefab
-  (same quality/world level stack rules). Empty chests never receive items.
+- **HB-062** It deposits an item only into a storage container that already contains ≥1 item of the same prefab,
+  quality and world level. Empty chests never receive items. The item tops up only identical stacks (HB-061); a
+  matching chest with no identical stack takes it into an empty slot.
 - **HB-063** Destination choice among matching containers: (1) can accept the whole carried stack, (2) fewest
-  free-slot fragmentation (prefer topping existing stacks), (3) nearest to the Haugbui. Never exceed capacity.
+  free-slot fragmentation (prefer topping identical stacks), (3) nearest to the Haugbui. Never exceed capacity.
 - **HB-064** In its sorting role it never removes items from ordinary storage containers. Removal from storage
   happens only to fulfil Delivery Chest requests (§10) and production jobs (§13).
 - **HB-065** If no destination exists, it keeps the item and retries with exponential backoff (max every 60 s);
@@ -401,5 +406,6 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-13 | Movement (HB-051) | Incorporeal flight (simpler than physical pathing) |
 | 2026-10-13 | Structures if the mod is removed (HB-172) | Persist as vanilla objects whose look the mod changes at runtime (spike HB-T-007) |
 | 2026-10-13 | Working while the player is away (§13.4) | Away mode on world data, logistics only (M12, spike in M1) |
+| 2026-10-13 | Cheated flag on moved items (HB-061) | Never marks anything cheated: merges only identical item data, carries the flag exactly |
 
 Open: none.

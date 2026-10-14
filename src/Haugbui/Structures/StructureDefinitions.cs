@@ -87,7 +87,41 @@ namespace Haugbui.Structures
                 new VisualPart("BlackMarble", new Vector3(-0.15f, 0, 0), Vector3.zero),
                 new VisualPart("Eitr", new Vector3(0.15f, 0, 0), Vector3.zero),
                 new VisualPart("TrophySkeleton", new Vector3(0, 0, -0.2f), new Vector3(0, 180, 0))),
+            Chest(StructureKind.CollectionChest, PieceIds.CollectionChest, "collection", "BoneFragments",
+                new VisualPart("BoneFragments", new Vector3(-0.35f, 0, 0), Vector3.zero),
+                new VisualPart("BoneFragments", new Vector3(0.35f, 0, 0), new Vector3(0, 90, 0)),
+                new VisualPart("Resin", new Vector3(0, 0, 0.1f), Vector3.zero, emission: HaugbuiPurple)),
+            Chest(StructureKind.DeliveryChest, PieceIds.DeliveryChest, "delivery", "GreydwarfEye",
+                new VisualPart("TrophySkeleton", new Vector3(0, 0, 0), new Vector3(0, 180, 0), 0.8f),
+                new VisualPart("GreydwarfEye", new Vector3(-0.35f, 0, 0.1f), Vector3.zero, emission: HaugbuiPurple),
+                new VisualPart("GreydwarfEye", new Vector3(0.35f, 0, 0.1f), Vector3.zero, emission: HaugbuiPurple)),
         };
+
+        /// <summary>Haugbui chests keep the 10 slots of the wood chest (HB-070, HB-080).</summary>
+        public const int ChestWidth = 5;
+        public const int ChestHeight = 2;
+
+        public static bool IsChest(StructureKind kind) => kind == StructureKind.CollectionChest || kind == StructureKind.DeliveryChest;
+
+        /// <summary>Name shown on the chest UI of a Haugbui container; null keeps the host's.</summary>
+        public static string ContainerName(StructureKind kind)
+        {
+            switch (kind)
+            {
+                case StructureKind.Tomb: return "$haugbui_tomb_storage";
+                case StructureKind.CollectionChest: return "$haugbui_piece_collection";
+                case StructureKind.DeliveryChest: return "$haugbui_piece_delivery";
+                default: return null;
+            }
+        }
+
+        private static StructureDefinition Chest(StructureKind kind, string pieceId, string token, string icon, params VisualPart[] parts) =>
+            new StructureDefinition
+            {
+                Kind = kind, PieceId = pieceId, HostCandidates = new[] { "piece_chest_wood" },
+                NameToken = "$haugbui_piece_" + token, DescriptionToken = "$haugbui_piece_" + token + "_desc",
+                IconItem = icon, HideHost = false, Parts = parts,
+            };
 
         private static StructureDefinition Upgrade(StructureKind kind, string pieceId, string token, string icon, params VisualPart[] parts) =>
             new StructureDefinition

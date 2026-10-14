@@ -59,5 +59,21 @@
   "haugbui_activity_sorting": "sorting the tomb storage",
   "haugbui_activity_storing": "storing items in chests",
   "haugbui_activity_no_destination": "keeping items: no chest holds them yet",
-  "haugbui_panel_partially_loaded": "Part of the work area is not loaded ($1% loaded); objects there are ignored."
+  "haugbui_panel_partially_loaded": "Part of the work area is not loaded ($1% loaded); objects there are ignored.",
+  "haugbui_activity_delivering": "delivering requested items",
+  "haugbui_activity_collecting": "emptying a Collection Chest",
+  "haugbui_delivery_edit": "Edit requests",
+  "haugbui_delivery_hover_open": "$1 open requests, $2 items to deliver",
+  "haugbui_delivery_edit_line": "Edit",
+  "haugbui_delivery_search": "Search…",
+  "haugbui_delivery_amount": "Amount",
+  "haugbui_delivery_request": "Request",
+  "haugbui_delivery_clear": "Clear done",
+  "haugbui_delivery_done": "done",
+  "haugbui_delivery_remaining": "$1 left",
+  "haugbui_delivery_readonly": "These requests could not be read and are kept untouched.",
+  "haugbui_delivery_err_item": "Choose an item first.",
+  "haugbui_delivery_err_amount": "Enter an amount from 1 to 99999.",
+  "haugbui_delivery_err_full": "This chest already has 10 request lines.",
+  "haugbui_delivery_err_save": "The requests could not be saved."
 }

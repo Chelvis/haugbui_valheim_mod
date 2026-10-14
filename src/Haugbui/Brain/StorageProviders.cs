@@ -11,9 +11,14 @@ namespace Haugbui.Brain
     {
         public const string Deposit = "deposit";
         public const string SortTombStorage = "sort_tomb";
+        public const string Deliver = "deliver";
+        public const string Collect = "collect";
 
+        // ARCHITECTURE §5.1: deposit → (production) → delivery → (harvest) → collection chest → (ground items).
         public const int DepositPriority = 100;
+        public const int DeliverPriority = 70;
         public const int SortTombStoragePriority = 50;
+        public const int CollectPriority = 45;
     }
 
     /// <summary>HB-T-046: carried items go into chests that already hold them; no destination → kept, retried later.</summary>
@@ -68,10 +73,28 @@ namespace Haugbui.Brain
 
         public void Collect(WorkContext context, List<TaskCandidate> output)
         {
+            List<TaskStep> steps = TakeSteps(context, context.TombStorage);
+            if (steps.Count == 0) return;
+            output.Add(new TaskCandidate
+            {
+                Kind = TaskKinds.SortTombStorage,
+                Priority = TaskKinds.SortTombStoragePriority,
+                Distance = Vec3.Distance(context.From, context.TombStorage.Position),
+                Keys = new[] { "take:" + context.TombStorage.Id },
+                Build = () => new TaskPlan(TaskKinds.SortTombStorage, steps),
+            });
+        }
+
+        /// <summary>
+        /// Takes from <paramref name="source"/> only what has a destination now (HB-065) and only as much as the
+        /// destinations and the carry limits allow. Equipment is never taken (HB-072).
+        /// </summary>
+        internal static List<TaskStep> TakeSteps(WorkContext context, ContainerSnapshot source)
+        {
             var simulated = new CarriedInventory(context.Carried.Slots, context.Carried.Capacity);
             simulated.Restore(context.Carried.Stacks.Select(s => s.Copy(s.Amount)));
             var steps = new List<TaskStep>();
-            foreach (ItemStack stack in DepositProvider.Distinct(context.TombStorage.Items))
+            foreach (ItemStack stack in DepositProvider.Distinct(source.Items))
             {
                 if (!Creature.ItemBridge.IsTransportable(stack)) continue;
                 if (context.NoDestination.IsWaiting(stack.KindKey, context.Now)) continue;
@@ -82,17 +105,73 @@ namespace Haugbui.Brain
                     continue;
                 }
                 int take = simulated.Add(stack.Copy(System.Math.Min(room, stack.Amount)));
-                if (take > 0) steps.Add(new TaskStep(StepKind.Take, context.TombStorage.Id, stack.Copy(take), take));
+                if (take > 0) steps.Add(new TaskStep(StepKind.Take, source.Id, stack.Copy(take), take));
             }
-            if (steps.Count == 0) return;
-            output.Add(new TaskCandidate
+            return steps;
+        }
+    }
+
+    /// <summary>HB-T-049: Collection Chests in the radius are emptied into chests that hold the same items.</summary>
+    internal sealed class CollectionProvider : ITaskProvider<WorkContext>
+    {
+        public bool IsEnabled(WorkContext context) => context.CollectionChests.Count > 0 && context.Now >= context.NextCollectionScan;
+
+        public void Collect(WorkContext context, List<TaskCandidate> output)
+        {
+            bool found = false;
+            foreach (ContainerSnapshot chest in context.CollectionChests)
             {
-                Kind = TaskKinds.SortTombStorage,
-                Priority = TaskKinds.SortTombStoragePriority,
-                Distance = Vec3.Distance(context.From, context.TombStorage.Position),
-                Keys = new[] { "take:" + context.TombStorage.Id },
-                Build = () => new TaskPlan(TaskKinds.SortTombStorage, steps),
-            });
+                List<TaskStep> steps = SortTombStorageProvider.TakeSteps(context, chest);
+                if (steps.Count == 0) continue;
+                found = true;
+                output.Add(new TaskCandidate
+                {
+                    Kind = TaskKinds.Collect,
+                    Priority = TaskKinds.CollectPriority,
+                    Distance = Vec3.Distance(context.From, chest.Position),
+                    Keys = new[] { "take:" + chest.Id },
+                    Build = () => new TaskPlan(TaskKinds.Collect, steps),
+                });
+            }
+            // HB-071: look again after one collection interval; while there is work, every planning tick.
+            if (!found) context.Tomb.Worker.NextCollectionScan = context.Now + HaugbuiPlugin.Instance.Settings.CollectionIntervalSeconds.Value;
+        }
+    }
+
+    /// <summary>
+    /// HB-T-053: one trip per open request line: take the remaining amount from storage and Collection Chests, put it
+    /// into the Delivery Chest; the worker counts what went in. The line key keeps two Haugbuis off the same line.
+    /// </summary>
+    internal sealed class DeliveryProvider : ITaskProvider<WorkContext>
+    {
+        public bool IsEnabled(WorkContext context) => context.DeliveryChests.Count > 0;
+
+        public void Collect(WorkContext context, List<TaskCandidate> output)
+        {
+            foreach ((ContainerSnapshot snapshot, Structures.DeliveryChest chest) in context.DeliveryChests)
+            {
+                foreach (Core.Persistence.DeliveryRequest line in chest.Ledger.OpenLines.ToList())
+                {
+                    var probe = new ItemStack { Prefab = line.ItemPrefab };
+                    if (!Creature.ItemBridge.IsTransportable(probe)) continue;
+                    DeliveryTrip trip = DeliveryPlanner.Plan(line.ItemPrefab, line.Remaining, snapshot, context.Carried,
+                        context.Sources.Where(s => s.Id != snapshot.Id), context.From);
+                    if (trip.Total <= 0) continue;
+                    var steps = trip.Takes.Select(t => new TaskStep(StepKind.Take, t.Source, t.Item, t.Item.Amount))
+                        .Concat(trip.Puts.Select(p => new TaskStep(StepKind.Put, snapshot.Id, p, p.Amount)))
+                        .ToList();
+                    string firstTarget = steps[0].Target;
+                    ContainerSnapshot first = firstTarget == snapshot.Id ? snapshot : context.Sources.First(s => s.Id == firstTarget);
+                    output.Add(new TaskCandidate
+                    {
+                        Kind = TaskKinds.Deliver,
+                        Priority = TaskKinds.DeliverPriority,
+                        Distance = Vec3.Distance(context.From, first.Position),
+                        Keys = new[] { $"deliver:{snapshot.Id}:{line.ItemPrefab}" },
+                        Build = () => new TaskPlan(TaskKinds.Deliver, steps),
+                    });
+                }
+            }
         }
     }
 }

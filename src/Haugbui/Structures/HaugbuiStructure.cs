@@ -41,6 +41,7 @@ namespace Haugbui.Structures
                 gameObject.AddComponent<Creature.TombController>();
             }
             else if (TombProgression.IsUpgrade(Kind)) gameObject.AddComponent<UpgradeBeam>();
+            else if (Kind == StructureKind.DeliveryChest) gameObject.AddComponent<DeliveryChest>();
             StructureRegistry.Register(this);
         }
 

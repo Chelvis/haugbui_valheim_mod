@@ -92,6 +92,39 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void Cheated_item_never_tops_up_a_clean_stack()
+        {
+            ItemStack cheated = Items.Make("Wood", 10);
+            cheated.Cheated = true;
+            ContainerSnapshot chest = Items.Chest("x", 0, 2, Items.Make("Wood", 30));
+            Assert.That(StorageSelector.IsCandidate(chest, cheated), Is.True, "the chest already holds wood");
+            Assert.That(chest.StackRoomFor(cheated), Is.EqualTo(0));
+            Assert.That(chest.RoomFor(cheated), Is.EqualTo(50), "only the empty slot");
+        }
+
+        [Test]
+        public void Custom_data_must_match_to_top_up_a_stack()
+        {
+            ItemStack tagged = Items.Make("Wood", 10);
+            tagged.CustomData["k"] = "v";
+            ContainerSnapshot full = Items.Chest("full", 0, 1, Items.Make("Wood", 30));
+            Assert.That(StorageSelector.IsCandidate(full, tagged), Is.False, "no identical stack and no empty slot");
+            ItemStack same = tagged.Copy(20);
+            ContainerSnapshot matching = Items.Chest("same", 0, 1, same);
+            Assert.That(matching.RoomFor(tagged), Is.EqualTo(30));
+        }
+
+        [Test]
+        public void Chest_full_of_clean_stacks_rejects_a_cheated_item()
+        {
+            ItemStack cheated = Items.Make("Wood", 5);
+            cheated.Cheated = true;
+            ContainerSnapshot clean = Items.Chest("clean", 1, 1, Items.Make("Wood", 20));
+            ContainerSnapshot other = Items.Chest("other", 30, 3, Items.Make("Wood", 1));
+            Assert.That(StorageSelector.Plan(cheated, 5, new[] { clean, other }, Vec3.Zero).Single().ContainerId, Is.EqualTo("other"));
+        }
+
+        [Test]
         public void Room_counts_matching_stacks_of_the_same_quality_and_free_slots()
         {
             ContainerSnapshot chest = Items.Chest("x", 0, 4, Items.Make("Wood", 45), Items.Make("Wood", 45, quality: 2), Items.Make("Stone", 3));
@@ -141,11 +174,13 @@ namespace Haugbui.Core.Tests
             inventory.Add(cheated);
             Assert.That(inventory.Stacks.Count, Is.EqualTo(2));
             Assert.That(inventory.Remove(cheated, 5), Is.EqualTo(5));
-            Assert.That(inventory.Stacks.Single().Cheated, Is.False, "the identical stack is removed first");
+            Assert.That(inventory.Stacks.Single().Cheated, Is.False, "the identical stack is removed");
+            Assert.That(inventory.Remove(cheated, 5), Is.EqualTo(0), "a clean stack never stands in for a cheated one");
+            Assert.That(inventory.Count(Items.Make("Wood", 0)), Is.EqualTo(5));
         }
     }
 
-    /// <summary>In-memory container with the game's stacking rule and optional injected failures.</summary>
+    /// <summary>In-memory container with Haugbui's stacking rule (identical data only) and optional injected failures.</summary>
     internal sealed class FakeContainer : IItemEndpoint
     {
         private readonly List<ItemStack> _items = new List<ItemStack>();
@@ -165,12 +200,12 @@ namespace Haugbui.Core.Tests
         public IReadOnlyList<ItemStack> Items => _items;
 
         public string Unavailable() => InUse ? "in use" : null;
-        public int Count(ItemStack item) => _items.Where(i => i.SameKind(item)).Sum(i => i.Amount);
+        public int Count(ItemStack item) => _items.Where(i => i.StacksWith(item)).Sum(i => i.Amount);
 
         public int RoomFor(ItemStack item)
         {
             int max = Math.Max(1, item.MaxStack);
-            return _items.Where(i => i.SameKind(item)).Sum(i => max - i.Amount) + (_slots - _items.Count) * max;
+            return _items.Where(i => i.StacksWith(item)).Sum(i => max - i.Amount) + (_slots - _items.Count) * max;
         }
 
         public int Add(ItemStack item)
@@ -180,12 +215,10 @@ namespace Haugbui.Core.Tests
             if (FailRandom != null && FailRandom.NextDouble() < AddShortfallRate) left = FailRandom.Next(0, left + 1);
             int added = left;
             int max = Math.Max(1, item.MaxStack);
-            foreach (ItemStack stack in _items.Where(i => i.SameKind(item)))
+            foreach (ItemStack stack in _items.Where(i => i.StacksWith(item)))
             {
                 int put = Math.Min(left, max - stack.Amount);
                 stack.Amount += put;
-                // Vanilla stacking taints the stack.
-                if (item.Cheated) stack.Cheated = true;
                 left -= put;
             }
             while (left > 0)
@@ -202,7 +235,7 @@ namespace Haugbui.Core.Tests
             if (InUse) throw new InvalidOperationException("modified while in use");
             if (RemoveCap.HasValue) amount = Math.Min(amount, RemoveCap.Value);
             int left = amount;
-            foreach (ItemStack stack in _items.Where(i => i.StacksWith(item)).Concat(_items.Where(i => i.SameKind(item) && !i.StacksWith(item))).ToList())
+            foreach (ItemStack stack in _items.Where(i => i.StacksWith(item)).ToList())
             {
                 int take = Math.Min(left, stack.Amount);
                 stack.Amount -= take;
@@ -297,6 +330,26 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void Moving_a_cheated_stack_next_to_a_clean_one_keeps_both_flags()
+        {
+            var a = new FakeContainer("a", 4);
+            var b = new FakeContainer("b", 4);
+            ItemStack cheated = Items.Make("Wood", 10);
+            cheated.Cheated = true;
+            cheated.CustomData["k"] = "v";
+            a.Add(cheated);
+            b.Add(Items.Make("Wood", 20));
+            TransferRecord r = new TransferEngine().Move(a, b, cheated, 10);
+            Assert.That(r.Moved, Is.EqualTo(10));
+            Assert.That(b.Items.Count, Is.EqualTo(2));
+            Assert.That(b.Items.Single(i => !i.Cheated).Amount, Is.EqualTo(20));
+            ItemStack moved = b.Items.Single(i => i.Cheated);
+            Assert.That(moved.Amount == 10 && moved.CustomData["k"] == "v");
+            Assert.That(new TransferEngine().Move(b, a, Items.Make("Wood", 0), 30).Moved, Is.EqualTo(20), "only clean wood leaves as clean wood");
+            Assert.That(b.Items.Single().Cheated, Is.True);
+        }
+
+        [Test]
         public void Failed_source_removal_rolls_back_the_destination()
         {
             var a = new FakeContainer("a", 4);
@@ -314,13 +367,19 @@ namespace Haugbui.Core.Tests
         public void Ten_thousand_random_transfers_with_injected_failures_conserve_totals()
         {
             var random = new Random(20261013);
-            var containers = Enumerable.Range(0, 4).Select(i => new FakeContainer("c" + i, 3 + i)).ToList();
+            var containers = Enumerable.Range(0, 4).Select(i => new FakeContainer("c" + i, 8 + i)).ToList();
             var carried = new CarriedInventory(3, 150);
             var endpoints = new List<IItemEndpoint>(containers) { new CarriedEndpoint("carried", carried) };
             foreach (FakeContainer c in containers)
                 foreach (string prefab in Prefabs)
+                {
                     c.Add(Items.Make(prefab, random.Next(1, 60)));
+                    ItemStack cheated = Items.Make(prefab, random.Next(1, 20));
+                    cheated.Cheated = true;
+                    c.Add(cheated);
+                }
             Dictionary<string, int> expected = Totals(containers, carried);
+            int cheatedBefore = CheatedTotal(containers, carried);
 
             foreach (FakeContainer c in containers)
             {
@@ -346,10 +405,14 @@ namespace Haugbui.Core.Tests
             foreach (FakeContainer c in containers) c.InUse = false;
 
             Assert.That(Totals(containers, carried), Is.EqualTo(expected));
+            Assert.That(CheatedTotal(containers, carried), Is.EqualTo(cheatedBefore), "no item changed its cheated flag");
             Assert.That(moved, Is.GreaterThan(1000));
             Assert.That(rolledBack, Is.GreaterThan(10), "failures were injected");
             Assert.That(carried.Weight, Is.LessThanOrEqualTo(150f));
         }
+
+        private static int CheatedTotal(IEnumerable<FakeContainer> containers, CarriedInventory carried) =>
+            containers.SelectMany(c => c.Items).Concat(carried.Stacks).Where(s => s.Cheated).Sum(s => s.Amount);
 
         private static Dictionary<string, int> Totals(IEnumerable<FakeContainer> containers, CarriedInventory carried) =>
             containers.SelectMany(c => c.Items).Concat(carried.Stacks)

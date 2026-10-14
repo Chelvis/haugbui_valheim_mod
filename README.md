@@ -16,10 +16,10 @@ harvest your fields and keep your smelters running — while you go adventuring.
 </div>
 
 > [!WARNING]
-> **Pre-alpha — not playable yet.** Version 0.0.4 contains the project foundation, the tomb and its five upgrades
+> **Pre-alpha — not playable yet.** Version 0.0.5 contains the project foundation, the tomb and its five upgrades
 > (with placeholder looks), the Haugbui itself (emerges at night, returns at dawn, dies and returns after a cooldown,
-> tomb panel with toggles), its first job — sorting its tomb storage into chests that already hold the same item —
-> and an in-game self-test. The gameplay described below is the
+> tomb panel with toggles), its first jobs — sorting its tomb storage and Collection Chests into chests that already
+> hold the same item, and bringing requested items to Delivery Chests — and an in-game self-test. The gameplay described below is the
 > planned design, not shipped features.
 
 ---
@@ -78,7 +78,8 @@ anything Haugbui-related is missing.
 | M2 | Tomb, upgrades, levels, persistence | ✅ (0.0.2) |
 | M3 | The servant: flight, day/night, death and resurrection | ✅ (0.0.3) |
 | M4 | Inventory, safe transfers, storage sorting, reservations between Haugbuis | ✅ (0.0.4) |
-| M5–M6 | Collection/Delivery chests, ground items, harvesting | ⏳ |
+| M5 | Collection and Delivery chests, request editor; moved items never become cheated | ✅ (0.0.5) |
+| M6 | Ground items, harvesting | ⏳ |
 | M7 | Production automation, sleep fast mode | ⏳ |
 | M8–M11 | Combat, world safety, full UI, performance, release | ⏳ |
 | M12 | Away mode (release 1.1) | ⏳ |

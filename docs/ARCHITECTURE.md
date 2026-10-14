@@ -195,6 +195,14 @@ ground items → idle hover near tomb.
   of world time, another tomb may take over. The Delivery Chest is served by any Haugbui (ledger is on the chest).
 - Capacity races are impossible in single-player because all transfers are single-frame on the same peer;
   reservations prevent *planning* conflicts (two Haugbuis flying to the same drop).
+- M5 keys: a Collection Chest task reserves `take:<chest ZDOID>`; a delivery trip reserves
+  `deliver:<chest ZDOID>:<item prefab>` (one Haugbui per request line). `WorkContext` sorts every loaded container in
+  the radius by role (`ContainerUse`): storage destination, storage source (plain chests and Collection Chests) and
+  delivery target (Delivery Chests only). A delivery trip (`DeliveryPlanner`, Core) takes no more than the line's
+  remaining amount, the chest's room and the carry limits, takes carried items of that item first, then the nearest
+  sources; each Put into the Delivery Chest counts the moved amount in its ledger (`haugbui_requests`, owner writes
+  only). Leftovers of an aborted trip are deposited like any carried item. The Collection Chest check repeats every
+  `CollectionIntervalSeconds` of world time while it finds nothing, every planning tick while it has work.
 - M4 keys: sorting a tomb storage reserves `take:<container ZDOID>` (only its own tomb uses it, the key makes that
   explicit). Deposits reserve nothing: the destination's room is re-read when the item is put, and what does not fit
   stays carried and is re-planned. Leases use game time (`Time.timeAsDouble`), the lease length is
@@ -204,7 +212,7 @@ ground items → idle hover near tomb.
 
 `HaugbuiWorker` (one per tomb, on the owner) plans every `PlanningIntervalSeconds` through the shared `TickScheduler`
 while the creature is Idle and no return is pending, and right after a step that moved items. Providers: deposit
-carried items (priority 100), sort tomb storage (50). A step resolves its target from the registry snapshot of that
+carried items (priority 100), delivery requests (70, M5), sort tomb storage (50), Collection Chests (45, M5). A step resolves its target from the registry snapshot of that
 planning tick; a target that is gone or unloaded aborts the task (HB-033: unloaded is "unavailable", never "empty").
 Travel has a timeout; a step that moved nothing puts the item kind on the `RetryBackoff` (2 s doubling to 60 s of world
 time), which also marks kinds without a destination so sources skip them (HB-065). Death, entering the tomb, despawn
@@ -224,7 +232,7 @@ operational disc in loaded zones (`ZoneSystem.IsZoneLoaded` + `ZNetScene.InActiv
    exactly that amount from the source — all in the same frame. A failure can therefore never lose an item; the worst
    case (a crash between the two writes, only possible in future multiplayer) is a duplicate, never a loss. Never call
    `Inventory.AddItem(..., dropIfFullInv: true)`.
-   Verified pitfalls of `Inventory.AddItem(ItemData)` (Inventory.cs:112, 1.0.17): it **inserts the instance it receives**
+   Verified pitfalls of `Inventory.AddItem(ItemData)` (Inventory.cs:112, 1.0.17; no longer used, see the stacking rule below): it **inserts the instance it receives**
    and mutates its `m_stack`/`m_gridPos`, so always pass `item.Clone()`; and when the stack only partly fits it tops up
    existing stacks first and then returns `false` **without rolling back** what it already added. Always check
    `CanAddItem` first. `CanAddItem` counts stack space by name and world level but `AddItem` stacks by name, quality
@@ -237,8 +245,15 @@ Implementation (M4): `TransferEngine` (Core) runs these steps over `IItemEndpoin
 container: loaded, ZDO owner, not in use, inventory loaded) and `CarriedEndpoint`. A source that gives less than was
 added (exception or short removal) has the surplus taken back from the destination; the property test runs 10 000
 random transfers with injected failures. `ItemStack` keeps the cheated flag, crafter and custom data (blob v2).
-Depositing onto an existing stack follows vanilla stacking: the stack becomes cheated if a cheated item joins it, and
-the joining items' custom data is not kept (same as a player stacking by hand). Verified pitfall: every ZDO key change
+**Stacking rule (HB-061, decision 2026-10-13):** items join an existing stack only when their data is identical
+(`ItemStack.StacksWith`: prefab, quality, world level, variant, cheated, crafter, custom data). Endpoints count, add and
+remove identical items only, so a transfer never changes any item's flag in either direction. The game's public
+`Inventory.AddItem` overloads are never used for this: both merge by name, quality and world level only (`FindFreeStackItem`),
+and `AddItem(ItemData)` sets `m_cheated` on the target stack when a cheated item joins it (Inventory.cs:112, 1.0.17).
+`ItemBridge.AddTo` tops up identical stacks and then fills empty slots through the private
+`Inventory.AddItem(item, amount, x, y)`, which stacks only onto the item in that slot and never writes `m_cheated`
+(it raises `Changed` only while a local player exists, so `AddTo` raises it otherwise). Room and the storage selector
+count identical stacks plus empty slots. Verified pitfall: every ZDO key change
 on a piece (support, snow, Haugbui state) bumps `DataRevision`, so container freshness cannot be judged by comparing
 revisions; only "never loaded yet" (`m_lastRevision == uint.MaxValue`, inventory still empty in memory) blocks writes.
 `haugbui_ledger` prints the recent records; a non-conserved record is logged as an error.

@@ -18,18 +18,39 @@ namespace Haugbui.Core.Storage
 
         public bool Contains(ItemStack item) => Items.Any(i => i.SameKind(item) && i.Amount > 0);
 
-        /// <summary>Room on matching stacks (same item, quality, world level) plus empty slots, as Inventory.AddItem fills them.</summary>
-        public int RoomFor(ItemStack item)
-        {
-            int maxStack = Math.Max(1, item.MaxStack);
-            int stackRoom = Items.Where(i => i.SameKind(item)).Sum(i => Math.Max(0, maxStack - i.Amount));
-            return stackRoom + FreeSlots * maxStack;
-        }
+        /// <summary>Room on identical stacks plus empty slots: a stack with other data (cheated, custom data) is never topped up.</summary>
+        public int RoomFor(ItemStack item) => StackRoomFor(item) + FreeSlots * Math.Max(1, item.MaxStack);
 
         public int StackRoomFor(ItemStack item)
         {
             int maxStack = Math.Max(1, item.MaxStack);
-            return Items.Where(i => i.SameKind(item)).Sum(i => Math.Max(0, maxStack - i.Amount));
+            return Items.Where(i => i.StacksWith(item)).Sum(i => Math.Max(0, maxStack - i.Amount));
+        }
+
+        public ContainerSnapshot Clone() => new ContainerSnapshot
+        {
+            Id = Id, Position = Position, Slots = Slots, Items = Items.Select(i => i.Copy(i.Amount)).ToList()
+        };
+
+        /// <summary>Simulates adding up to <paramref name="amount"/> by the identical-stack rule; returns the amount accepted.</summary>
+        public int Accept(ItemStack item, int amount)
+        {
+            int accepted = Math.Max(0, Math.Min(amount, RoomFor(item)));
+            int maxStack = Math.Max(1, item.MaxStack);
+            int left = accepted;
+            foreach (ItemStack stack in Items.Where(i => i.StacksWith(item)))
+            {
+                int put = Math.Min(left, Math.Max(0, maxStack - stack.Amount));
+                stack.Amount += put;
+                left -= put;
+            }
+            while (left > 0)
+            {
+                int put = Math.Min(left, maxStack);
+                Items.Add(item.Copy(put));
+                left -= put;
+            }
+            return accepted;
         }
     }
 
@@ -49,7 +70,7 @@ namespace Haugbui.Core.Storage
 
     /// <summary>
     /// HB-062/063, PRD §8.1: an item goes only into a container that already holds the same kind. Ranking: accepts the
-    /// whole amount, then fewest new slots (top up existing stacks), then nearest. Never more than a container's room.
+    /// whole amount, then fewest new slots (top up identical stacks), then nearest. Never more than a container's room.
     /// </summary>
     public static class StorageSelector
     {

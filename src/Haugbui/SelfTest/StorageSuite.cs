@@ -167,13 +167,28 @@ namespace Haugbui.SelfTest
             cheated.m_dropPrefab = ObjectDB.instance.GetItemPrefab("Wood");
             cheated.m_stack = 5;
             cheated.m_cheated = true;
+            cheated.m_worldLevel = (byte)Game.m_worldLevel;
+            cheated.m_customData["haugbui_selftest"] = "kept";
             storage.AddItem(cheated);
             ItemStack cheatedStack = ItemBridge.FromItemData(storage.GetAllItems().First(i => i.m_cheated));
             Reservations.Transfers.Move(tomb, carried, cheatedStack, 5);
             _t.Check("cheated flag kept in the carried inventory", _tomb.Carried.Stacks.Any(s => s.Prefab == "Wood" && s.Cheated && s.Amount == 5),
                 string.Join(", ", _tomb.Carried.Stacks));
-            Reservations.Transfers.Move(carried, tomb, cheatedStack, 5);
-            _t.Check("cheated flag kept back in a container", storage.GetAllItems().Any(i => i.m_cheated && i.m_stack == 5));
+
+            Add(tombContainer, "Wood", 10);
+            TransferRecord back = Reservations.Transfers.Move(carried, tomb, cheatedStack, 5);
+            List<ItemDrop.ItemData> wood = storage.GetAllItems().Where(i => ItemBridge.PrefabName(i) == "Wood").ToList();
+            string woodText = string.Join(", ", wood.Select(i => $"{i.m_stack}{(i.m_cheated ? " cheated" : "")}"));
+            _t.Check("cheated stack placed next to a clean one, never merged", back.Moved == 5 && wood.Count == 2
+                && wood.Any(i => !i.m_cheated && i.m_stack == 10) && wood.Any(i => i.m_cheated && i.m_stack == 5), woodText);
+            _t.Check("custom data kept through a transfer",
+                wood.Any(i => i.m_cheated && i.m_customData.TryGetValue("haugbui_selftest", out string tag) && tag == "kept"));
+            _t.Check("totals conserved next to a cheated stack", ItemBridge.CountPrefab(storage, "Wood") == 15 && _tomb.Carried.CountPrefab("Wood") == 0,
+                $"storage {ItemBridge.CountPrefab(storage, "Wood")}, carried {_tomb.Carried.CountPrefab("Wood")}");
+            Reservations.Transfers.Move(tomb, carried, Stack("Wood", 0), 15);
+            _t.Check("taking clean wood never takes the cheated stack", _tomb.Carried.Stacks.All(s => !s.Cheated) && _tomb.Carried.CountPrefab("Wood") == 10
+                && storage.GetAllItems().Count(i => i.m_cheated) == 1, string.Join(", ", _tomb.Carried.Stacks));
+            _tomb.Carried.TakeAll();
             storage.RemoveAll();
 
             storage.AddItem(ObjectDB.instance.GetItemPrefab("Wood"), 10);
