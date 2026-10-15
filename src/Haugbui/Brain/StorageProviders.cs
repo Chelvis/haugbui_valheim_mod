@@ -17,9 +17,13 @@ namespace Haugbui.Brain
         public const string Gather = "gather";
         public const string ProductionOutputs = "production_outputs";
         public const string ProductionFeed = "production_feed";
+        public const string ProductionOperate = "production_operate";
 
         // ARCHITECTURE §5.1: deposit → production outputs → production feeding → delivery → harvest → collection chest → ground items.
+        // A done cooking item burns if left, so taking it off beats even the deposit.
+        public const int ProductionUrgentPriority = 105;
         public const int DepositPriority = 100;
+        public const int ProductionOperatePriority = 85;
         public const int ProductionOutputsPriority = 80;
         public const int ProductionFeedPriority = 75;
         public const int DeliverPriority = 70;
@@ -40,12 +44,14 @@ namespace Haugbui.Brain
             {
                 if (context.NoDestination.IsWaiting(stack.KindKey, context.Now)) continue;
                 List<StorageAllocation> plan = StorageSelector.Plan(stack, stack.Amount, context.Destinations, context.From);
+                if (plan.Count == 0 && CollectionFallback.Enabled && context.Tomb.Worker.FallbackKinds.Contains(stack.KindKey))
+                    plan = CollectionFallback.Plan(context, stack, stack.Amount);
                 if (plan.Count == 0)
                 {
                     context.NoDestination.Fail(stack.KindKey, context.Now);
                     continue;
                 }
-                ContainerSnapshot first = context.Destinations.First(d => d.Id == plan[0].ContainerId);
+                ContainerSnapshot first = context.Destinations.Concat(context.CollectionChests).First(d => d.Id == plan[0].ContainerId);
                 ItemStack item = stack.Copy(stack.Amount);
                 output.Add(new TaskCandidate
                 {

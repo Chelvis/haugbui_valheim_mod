@@ -71,6 +71,11 @@ namespace Haugbui.Brain
         public int Fed { get; private set; }
         public int Fuelled { get; private set; }
         public int OutputsCollected { get; private set; }
+        public int Operated { get; private set; }
+        public int FastSteps { get; private set; }
+
+        /// <summary>HB-T-108: item kinds picked up only because a Collection Chest could take them (session only).</summary>
+        public HashSet<string> FallbackKinds { get; } = new HashSet<string>();
 
         /// <summary>Drops of its own harvests still on the ground (HB-093); session only.</summary>
         public IReadOnlyDictionary<string, ItemDrop> OwnDrops => _ownDrops;
@@ -100,6 +105,7 @@ namespace Haugbui.Brain
                         case TaskKinds.Gather: return "$haugbui_activity_gathering";
                         case TaskKinds.ProductionFeed: return "$haugbui_activity_supplying";
                         case TaskKinds.ProductionOutputs: return "$haugbui_activity_collecting_outputs";
+                        case TaskKinds.ProductionOperate: return "$haugbui_activity_tending";
                         default: return "$haugbui_activity_sorting";
                     }
                 }
@@ -225,6 +231,78 @@ namespace Haugbui.Brain
             return Plan != null;
         }
 
+        /// <summary>
+        /// HB-T-098 sleep fast mode: runs planned steps without flight while the budget covers travel plus interaction,
+        /// at most <paramref name="maxSteps"/> per frame. Same steps, same rules and the same transfers as the visible work.
+        /// </summary>
+        /// <returns>True while a task is in progress.</returns>
+        public bool FastForward(WorkBudget budget, int maxSteps)
+        {
+            HaugbuiStateMachine machine = _tomb.Machine;
+            HaugbuiCreature creature = _tomb.Creature;
+            if (creature == null) return false;
+            for (int steps = 0; steps < maxSteps; steps++)
+            {
+                if (machine.ReturnPending)
+                {
+                    Abort("returning");
+                    return false;
+                }
+                if (Plan == null)
+                {
+                    if (machine.State == HaugbuiState.Traveling && machine.TryEnter(HaugbuiState.Idle)) creature.Stop();
+                    PlanNow();
+                    if (Plan == null) return false;
+                }
+                TaskStep step = Plan.Current;
+                if (step == null)
+                {
+                    Finish();
+                    continue;
+                }
+                MonoBehaviour target = Resolve(step.Target);
+                if (target == null)
+                {
+                    if (IsOptional(step))
+                    {
+                        Plan.Advance();
+                        continue;
+                    }
+                    Abort("target not loaded: " + step.Target);
+                    return false;
+                }
+                Vector3 at = ReachPoint(target, creature.transform.position);
+                double cost = WorkBudget.StepCost(Vector3.Distance(creature.transform.position, at), _tomb.Attributes.MaxSpeed);
+                if (!budget.TrySpend(cost)) return true;
+
+                if (machine.State == HaugbuiState.Idle && !machine.TryEnter(HaugbuiState.Traveling)) return true;
+                creature.Teleport(at);
+                if (!machine.TryEnter(HaugbuiState.Interacting))
+                {
+                    Abort("cannot interact (" + machine.State + ")");
+                    return false;
+                }
+                bool moved = Execute(step, target);
+                machine.CompleteStep();
+                Plan.Advance();
+                FastSteps++;
+                if (!Plan.IsDone) continue;
+                Finish();
+                if (!moved) return false;
+            }
+            return Plan != null;
+        }
+
+        /// <summary>A point within reach of the target, on the side the Haugbui comes from.</summary>
+        private static Vector3 ReachPoint(MonoBehaviour target, Vector3 from)
+        {
+            Collider collider = MainCollider(target);
+            Vector3 surface = collider != null ? collider.ClosestPoint(from) : target.transform.position;
+            Vector3 away = from - surface;
+            away.y = 0f;
+            return surface + (away.sqrMagnitude > 0.01f ? away.normalized * 0.6f : Vector3.up * 0.6f) + Vector3.up * 0.5f;
+        }
+
         /// <returns>True when items moved. A step that moved nothing puts its item kind on the retry backoff.</returns>
         private bool Execute(TaskStep step, MonoBehaviour target)
         {
@@ -237,6 +315,8 @@ namespace Haugbui.Brain
                 case StepKind.Feed:
                 case StepKind.Fuel:
                     return Supply(step, target);
+                case StepKind.Operate:
+                    return OperateStation(step, target);
                 case StepKind.Harvest:
                     return Harvest(target);
                 default:
@@ -304,6 +384,23 @@ namespace Haugbui.Brain
                     return true;
                 });
             }
+            _tomb.Creature?.Visuals?.Pulse();
+            return true;
+        }
+
+        private bool OperateStation(TaskStep step, MonoBehaviour station)
+        {
+            IStationAdapter adapter = StationAdapterRegistry.For(station);
+            if (adapter == null) return false;
+            Vector3 from = _tomb.Creature != null ? _tomb.Creature.transform.position : station.transform.position;
+            int done = 0;
+            for (int i = 0; i < step.Amount; i++)
+            {
+                if (!adapter.Operate(station, from)) break;
+                done++;
+            }
+            if (done <= 0) return false;
+            Operated += done;
             _tomb.Creature?.Visuals?.Pulse();
             return true;
         }

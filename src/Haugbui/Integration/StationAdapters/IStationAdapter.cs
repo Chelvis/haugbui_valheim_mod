@@ -22,6 +22,9 @@ namespace Haugbui.Integration.StationAdapters
         public ItemDrop OutputItem;
         public int Yield = 1;
 
+        /// <summary>Cooking stations: world seconds until the item is done; it burns at twice that (CookingStation.UpdateCooking).</summary>
+        public float CookSeconds;
+
         public string Key => Input + ">" + Output;
     }
 
@@ -51,6 +54,21 @@ namespace Haugbui.Integration.StationAdapters
         /// <summary>Something of a job is queued, processing or waiting to come out.</summary>
         public bool Busy;
 
+        /// <summary>Actions the station waits for: tap a ready fermenter, take done or burnt items off a cooking station.</summary>
+        public int ReadyActions;
+
+        /// <summary>
+        /// The item the next ready action concerns (fermenter content, first done cooking slot). The Haugbui acts only
+        /// when it is its job's input, output or the burnt item, never on a player's own items.
+        /// </summary>
+        public string NextReady;
+
+        /// <summary>What an item burns into (CookingStation.m_overCookedItem); null for other stations.</summary>
+        public string BurntItem;
+
+        /// <summary>A ready action that must not wait (a cooked item burns if left).</summary>
+        public bool Urgent;
+
         /// <summary>HB-119: why it does not work now (localization token), reported and never bypassed.</summary>
         public string Blocked;
     }
@@ -74,7 +92,13 @@ namespace Haugbui.Integration.StationAdapters
         /// <summary>Adds one fuel unit through the station's own RPC; true when the station took it.</summary>
         bool FuelOne(MonoBehaviour station);
 
+        /// <summary>Takes one ready action through the station's own RPC (tap, remove a done item); true when it happened.</summary>
+        bool Operate(MonoBehaviour station, Vector3 from);
+
         /// <summary>Where the station drops its products; outputs are collected around it.</summary>
         Vector3 OutputPoint(MonoBehaviour station);
+
+        /// <summary>How far from <see cref="OutputPoint"/> its products can land.</summary>
+        float OutputRadius(MonoBehaviour station);
     }
 }

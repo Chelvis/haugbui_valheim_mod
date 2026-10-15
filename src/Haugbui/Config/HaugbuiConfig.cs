@@ -67,6 +67,7 @@ namespace Haugbui.Config
 
         public ConfigEntry<bool> HarvestWildPickables { get; private set; }
         public ConfigEntry<bool> HarvestSapCollectors { get; private set; }
+        public ConfigEntry<bool> GroundFallbackToCollectionChest { get; private set; }
 
         public ConfigEntry<bool> TributeEnabled { get; private set; }
         public ConfigEntry<string> TributeOnTombDestroyed { get; private set; }
@@ -156,6 +157,9 @@ namespace Haugbui.Config
             HarvestWildPickables = BindAdmin(Harvest, "WildPickables", false,
                 "Also pick wild plants (berries, mushrooms, thistle...), not only cultivated crops.");
             HarvestSapCollectors = BindAdmin(Harvest, "SapCollectors", false, "Also empty sap collectors.");
+            GroundFallbackToCollectionChest = BindAdmin(Harvest, "GroundFallbackToCollectionChest", false,
+                "Ground items and harvests that no storage chest can take go into the nearest Collection Chest with room " +
+                "(never into tomb storage). Off: they are left where they are.");
 
             TributeEnabled = BindAdmin(Tribute, "Enabled", true,
                 "Each shift must be paid with valuables offered at the tomb. Off: the Haugbui works every night for free.");

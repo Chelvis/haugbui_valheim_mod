@@ -123,5 +123,10 @@
   "haugbui_job_waiting_for": "waiting for",
   "haugbui_job_err_recipe": "Choose a recipe",
   "haugbui_job_err_target": "Enter an amount above zero",
-  "haugbui_msg_tomb_too_close_own": "Too close to another of your tombs."
+  "haugbui_msg_tomb_too_close_own": "Too close to another of your tombs.",
+  "haugbui_station_exposed": "exposed: needs more cover",
+  "haugbui_station_no_fire": "needs a fire",
+  "haugbui_job_too_close_to_dawn": "waiting: too close to dawn to cook safely",
+  "haugbui_activity_tending": "tending a station",
+  "haugbui_job_cooking_warning": "Without the Altar it loads only what is done before dawn; items you leave cooking may burn."
 }

@@ -31,8 +31,46 @@ namespace Haugbui.Brain
             if (Cache.TryGetValue(stack.KindKey, out bool known)) return known;
             bool has = !context.NoDestination.IsWaiting(stack.KindKey, context.Now)
                        && StorageSelector.Plan(stack, stack.Amount, context.Destinations, context.From).Sum(a => a.Amount) > 0;
+            if (!has && CollectionFallback.Enabled && CollectionFallback.Plan(context, stack, stack.Amount).Count > 0)
+            {
+                has = true;
+                // Only items taken from the ground or a harvest may be deposited into a Collection Chest (HB-T-108).
+                context.Tomb.Worker.FallbackKinds.Add(stack.KindKey);
+            }
             Cache[stack.KindKey] = has;
             return has;
+        }
+    }
+
+    /// <summary>
+    /// HB-T-108 (config GroundFallbackToCollectionChest): ground items and harvests that no storage chest can take go into
+    /// the nearest Collection Chest with room; never tomb storage. Collection Chests release only items with a real
+    /// destination, so nothing loops.
+    /// </summary>
+    internal static class CollectionFallback
+    {
+#if DEBUG
+        /// <summary>Self-test override of the config value; null uses the config.</summary>
+        internal static bool? ForcedForTests { get; set; }
+#else
+        private static readonly bool? ForcedForTests = null;
+#endif
+
+        public static bool Enabled => ForcedForTests ?? HaugbuiPlugin.Instance.Settings.GroundFallbackToCollectionChest.Value;
+
+        public static List<StorageAllocation> Plan(WorkContext context, ItemStack stack, int amount)
+        {
+            var plan = new List<StorageAllocation>();
+            int left = amount;
+            foreach (ContainerSnapshot chest in context.CollectionChests.OrderBy(c => Vec3.Distance(context.From, c.Position)))
+            {
+                if (left <= 0) break;
+                int n = chest.Clone().Accept(stack, left);
+                if (n <= 0) continue;
+                plan.Add(new StorageAllocation(chest.Id, n));
+                left -= n;
+            }
+            return plan;
         }
     }
 

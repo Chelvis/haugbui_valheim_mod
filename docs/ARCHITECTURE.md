@@ -414,8 +414,17 @@ interface IStationAdapter {                       // Integration/StationAdapters
 - Panel (`UI/ProductionPanel`): Shift+E on a station switch (`Switch.Interact` prefix with `alt`; same ward rule as using
   it). Enable/disable, recipe dropdown (discovered materials only), finite/infinite, amount, progress, owner, status;
   below `ProductionUnlockLevel` or with the tomb's Production toggle off it says so.
-- Later in M7: `FermenterAdapter`, `CookingStationAdapter` (dawn-aware: loads a slot only if the item is done before
-  the Haugbui must return, removes done items before burning), sleep fast mode (§14.1).
+- `FermenterAdapter` (M7 round 2): loads one base while empty (`RPC_AddItem(hash, cheated)`), taps when ready
+  (`RPC_Tap`; the meads appear after `m_tapDelay`), yield = `m_producedItems`. `RPC_AddItem` skips the cover check, so
+  the adapter reports "needs a roof"/"exposed" (`Cover.GetCoverForPoint`, 70%) and loads nothing.
+- `CookingStationAdapter`: raw items into free slots (`RPC_AddItem(name, cheated)`), oven/frost foundry fuel within
+  capacity, "needs a fire" for stations without one. An item burns at twice its cook time, so a done item is an urgent
+  `Operate` step (priority 105, above the deposit): `RPC_RemoveDoneItem` takes the first done or burnt slot off, and
+  the Haugbui acts only when that slot is its job's item. HB-121: without the Altar a slot is loaded only if
+  `cook time + 30 s` fits before the dawn return lead (`WorkContext.WorkSecondsLeft`); the panel warns that items left
+  cooking may burn.
+- `Operate` steps (priority 85, 105 when urgent) cover every station's own ready action; `IStationAdapter.Operate`,
+  `OutputRadius` (smelter 3 m, fermenter 3 m, cooking 6 m: done items are pushed out).
 - No adapter for `CraftingStation` recipes in v1 (PRD HB-122). A V2 `RecipeCraftingAdapter` would gather
   `m_resources`, check `IsRecipeKnown`, station level and `CheckUsable`, and swap resources for products in one frame;
   `IStationAdapter` already allows adding it without touching the planner.
@@ -485,6 +494,13 @@ ticks every `RemoteTickSeconds`, default 10 s) runs each tomb's abstract worker 
 - Risk: writing private vanilla keys must match game behaviour exactly; covered by a spike and the API self-check.
 
 ### 14.1 Sleep fast mode
+
+Implemented in M7 round 2: `TombController` observes the world-time delta every frame into `WorkBudget` (Core) while
+the game skips time and the Haugbui may work (out, no return pending); outside a skip the bank is emptied. During the
+skip `HaugbuiWorker.FastForward` replaces `Step`: up to 20 steps per frame, each paid with distance / max speed + 1.5 s,
+the creature teleported next to the target (`HaugbuiCreature.Teleport`) and the same `Execute` as normal work.
+Presence, shifts and tribute run unchanged, so the shift is charged the same way (HB-167). Self-test hook:
+`TombController.SkippingForTests`.
 
 `SleepFastMode` (owner-side) is active while `EnvMan.IsTimeSkipping()`. Each frame it adds the world-time delta
 (only the part where the Haugbui may work) to a per-tomb budget; the state machine then runs the next planned steps

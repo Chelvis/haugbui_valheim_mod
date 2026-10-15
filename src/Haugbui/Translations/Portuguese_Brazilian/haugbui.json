@@ -123,5 +123,10 @@
   "haugbui_job_waiting_for": "esperando",
   "haugbui_job_err_recipe": "Escolha uma receita",
   "haugbui_job_err_target": "Informe uma quantidade maior que zero",
-  "haugbui_msg_tomb_too_close_own": "Muito perto de outro túmulo seu."
+  "haugbui_msg_tomb_too_close_own": "Muito perto de outro túmulo seu.",
+  "haugbui_station_exposed": "exposto: precisa de mais cobertura",
+  "haugbui_station_no_fire": "precisa de fogo",
+  "haugbui_job_too_close_to_dawn": "aguardando: perto demais do amanhecer para cozinhar com segurança",
+  "haugbui_activity_tending": "cuidando de uma estação",
+  "haugbui_job_cooking_warning": "Sem o Altar, só coloca o que fica pronto antes do amanhecer; itens que você deixar cozinhando podem queimar."
 }

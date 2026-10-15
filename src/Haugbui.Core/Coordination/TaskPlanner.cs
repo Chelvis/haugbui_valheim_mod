@@ -23,7 +23,10 @@ namespace Haugbui.Core.Coordination
         Feed,
 
         /// <summary>Put carried fuel into a production station through its own RPC.</summary>
-        Fuel
+        Fuel,
+
+        /// <summary>A station's own ready action: tap a fermenter, take a done item off a cooking station.</summary>
+        Operate
     }
 
     /// <summary>One atomic interaction; the executor first flies within reach of <see cref="Target"/>.</summary>

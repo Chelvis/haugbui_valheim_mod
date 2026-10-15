@@ -26,6 +26,7 @@ namespace Haugbui.Creature
         private const float IdleSpeed = 1f;
         private const float IdleHeight = 2.2f;
         private const float ResumeMaxDistanceFactor = 1.5f;
+        private const int FastStepsPerFrame = 20;
 
         private static readonly List<TombController> Instances = new List<TombController>();
 
@@ -84,6 +85,21 @@ namespace Haugbui.Creature
 
         internal ShiftTimer Timer => PresencePolicy.Timer(Input());
 
+        /// <summary>HB-T-098: world time banked while the player sleeps.</summary>
+        internal WorkBudget Budget { get; } = new WorkBudget();
+
+#if DEBUG
+        /// <summary>Self-test: behave as if the game were skipping time (sleeping).</summary>
+        internal static bool SkippingForTests { get; set; }
+#else
+        private const bool SkippingForTests = false;
+#endif
+
+        /// <summary>The game is fast-forwarding to morning (EnvMan.IsTimeSkipping) and sleep fast mode is on.</summary>
+        internal static bool SleepFastMode =>
+            HaugbuiPlugin.Instance.Settings.SleepFastMode.Value
+            && (SkippingForTests || EnvMan.instance != null && EnvMan.instance.IsTimeSkipping());
+
         private void Awake()
         {
             _tomb = GetComponent<HaugbuiStructure>();
@@ -126,7 +142,9 @@ namespace Haugbui.Creature
                 _resumeChecked = true;
                 ResumeAfterLoad();
             }
-            StepState();
+            bool fast = SleepFastMode;
+            Budget.Observe(TimeSource.Current.Now, fast, CanWork && !Machine.ReturnPending);
+            StepState(fast);
             if (Time.time < _nextTick) return;
             _nextTick = Time.time + TickSeconds;
             Tick();
@@ -272,7 +290,7 @@ namespace Haugbui.Creature
             SaveStateIfChanged();
         }
 
-        private void StepState()
+        private void StepState(bool fast)
         {
             if (Machine.IsOut && Creature == null)
             {
@@ -284,7 +302,7 @@ namespace Haugbui.Creature
             }
             if (Creature == null) return;
 
-            bool working = Worker.Step();
+            bool working = fast ? Worker.FastForward(Budget, FastStepsPerFrame) : Worker.Step();
             Creature.SetState(Machine.State);
             switch (Machine.State)
             {

@@ -96,6 +96,11 @@ namespace Haugbui.Integration.StationAdapters
             return zdo.GetFloat(ZDOVars.s_fuel) > before;
         }
 
+        public bool Operate(MonoBehaviour station, Vector3 from) => false;
+
+        /// <summary>Products appear at the output point (Smelter.Spawn) and may roll a little.</summary>
+        public float OutputRadius(MonoBehaviour station) => 3f;
+
         public Vector3 OutputPoint(MonoBehaviour station)
         {
             var smelter = (Smelter)station;
@@ -110,7 +115,8 @@ namespace Haugbui.Integration.StationAdapters
 
         public StationKind Kind(MonoBehaviour station) => StationKind.FuelOnly;
 
-        public ZNetView View(MonoBehaviour station) => ((ShieldGenerator)station).m_nview;
+        /// <summary>ShieldGenerator sets m_nview only in Start, a frame after it is placed.</summary>
+        public ZNetView View(MonoBehaviour station) => ((ShieldGenerator)station).m_nview ?? station.GetComponent<ZNetView>();
 
         public string Name(MonoBehaviour station) => ((ShieldGenerator)station).m_name;
 
@@ -121,7 +127,7 @@ namespace Haugbui.Integration.StationAdapters
             var shield = (ShieldGenerator)station;
             var state = new StationState
             {
-                Fuel = shield.m_nview.GetZDO().GetFloat(ZDOVars.s_fuel),
+                Fuel = View(station).GetZDO().GetFloat(ZDOVars.s_fuel),
                 MaxFuel = shield.m_maxFuel,
             };
             foreach (ItemDrop fuel in shield.m_fuelItems)
@@ -134,13 +140,18 @@ namespace Haugbui.Integration.StationAdapters
         public bool FuelOne(MonoBehaviour station)
         {
             var shield = (ShieldGenerator)station;
-            ZDO zdo = shield.m_nview.GetZDO();
+            ZNetView view = View(station);
+            ZDO zdo = view.GetZDO();
             float before = zdo.GetFloat(ZDOVars.s_fuel);
-            if (before > shield.m_maxFuel - 1 || !shield.m_nview.IsOwner()) return false;
-            shield.m_nview.InvokeRPC("RPC_AddFuel");
+            if (before > shield.m_maxFuel - 1 || !view.IsOwner()) return false;
+            view.InvokeRPC("RPC_AddFuel");
             return zdo.GetFloat(ZDOVars.s_fuel) > before;
         }
 
+        public bool Operate(MonoBehaviour station, Vector3 from) => false;
+
         public Vector3 OutputPoint(MonoBehaviour station) => station.transform.position;
+
+        public float OutputRadius(MonoBehaviour station) => 0f;
     }
 }

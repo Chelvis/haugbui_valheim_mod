@@ -190,6 +190,9 @@ namespace Haugbui.UI
             _mode.interactable = !FuelOnly;
             _owner.text = Localization.instance.Localize(OwnerText(job));
             _progress.text = job != null && job.Enabled ? ProgressText(job) : "";
+            // HB-121: items still cooking when it goes home may burn, as for a player.
+            if (StationAdapterRegistry.For(_station)?.Kind(_station) == StationKind.Cooking)
+                _progress.text += (_progress.text.Length > 0 ? "\n" : "") + Localization.instance.Localize("$haugbui_job_cooking_warning");
             _status.text = Localization.instance.Localize(StatusText(_station, job));
         }
 
@@ -285,6 +288,49 @@ namespace Haugbui.UI
             {
                 Log.ErrorRateLimited("production-interact", $"Production panel: {e}");
                 return true;
+            }
+        }
+
+        [HarmonyPrefix, HarmonyPatch(typeof(Fermenter), nameof(Fermenter.Interact))]
+        private static bool OpenOnFermenter(Fermenter __instance, bool hold, bool alt, ref bool __result) =>
+            OpenOnAlt(__instance, hold, alt, ref __result);
+
+        [HarmonyPrefix, HarmonyPatch(typeof(CookingStation), nameof(CookingStation.Interact))]
+        private static bool OpenOnCookingStation(CookingStation __instance, bool hold, bool alt, ref bool __result) =>
+            OpenOnAlt(__instance, hold, alt, ref __result);
+
+        [HarmonyPostfix, HarmonyPatch(typeof(Fermenter), nameof(Fermenter.GetHoverText))]
+        private static void FermenterHover(Fermenter __instance, ref string __result) => AppendHover(__instance, ref __result);
+
+        [HarmonyPostfix, HarmonyPatch(typeof(CookingStation), nameof(CookingStation.GetHoverText))]
+        private static void CookingHover(CookingStation __instance, ref string __result) => AppendHover(__instance, ref __result);
+
+        private static bool OpenOnAlt(MonoBehaviour station, bool hold, bool alt, ref bool result)
+        {
+            if (!alt || hold || StationAdapterRegistry.For(station) == null) return true;
+            try
+            {
+                if (!PrivateArea.CheckAccess(station.transform.position, 0f, flash: true)) return true;
+                ProductionPanel.Open(station);
+                result = true;
+                return false;
+            }
+            catch (Exception e)
+            {
+                Log.ErrorRateLimited("production-interact", $"Production panel: {e}");
+                return true;
+            }
+        }
+
+        private static void AppendHover(MonoBehaviour station, ref string result)
+        {
+            try
+            {
+                if (StationAdapterRegistry.For(station) != null && !string.IsNullOrEmpty(result)) result += HoverLine(station);
+            }
+            catch (Exception e)
+            {
+                Log.ErrorRateLimited("production-hover", $"Production hover: {e}");
             }
         }
 

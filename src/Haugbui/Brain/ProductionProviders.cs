@@ -50,8 +50,8 @@ namespace Haugbui.Brain
     /// </summary>
     internal sealed class ProductionProvider : ITaskProvider<WorkContext>
     {
-        /// <summary>Products land at the output point (Smelter.Spawn) and may roll a little.</summary>
-        public const float OutputRadius = 3f;
+        /// <summary>HB-121: a cooking slot is loaded only if the item is done this long before the Haugbui must head home.</summary>
+        public const double CookingMarginSeconds = 30;
 
         private readonly List<GroundItem> _candidates = new List<GroundItem>();
         private readonly Dictionary<string, ItemDrop> _drops = new Dictionary<string, ItemDrop>();
@@ -62,9 +62,29 @@ namespace Haugbui.Brain
         {
             foreach (StationWork work in context.Stations)
             {
+                Operate(context, work, output);
                 CollectOutputs(context, work, output);
                 Feed(context, work, output);
             }
+        }
+
+        /// <summary>HB-T-066/068: tap a ready fermenter, take done items off a cooking station; only the job's own items.</summary>
+        private static void Operate(WorkContext context, StationWork work, List<TaskCandidate> output)
+        {
+            StationState state = work.State;
+            if (state.ReadyActions <= 0 || state.NextReady == null) return;
+            bool ours = state.NextReady == work.Recipe.Input || state.NextReady == work.Recipe.Output || state.NextReady == state.BurntItem;
+            if (!ours) return;
+            var step = new TaskStep(StepKind.Operate, work.Id, new ItemStack { Prefab = work.Recipe.Output }, state.ReadyActions);
+            string station = work.Id;
+            output.Add(new TaskCandidate
+            {
+                Kind = TaskKinds.ProductionOperate,
+                Priority = state.Urgent ? TaskKinds.ProductionUrgentPriority : TaskKinds.ProductionOperatePriority,
+                Distance = Vec3.Distance(context.From, work.Position),
+                Keys = new[] { "station:" + work.Id },
+                Build = () => new TaskPlan(TaskKinds.ProductionOperate, new[] { step }) { Tag = station },
+            });
         }
 
         private void CollectOutputs(WorkContext context, StationWork work, List<TaskCandidate> output)
@@ -114,7 +134,9 @@ namespace Haugbui.Brain
             bool manual = state.QueuedInputs.Any(i => i != work.Recipe.Input);
             SupplyPick inputs = new SupplyPick();
             int wanted = 0;
-            if (!manual && !string.IsNullOrEmpty(work.Recipe.Input))
+            // HB-121: without the Altar, a cooking slot is loaded only if it can come off before the Haugbui heads home.
+            bool tooLate = work.Recipe.CookSeconds > 0 && work.Recipe.CookSeconds + CookingMarginSeconds > context.WorkSecondsLeft;
+            if (!manual && !tooLate && !string.IsNullOrEmpty(work.Recipe.Input))
             {
                 wanted = StationFill.Inputs(state.Queued, state.MaxQueue, ProductionJob.InputsWanted(job, yield));
                 inputs = SupplyPlanner.Pick(work.Recipe.Input, wanted, state.RequiredCheated, carry, context.Sources, context.From,
@@ -135,17 +157,18 @@ namespace Haugbui.Brain
                 }
             }
 
-            if (inputs.Total <= 0 && fuel.Total <= 0)
+            // An empty queue with no input to give needs no fuel either; fuel alone only keeps a running queue burning.
+            bool fuelOnlyTrip = inputs.Total <= 0 && state.Queued == 0 && work.Adapter.Kind(work.Station) != StationKind.FuelOnly;
+            if (inputs.Total <= 0 && (fuel.Total <= 0 || fuelOnlyTrip))
             {
                 if (context.Probe) return;
                 if (manual) ProductionStatus.Set(work.Id, "$haugbui_job_manual_use");
+                else if (tooLate) ProductionStatus.Set(work.Id, "$haugbui_job_too_close_to_dawn");
                 else if (wanted > 0) ProductionStatus.Set(work.Id, Waiting(work.Recipe.InputItem));
-                else if (fuelWanted > 0 && state.FuelPrefabs.Count > 0) ProductionStatus.Set(work.Id, Waiting(FuelItem(state.FuelPrefabs[0])));
+                else if (fuelWanted > 0 && fuel.Total <= 0 && state.FuelPrefabs.Count > 0) ProductionStatus.Set(work.Id, Waiting(FuelItem(state.FuelPrefabs[0])));
                 else ProductionStatus.Set(work.Id, wanted == 0 && ProductionJob.InputsWanted(job, yield) == 0 ? "$haugbui_job_finishing" : "$haugbui_job_working");
                 return;
             }
-            // An empty queue with no input to give needs no fuel either; fuel alone only keeps a running queue burning.
-            if (inputs.Total <= 0 && state.Queued == 0 && work.Adapter.Kind(work.Station) != StationKind.FuelOnly) return;
 
             var steps = new List<TaskStep>();
             steps.AddRange(inputs.Takes.Concat(fuel.Takes).Select(t => new TaskStep(StepKind.Take, t.Source, t.Item, t.Item.Amount)));
@@ -206,8 +229,10 @@ namespace Haugbui.Brain
             return Known(player, recipe);
         }
 
+        /// <summary>Fuel-only stations (no input, e.g. the frost kiln) need no discovery: the player uses them freely too.</summary>
         public static bool Known(Player player, StationRecipe recipe) =>
-            (recipe.InputItem == null || player.IsMaterialKnown(recipe.InputItem.m_itemData.m_shared.m_name))
+            recipe.InputItem == null
+            || player.IsMaterialKnown(recipe.InputItem.m_itemData.m_shared.m_name)
             && (recipe.OutputItem == null || player.IsMaterialKnown(recipe.OutputItem.m_itemData.m_shared.m_name));
     }
 }

@@ -98,6 +98,19 @@ namespace Haugbui.Creature
             Arrived = false;
         }
 
+        /// <summary>Sleep fast mode only (HB-046): the screen is faded, so it jumps to the next step instead of flying.</summary>
+        internal void Teleport(Vector3 position)
+        {
+            Stop();
+            transform.position = position;
+            if (_body != null)
+            {
+                _body.position = position;
+                _body.linearVelocity = Vector3.zero;
+            }
+            _lastPosition = position;
+        }
+
         internal void Stop()
         {
             _target = null;

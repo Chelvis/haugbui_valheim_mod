@@ -16,6 +16,8 @@ namespace Haugbui.Integration.StationAdapters
         {
             (new SmelterAdapter(), Features.Smelters),
             (new ShieldGeneratorAdapter(), Features.Smelters),
+            (new FermenterAdapter(), Features.Fermenters),
+            (new CookingStationAdapter(), Features.Cooking),
         };
 
         /// <summary>Null when the station is not supported or its game API failed the startup self-check.</summary>

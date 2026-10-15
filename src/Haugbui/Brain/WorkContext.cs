@@ -64,6 +64,11 @@ namespace Haugbui.Brain
         /// <summary>HB-T-069: the Production toggle is on and the tomb has the unlock level.</summary>
         public bool Production;
 
+        /// <summary>
+        /// HB-121: world seconds left before the Haugbui must head home (the dawn return lead); infinite with the Altar.
+        /// </summary>
+        public double WorkSecondsLeft;
+
         /// <summary>Loaded stations in the radius whose enabled job this tomb owns or may claim.</summary>
         public readonly List<StationWork> Stations = new List<StationWork>();
 
@@ -150,6 +155,8 @@ namespace Haugbui.Brain
                 if (source && collection) CollectionChests.Add(snapshot);
             }
 
+            ShiftTimer timer = tomb.Timer;
+            WorkSecondsLeft = tomb.FullTime ? double.PositiveInfinity : timer.InShift ? timer.Seconds : 0;
             Production = ProductionGate.Enabled(tomb);
             if (Production) FindStations();
         }
@@ -223,7 +230,8 @@ namespace Haugbui.Brain
         private static void FindOutputs(StationWork work)
         {
             Vector3 point = work.Adapter.OutputPoint(work.Station);
-            float radiusSq = ProductionProvider.OutputRadius * ProductionProvider.OutputRadius;
+            float radius = work.Adapter.OutputRadius(work.Station);
+            float radiusSq = radius * radius;
             foreach (ItemDrop drop in WorldRegistry.ItemDrops)
             {
                 if (!DropEndpoint.IsLive(drop) || (drop.transform.position - point).sqrMagnitude > radiusSq) continue;
