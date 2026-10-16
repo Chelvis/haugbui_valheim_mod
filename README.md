@@ -101,6 +101,8 @@ The full plan lives in [`docs/`](docs):
 [backlog](docs/IMPLEMENTATION_BACKLOG.json) ·
 [development guide](docs/DEVELOPMENT_GUIDE.md)
 
+Contributors and AI agents: start with [`AGENTS.md`](AGENTS.md) and the [handover](docs/HANDOVER.md).
+
 ## Requirements
 
 - Valheim **1.0.17** (Windows)
