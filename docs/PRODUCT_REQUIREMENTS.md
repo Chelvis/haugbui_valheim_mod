@@ -120,7 +120,7 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
 | Attribute | L1 | L2 | L3 | L4 | L5 | L6 |
 |---|---:|---:|---:|---:|---:|---:|
 | Carry capacity (weight units) | 50 | 70 | 90 | 110 | 130 | 150 |
-| Max movement speed (m/s) | 2.0 | 2.8 | 3.6 | 4.4 | 5.2 | 6.0 |
+| Max movement speed (m/s) | 1 | 2 | 3 | 4 | 5 | 6 |
 | Operational radius (m) | 50 | 60 | 70 | 80 | 90 | 100 |
 | Inventory slots | 2 | 3 | 4 | 5 | 6 | 6 |
 | HP | 20 | 40 | 60 | 80 | 100 | 120 |
@@ -519,6 +519,7 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-19 | Production inputs on the ground | Only while the ground-items toggle is on. Toggle off: the Haugbui ignores everything on the ground, including job inputs and fuel. When on, a job takes carried items, then ground drops, then storage chests |
 | 2026-10-19 | Combat ladder (HB-142, §5) — **to confirm** the numbers | Defence stays its own per-level parameter (not the same row as offence). Defence target: the 2026-10-19 biome ladder from level 1 (meadows animals easy, Black Forest hard except greylings) up to level 6. Offence target, from the first level that can fight (2, the Longsword): greydwarfs and shamans, and some chance against one greydwarf brute, up to level 6 killing three cultists, or two fenrings, or one troll, in a row. Calibrate from measured fights; do not ship the current 1.0–2.0 Wraith row as that ladder |
 | 2026-10-19 | HP regen (HB-035, confirmed) | Resting in the tomb: full in 600 world seconds (about 10 real minutes; a sleep skip completes it). Outside: 1% of max HP every 10 real seconds (about 16.7 minutes from empty to full); a sleep skip does not heal it. No regen while dead. Both rates are config. The rest default is applied; outdoor regen is HB-T-116 |
+| 2026-10-19 | Movement speed (HB-030) | Max speed per level is 1, 2, 3, 4, 5, 6 m/s |
 | 2026-10-19 | Level display (HB-012) | Tomb panel and hover show the current level only ("Level 2"), not "2/6" |
 
 Open: none.

@@ -36,7 +36,7 @@ namespace Haugbui.Creature
         internal Character Character => _character;
         internal ZNetView View => _view;
         internal CreatureVisuals Visuals { get; private set; }
-        internal float MaxSpeed { get; set; } = 2f;
+        internal float MaxSpeed { get; set; } = 1f;
         internal bool HasTarget => _target != null || _targetCollider != null;
         internal bool Arrived { get; private set; }
         internal float DistanceToTarget { get; private set; }

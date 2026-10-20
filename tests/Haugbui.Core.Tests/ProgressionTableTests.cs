@@ -30,7 +30,9 @@ namespace Haugbui.Core.Tests
             HaugbuiAttributes l6 = ProgressionTable.Default.ForLevel(6);
 
             Assert.That(l1.CarryCapacity, Is.EqualTo(50));
-            Assert.That(l1.MaxSpeed, Is.EqualTo(2.0f));
+            Assert.That(l1.MaxSpeed, Is.EqualTo(1f));
+            Assert.That(Enumerable.Range(1, 6).Select(l => ProgressionTable.Default.ForLevel(l).MaxSpeed),
+                Is.EqualTo(new[] { 1f, 2f, 3f, 4f, 5f, 6f }));
             Assert.That(l1.Radius, Is.EqualTo(50));
             Assert.That(l1.Slots, Is.EqualTo(2));
             Assert.That(l1.MaxHealth, Is.EqualTo(20));

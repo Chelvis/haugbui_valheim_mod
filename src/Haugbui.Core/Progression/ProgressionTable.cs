@@ -37,7 +37,7 @@ namespace Haugbui.Core.Progression
         public const int LevelCount = MaxLevel - MinLevel + 1;
 
         public static readonly float[] DefaultCarryCapacity = { 50, 70, 90, 110, 130, 150 };
-        public static readonly float[] DefaultMaxSpeed = { 2.0f, 2.8f, 3.6f, 4.4f, 5.2f, 6.0f };
+        public static readonly float[] DefaultMaxSpeed = { 1f, 2f, 3f, 4f, 5f, 6f };
         public static readonly float[] DefaultRadius = { 50, 60, 70, 80, 90, 100 };
         public static readonly int[] DefaultSlots = { 2, 3, 4, 5, 6, 6 };
         public static readonly float[] DefaultMaxHealth = { 20, 40, 60, 80, 100, 120 };

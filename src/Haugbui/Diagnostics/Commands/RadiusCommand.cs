@@ -52,8 +52,10 @@ namespace Haugbui.Diagnostics.Commands
                     Object.Destroy(marker);
                     continue;
                 }
-                Prepare(circle, radius);
+                GameObject template = Prepare(circle, radius);
+                template.transform.position = tomb.transform.position + Vector3.down * 100f;
                 marker.SetActive(true);
+                template.transform.SetParent(circle.transform, true);
                 marker.AddComponent<RadiusRing>().Bind(tomb, circle);
                 Shown.Add(marker);
                 shown++;
@@ -71,16 +73,18 @@ namespace Haugbui.Diagnostics.Commands
             return true;
         }
 
-        /// <summary>More segments than the workbench uses: a 50–100 m ring would otherwise be a handful of dots.</summary>
-        private static void Prepare(CircleProjector circle, float radius)
+        /// <summary>
+        /// More segments than the workbench uses: a 50–100 m ring would otherwise be a handful of dots.
+        /// The template stays active: CircleProjector copies its active state onto every segment.
+        /// </summary>
+        private static GameObject Prepare(CircleProjector circle, float radius)
         {
             GameObject template = Object.Instantiate(circle.m_prefab);
             Tint(template);
-            template.SetActive(false);
             circle.m_prefab = template;
             circle.m_radius = radius;
             circle.m_nrOfSegments = Mathf.Clamp(Mathf.CeilToInt(2f * Mathf.PI * radius / 4f), 24, 96);
-            template.transform.SetParent(circle.transform, false);
+            return template;
         }
 
         private static void Tint(GameObject root)
