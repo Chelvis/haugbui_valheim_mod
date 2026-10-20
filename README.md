@@ -7,7 +7,7 @@
 *A Valheim mod: build a burial tomb and a spectral mound-dweller rises to sort your chests, fetch what you ask for,
 harvest your fields and keep your smelters running — while you go adventuring.*
 
-![Valheim](https://img.shields.io/badge/Valheim-1.0.17-2f4f4f)
+![Valheim](https://img.shields.io/badge/Valheim-1.0.20-2f4f4f)
 ![BepInEx](https://img.shields.io/badge/BepInEx-5.4.23-6a5acd)
 ![Jötunn](https://img.shields.io/badge/J%C3%B6tunn-2.30.2-8b0000)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078d6)
@@ -16,14 +16,15 @@ harvest your fields and keep your smelters running — while you go adventuring.
 </div>
 
 > [!WARNING]
-> **Pre-alpha — not playable yet.** Version 0.0.7 contains the project foundation, the tomb and its five upgrades
+> **Pre-alpha — not playable yet.** Version 0.0.8 contains the project foundation, the tomb and its five upgrades
 > (with placeholder looks), the Haugbui itself (emerges at night, returns at dawn, dies and returns at a later dusk,
 > tomb panel with toggles), its jobs — sorting its tomb storage and Collection Chests into chests that already
 > hold the same item, bringing requested items to Delivery Chests, picking up ground items, harvesting ripe crops,
 > beehives and birds' nests, running simple production stations (smelters, kilns, windmill, spinning wheel, eitr
 > refinery, fermenter, ovens and cooking stations, fuel for hot tubs and shield generators) and working while the
-> player sleeps — the tribute it asks for each shift, permanent servant slots per player with territories, and an
-> in-game self-test. The gameplay described below is the planned design, not shipped features.
+> player sleeps — the tribute it asks for each shift, permanent servant slots per player with territories, opt-in
+> combat with the Longsword (it defends its radius, or flees to the tomb when combat is off), and an in-game
+> self-test. The gameplay described below is the planned design, not shipped features.
 
 ---
 
@@ -91,7 +92,8 @@ anything Haugbui-related is missing.
 | M5 | Collection and Delivery chests, request editor; moved items never become cheated | ✅ (0.0.5) |
 | M6 | Ground items, harvesting, tribute per shift, servant slots, death and new-tomb timing | ✅ (0.0.6) |
 | M7 | Production automation, sleep fast mode, territories, optional strict item data | ✅ (0.0.7) |
-| M8–M11 | Combat, world safety, full UI, performance, release | ⏳ |
+| M8 | Combat: defend the radius, level scaling, flee home when combat is off | ✅ (0.0.8) |
+| M9–M11 | World safety, full UI, performance, release | ⏳ |
 | M12 | Away mode (release 1.1) | ⏳ |
 
 The full plan lives in [`docs/`](docs):
@@ -105,7 +107,7 @@ Contributors and AI agents: start with [`AGENTS.md`](AGENTS.md) and the [handove
 
 ## Requirements
 
-- Valheim **1.0.17** (Windows)
+- Valheim **1.0.20** (Windows)
 - [BepInExPack Valheim](https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/) 5.4.2351
 - [Jötunn](https://thunderstore.io/c/valheim/p/ValheimModding/Jotunn/) 2.30.2
 
@@ -137,7 +139,7 @@ Open the console with **F5** (launch with `-console`).
 | `haugbui_reservations` | Task reservations and each Haugbui's current task, carried items and waiting item kinds |
 | `haugbui_ledger` | The last item transfers (source and destination counts before/after) |
 | `haugbui_registry` | World registry counts compared with a full scene scan |
-| `haugbui_selftest` | Debug builds only: in-game integration tests with a report and pictures (see the development guide) |
+| `haugbui_selftest` | Debug builds only: in-game integration tests with a report and pictures (see the development guide). Optional `and_exit` closes the game when the report is written |
 | `haugbui_spike_*` | Debug builds only: technical spikes |
 
 ## Languages

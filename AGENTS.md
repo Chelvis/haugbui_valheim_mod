@@ -44,6 +44,12 @@ Rules for any AI agent working in this repository (Cursor, Claude Code or others
 
 - Commit and push only after Kelvin explicitly approves (he used the keyword **"Desatracar"** for that). One approval
   covers one commit round. Push straight to `main` of `github.com/Chelvis/haugbui_valheim_mod`.
+- Local hooks enforce it: `.git/hooks/pre-commit` and `pre-push` refuse unless the token file `.git/haugbui-desatracar`
+  exists. Create the token only after Kelvin writes "Desatracar"; `pre-push` deletes it after allowing the push, so
+  push branch and tag in one command (`git push origin main vX.Y.Z`). Never use `--no-verify`. In a fresh clone,
+  recreate both hooks (sh scripts, LF line endings) before committing.
+- Commit author is Kelvin's global git config (personal email); do not set a repo-local identity. Push over HTTPS with
+  Git Credential Manager (no `gh` CLI on the Windows machine).
 - Each completed milestone bumps the version — M7 = 0.0.7, M8 = 0.0.8 … — in `Directory.Build.props`
   (`HaugbuiVersion`) and `HaugbuiPlugin.PluginVersion`, and is tagged `vX.Y.Z` on the commit Kelvin's self-test
   validated. Tags are lightweight: push them explicitly.

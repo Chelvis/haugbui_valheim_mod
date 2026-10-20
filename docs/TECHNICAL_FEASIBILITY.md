@@ -1,6 +1,8 @@
 # Haugbui — Technical Feasibility Report
 
-Status: planning baseline · Target game: **Valheim 1.0.17** (Windows) · Date: 2026-10-12
+Status: planning baseline · Target game: **Valheim 1.0.20** (Windows) · Date: 2026-10-12. Findings below were verified on
+1.0.17 unless noted; on 2026-10-16 the 1.0.20 assemblies were decompiled into `.reference/` and the GameApiManifest
+check passes against them.
 
 ## 0. How this report was produced
 
@@ -20,7 +22,7 @@ pre-1.0 export it is marked as such. Everything marked [I]/[U] has a validation 
 
 | Item | Finding | Label |
 |---|---|---|
-| Game version | Valheim **1.0.17** (patch 2026-10-06). 1.0 released 2026-09-09 (Deep North biome, end of Early Access, new chunked save system). | [V] / [W] |
+| Game version | Valheim **1.0.20** since M7 (`Version.CurrentVersion = 1.0.20`, plugin 0.0.7 loads and its API self-check passes); planning was done on **1.0.17** (patch 2026-10-06). 1.0 released 2026-09-09 (Deep North biome, end of Early Access, new chunked save system). | [V] / [W] |
 | Engine | Unity 6 (6000.0.x). Exact build to be read from `BepInEx\LogOutput.log`. | [W] / [U] build number |
 | Scripting backend | Mono (BepInEx 5 works). | [I] |
 | Game assemblies | `<Valheim>\valheim_Data\Managed\`: `assembly_valheim`, `assembly_utils`, `assembly_guiutils`, `gui_framework`, `SoftReferenceableAssets`, `Splatform`, `PlayFab*`, `UnityEngine.*`, `Unity.TextMeshPro`, `Unity.InputSystem`. | [V] (file list) |

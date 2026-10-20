@@ -144,16 +144,19 @@ namespace Haugbui.SelfTest
             done(recreated != null ? recreated.gameObject : null);
         }
 
+        public bool Tracks(GameObject go) => go != null && _created.Contains(go);
+
         /// <summary>
         /// Removes hostile creatures near the player (no drops), so a wandering monster cannot hit a Haugbui under test.
-        /// Players, tamed creatures and Haugbui test creatures are kept.
+        /// Players, tamed creatures, Haugbui test creatures and creatures a suite spawned itself are kept.
         /// </summary>
-        public static int ClearMonsters(Vector3 center, float radius)
+        public int ClearMonsters(Vector3 center, float radius)
         {
             int removed = 0;
             foreach (Character character in Character.GetAllCharacters().ToList())
             {
                 if (character == null || character.IsPlayer() || character.IsTamed() || character.IsDead()) continue;
+                if (Tracks(character.gameObject)) continue;
                 if (character.GetComponent<MonsterAI>() == null) continue;
                 if (character.GetComponent<Creature.HaugbuiCreature>() != null || character.GetComponent<Spikes.FlightSpikeController>() != null) continue;
                 if (Vector3.Distance(character.transform.position, center) > radius) continue;

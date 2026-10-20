@@ -1,10 +1,10 @@
 {
   "project": "Haugbui",
   "version": "0.2-planning",
-  "game_version": "Valheim 1.0.17 (Windows)",
+  "game_version": "Valheim 1.0.20 (Windows)",
   "conventions": {
     "priority": "P0 = blocks the milestone / release; P1 = required for v1; P2 = nice to have",
-    "testing": "automated = NUnit tests in tests/Haugbui.Core.Tests (no game required); manual = in-game validation steps in DEVELOPMENT_GUIDE.md checklist format",
+    "testing": "automated = NUnit tests in tests/Haugbui.Core.Tests (no game required); self_test = checks in an in-game haugbui_selftest suite (src/Haugbui/SelfTest, Debug builds), the preferred way to validate in-game behaviour; manual = only what the self-test cannot judge (looks, real quit/reload). Older tickets list self-test checks under manual as 'Self-test: ...'",
     "requirements": "HB-xxx ids from PRODUCT_REQUIREMENTS.md covered by the ticket",
     "versioning": "Each completed milestone bumps the version: M1 = 0.0.1, M2 = 0.0.2, M3 = 0.0.3, … (HaugbuiVersion in Directory.Build.props and HaugbuiPlugin.PluginVersion), tagged vX.Y.Z on main."
   },
@@ -703,7 +703,7 @@
         {
           "id": "HB-T-024",
           "title": "Workbench-like connection beam and level hover",
-          "description": "Spectral beam from each bound upgrade to its tomb while the player is near (like StationExtension connection), hover text 'Level n/6' on tomb and upgrades.",
+          "description": "Spectral beam from each bound upgrade to its tomb while the player is near (like StationExtension connection), hover text 'Level n' on tomb and upgrades.",
           "priority": "P1",
           "dependencies": [
             "HB-T-022"
@@ -2458,7 +2458,7 @@
         {
           "id": "HB-T-071",
           "title": "Target policy and detection",
-          "description": "Core rules + Game facts: alive, not player, not tamed, not Haugbui, MonsterAI-driven, not AnimalsVeg/Players faction, in radius, loaded; scan every 1 s.",
+          "description": "Core rules + Game facts: alive, not player, not tamed, not Haugbui, MonsterAI-driven, not AnimalsVeg/Players faction, in radius, loaded; scan every 1 s. Bosses are valid targets (decision 2026-10-16: at the player's own risk, no exclusion, no config). Detection only while combat is enabled and acknowledged and the Longsword is bound.",
           "priority": "P0",
           "dependencies": [
             "HB-T-041",
@@ -2466,18 +2466,21 @@
           ],
           "acceptance_criteria": [
             "Greydwarfs/skeletons detected",
-            "Deer, boars (wild), tamed wolves, players, other Haugbuis ignored"
+            "A boss inside the radius is a valid target",
+            "Deer, boars (wild), tamed wolves, players, other Haugbuis ignored",
+            "Hostiles outside the radius or in unloaded zones ignored"
           ],
           "components": [
             "HaugbuiCombatManager"
           ],
           "testing": {
             "automated": [
-              "Target policy matrix"
+              "Target policy matrix (Core)"
             ],
-            "manual": [
-              "Spawn mixed creatures"
-            ]
+            "self_test": [
+              "combat suite: spawned greydwarf/skeleton detected; deer, wild boar, tamed wolf, player and another Haugbui ignored; a boss accepted (if one can be spawned and removed safely in the test arena; otherwise the Core matrix covers the boss flag)"
+            ],
+            "manual": []
           },
           "requirements": [
             "HB-141"
@@ -2486,24 +2489,31 @@
         {
           "id": "HB-T-072",
           "title": "Combat actuator and attack",
-          "description": "Approach target, attack via Humanoid default weapon (tuned wraith_melee), damage scaling per level (config); collateral piece damage allowed.",
+          "description": "Approach target, attack via Humanoid default weapon (tuned wraith_melee); collateral piece damage allowed; several Haugbuis may hit the same enemy. Level scaling (decision 2026-10-16): config Combat multiplier per level (CSV like the other progression rows, default 1.0, 1.2, 1.4, 1.6, 1.8, 2.0) multiplies its attack damage and divides the damage it takes (level 6 takes half); level-based only, the Altar adds no resistance (HB-053). The defence formula is marked 'to confirm' in PRD §23.",
           "priority": "P0",
           "dependencies": [
             "HB-T-071",
-            "HB-T-029"
+            "HB-T-029",
+            "HB-T-030"
           ],
           "acceptance_criteria": [
             "Kills a greydwarf with the Longsword bound at any level",
+            "Dealt damage = base × multiplier of its level; taken damage = incoming ÷ multiplier",
+            "Two Haugbuis attack the same enemy without state conflicts",
             "Pieces near the enemy may take damage"
           ],
           "components": [
-            "HaugbuiCombatManager"
+            "HaugbuiCombatManager",
+            "HaugbuiConfiguration"
           ],
           "testing": {
-            "automated": [],
-            "manual": [
-              "Fight inside a base"
-            ]
+            "automated": [
+              "Multiplier table and damage math (Core)"
+            ],
+            "self_test": [
+              "combat suite: kills a greydwarf; hit damage and taken damage at levels 1 and 6 match the multiplier; two Haugbuis on one enemy"
+            ],
+            "manual": []
           },
           "requirements": [
             "HB-142",
@@ -2514,16 +2524,20 @@
         {
           "id": "HB-T-073",
           "title": "Combat interrupt, resume and flee",
-          "description": "Suspend tasks after the atomic step, resume by re-planning; flee to tomb when attacked with combat OFF.",
+          "description": "Suspend tasks after the atomic step, resume by re-planning. Combat OFF (decision 2026-10-16): flight is triggered only by taking damage (being targeted does not count); it flees to its tomb, waits there without entering (entering would end the shift and charge tribute again) and resumes work when no attacker remains. Losing the Longsword stops combat at once (HB-013). Combat and flight are paused during sleep fast mode (HB-046). Carried items stay carried through combat and flight.",
           "priority": "P0",
           "dependencies": [
             "HB-T-072",
-            "HB-T-045"
+            "HB-T-045",
+            "HB-T-098"
           ],
           "acceptance_criteria": [
-            "Carried items unaffected by combat",
+            "Carried items unaffected by combat and flight (totals conserved)",
             "Delivery resumes after the fight",
-            "Combat OFF never attacks"
+            "Combat OFF never attacks; being targeted alone does not trigger flight",
+            "Combat OFF and damaged: flies to the tomb, does not enter, no new tribute charge, resumes when no attacker remains",
+            "Longsword removed: combat stops at once",
+            "No combat or flight during sleep fast mode"
           ],
           "components": [
             "HaugbuiStateMachine",
@@ -2531,11 +2545,12 @@
           ],
           "testing": {
             "automated": [
-              "Interrupt transitions"
+              "Interrupt and flee transitions (Core)"
             ],
-            "manual": [
-              "Raid during delivery"
-            ]
+            "self_test": [
+              "combat suite: hostile during a delivery trip, interrupt after the atomic step, delivery completes after the fight, item totals conserved; combat OFF: never attacks, damage triggers flight to the tomb without entering and without a new charge, work resumes; Longsword removed mid-fight; combat paused in sleep fast mode"
+            ],
+            "manual": []
           },
           "requirements": [
             "HB-142",
@@ -2545,14 +2560,15 @@
         {
           "id": "HB-T-074",
           "title": "Combat toggle with acknowledgement",
-          "description": "Toggle available while the Longsword is bound; first enable shows the warning YesNoPopup and stores combat_ack.",
+          "description": "Toggle available while the Longsword is bound; first enable shows the warning YesNoPopup and stores combat_ack only when confirmed. Current state (0.0.7): the Combat toggle already exists in UI/TombPanel.cs, and Creature/TombController.SetToggle sets TombToggles.CombatAcknowledged on enable with no confirmation popup; the warning (Structures/CombatWarning.cs) is only shown when the Longsword binds. Must show the YesNoPopup on the first enable; cancelling leaves combat OFF and unacknowledged.",
           "priority": "P0",
           "dependencies": [
             "HB-T-039",
             "HB-T-026"
           ],
           "acceptance_criteria": [
-            "Cannot enable without confirming",
+            "Cannot enable without confirming; cancel leaves combat OFF",
+            "Later enables need no confirmation once combat_ack is stored",
             "Default OFF on first installation"
           ],
           "components": [
@@ -2561,9 +2577,10 @@
           ],
           "testing": {
             "automated": [],
-            "manual": [
-              "Enable/disable flow"
-            ]
+            "self_test": [
+              "combat suite: first enable opens the confirmation; cancel keeps OFF and no ack; confirm stores combat_ack and turns it ON; refused without the Longsword; default OFF"
+            ],
+            "manual": []
           },
           "requirements": [
             "HB-026",
@@ -2803,6 +2820,38 @@
           ]
         },
         {
+          "id": "HB-T-112",
+          "title": "Per-chest item filter",
+          "description": "Optional prefab list on a vanilla chest, stored in a haugbui_* ZDO blob (no custom item). Empty list keeps HB-062. A non-empty list accepts only those prefabs, even while the chest is empty, and refuses anything else. First UI: typeahead multi-select of discovered transportable items, plus clear-all. Icons later. Wards, privacy and StrictItemData unchanged.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-046",
+            "HB-T-081"
+          ],
+          "acceptance_criteria": [
+            "Empty filter behaves as HB-062",
+            "Wood filter on an empty chest receives Wood and refuses Stone",
+            "Clear-all restores HB-062",
+            "The list survives a reload"
+          ],
+          "components": [
+            "UI",
+            "Storage"
+          ],
+          "testing": {
+            "automated": [
+              "Selector accepts only listed prefabs when the filter is set"
+            ],
+            "self_test": [
+              "Empty chest filtered to Wood receives Wood; Stone stays carried; clearing the list restores the existing-item rule; reload keeps the list"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-062"
+          ]
+        },
+        {
           "id": "HB-T-083",
           "title": "Input handling polish",
           "description": "Esc/E/gamepad back closes panels, input blocking, no movement while typing.",
@@ -2922,6 +2971,39 @@
           },
           "requirements": [
             "HB-002"
+          ]
+        },
+        {
+          "id": "HB-T-111",
+          "title": "Rename a servant in the tomb panel",
+          "description": "The tomb panel lets the owner rename the bound servant (approved 2026-10-14, PRD HB-139). The name lives in the servant slot (ServantRegistry, world global key), so it survives tomb destruction and is inherited by the next tomb bound to that slot; it shows in the hover, the panel and messages. Text input with a length cap, trimmed, empty input restores the default name ('Haugbui', 'Haugbui #2'...); input blocking while typing (HB-163). Labels localized in both languages.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-104",
+            "HB-T-080"
+          ],
+          "acceptance_criteria": [
+            "Renamed servant shows the new name in hover and panel, also after a reload",
+            "Destroying and rebuilding the tomb keeps the name",
+            "Empty or whitespace input restores the default name; over-long names are capped",
+            "No movement or hotkeys while typing"
+          ],
+          "components": [
+            "UI",
+            "ServantRegistry"
+          ],
+          "testing": {
+            "automated": [
+              "Name validation and slot blob round trip (Core)"
+            ],
+            "self_test": [
+              "Rename via the panel command, hover/panel text, reload, rebuild inherits the name, empty input restores the default"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-139",
+            "HB-163"
           ]
         }
       ]
@@ -3063,6 +3145,132 @@
           "requirements": []
         },
         {
+          "id": "HB-T-113",
+          "title": "Partial pickup of overweight stacks",
+          "description": "PickupRoute skips a ground drop unless the whole stack fits. Take the units that fit the free weight and slots, leave the rest on the ground, and collect it on later trips after the deposit. Same route for harvest leftovers and production outputs. A single unit heavier than the capacity stays. HB-031.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-054"
+          ],
+          "acceptance_criteria": [
+            "50 Wood at level 2 (capacity 70, weight 2) is taken in parts until the drop is gone",
+            "A wood chest is still required as the destination",
+            "Item totals conserved"
+          ],
+          "components": [
+            "Harvest",
+            "Brain"
+          ],
+          "testing": {
+            "automated": [
+              "PickupRoute takes a partial amount and a second plan takes the rest"
+            ],
+            "self_test": [
+              "50 Wood on the ground at level 1 or 2 ends in the wood chest; nothing left on the ground; totals conserved"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-031",
+            "HB-091"
+          ]
+        },
+        {
+          "id": "HB-T-114",
+          "title": "Production inputs from the ground",
+          "description": "While the ground-items toggle is on, an active job may take input and fuel from eligible ground drops (same age, player distance, transportable, ward and territory checks as HB-091/092). Order: carried, then ground, then storage chests. Delivery reservations apply to chests only. Toggle off ignores everything on the ground, including job inputs. Reserve each drop so the ground task does not take it on the same pass. Depends on partial pickup for stacks that do not fit.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-061",
+            "HB-T-054",
+            "HB-T-113"
+          ],
+          "acceptance_criteria": [
+            "Toggle off: ore only on the ground is not smelted",
+            "Toggle on: ore only on the ground is smelted",
+            "With a chest and a drop, the drop is used first",
+            "Item totals conserved"
+          ],
+          "components": [
+            "Production",
+            "Brain"
+          ],
+          "testing": {
+            "automated": [
+              "Supply order is carried, then ground, then chests"
+            ],
+            "self_test": [
+              "Smelter job with ScrapIron only on the ground, toggle off then on; drop preferred over a chest"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-113",
+            "HB-090"
+          ]
+        },
+        {
+          "id": "HB-T-115",
+          "title": "Combat offence and defence curves",
+          "description": "Split offence and defence into two per-level config rows. Defence target: level 1 handles Meadows animals and struggles against Black Forest monsters other than greylings, through level 6 surviving the offence target. Offence target: level 2 kills greydwarfs and shamans and has some chance against one greydwarf brute; level 6 kills three cultists, or two fenrings, or one troll, in a row; levels 3 to 5 are even steps. Calibrate from logged fights (hits dealt, hits taken, time to kill) at level 2 and level 6. Do not ship a guessed table. The Altar adds no resistance. The shared 1.0-2.0 row stands until this ticket lands.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-072"
+          ],
+          "acceptance_criteria": [
+            "Offence and defence are separate config rows",
+            "A logged fight at level 2 and level 6 is what sets the numbers",
+            "The Altar still adds no resistance"
+          ],
+          "components": [
+            "Combat",
+            "Progression"
+          ],
+          "testing": {
+            "automated": [
+              "The two rows parse and apply independently"
+            ],
+            "self_test": [
+              "Level 2 and level 6 fights log hits dealt, hits taken and time to kill for the calibration creatures"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-142",
+            "HB-053"
+          ]
+        },
+        {
+          "id": "HB-T-116",
+          "title": "Outdoor HP regen",
+          "description": "While the Haugbui is outside and alive, regain 1% of max HP every 10 real seconds (config). A sleep skip does not add this heal. Resting in the tomb stays on RestFullHealSeconds (default 600 world seconds, already applied). No regen while dead.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-035"
+          ],
+          "acceptance_criteria": [
+            "Outside, about 1% of max HP returns every 10 real seconds",
+            "A sleep skip does not heal it while it is outside",
+            "Dead, it does not regen",
+            "Resting still reaches full in RestFullHealSeconds"
+          ],
+          "components": [
+            "Creature"
+          ],
+          "testing": {
+            "automated": [
+              "Outdoor regen uses real elapsed time and ignores skipped world time"
+            ],
+            "self_test": [
+              "Damaged Haugbui outside gains HP over real time; resting reaches full on the rest clock"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-035"
+          ]
+        },
+        {
           "id": "HB-T-089",
           "title": "Release regression checklist",
           "description": "Execute DEVELOPMENT_GUIDE manual test suites end-to-end on the release build; record results.",
@@ -3071,7 +3279,11 @@
             "HB-T-084",
             "HB-T-085",
             "HB-T-079",
-            "HB-T-082"
+            "HB-T-082",
+            "HB-T-113",
+            "HB-T-114",
+            "HB-T-115",
+            "HB-T-116"
           ],
           "acceptance_criteria": [
             "All P0 checklist items pass"
@@ -3099,7 +3311,7 @@
         {
           "id": "HB-T-094",
           "title": "RemoteWorkerService and hand-over",
-          "description": "Single service ticking every RemoteTickSeconds (default 10 s) over tombs whose zone is not instantiated; rebuilds worker state from ZDOs; hand-over flag so the visible Haugbui and the remote worker never run at once; travel-time budget so remote throughput never exceeds the visible Haugbui; night/Altar rules via ITimeSource; config AwayModeEnabled. Reuses WorkBudget from HB-T-098. Charges the tribute shift like the visible Haugbui (HB-167).",
+          "description": "Single service ticking every AwayMode.TickSeconds (default 10 s) over tombs whose zone is not instantiated; rebuilds worker state from ZDOs; hand-over flag so the visible Haugbui and the remote worker never run at once; travel-time budget so remote throughput never exceeds the visible Haugbui; night/Altar rules via ITimeSource; config AwayMode.Enabled. Reuses WorkBudget from HB-T-098. Charges the tribute shift like the visible Haugbui (HB-167).",
           "priority": "P1",
           "dependencies": [
             "HB-T-090",

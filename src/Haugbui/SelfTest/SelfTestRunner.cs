@@ -17,21 +17,23 @@ namespace Haugbui.SelfTest
     /// </summary>
     internal static class SelfTestRunner
     {
-        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute", "production", "territory", "stations", "sleep" };
+        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute", "production", "territory", "stations", "sleep", "combat" };
+
+        public const string AndExit = "and_exit";
 
         public static string OutputFolder => Path.Combine(BepInEx.Paths.BepInExRootPath, "haugbui_selftest");
 
         public static bool Running { get; private set; }
         public static event Action<SelfTestContext> Finished;
 
-        public static bool Start(IEnumerable<string> suites)
+        public static bool Start(IEnumerable<string> suites, bool exitAfter = false)
         {
             if (Running || Player.m_localPlayer == null) return false;
-            HaugbuiPlugin.Instance.StartCoroutine(Run(suites.ToList()));
+            HaugbuiPlugin.Instance.StartCoroutine(Run(suites.ToList(), exitAfter));
             return true;
         }
 
-        private static IEnumerator Run(List<string> suites)
+        private static IEnumerator Run(List<string> suites, bool exitAfter)
         {
             Running = true;
             var stopwatch = Stopwatch.StartNew();
@@ -59,6 +61,7 @@ namespace Haugbui.SelfTest
                     case "territory": body = new TerritorySuite(context).Run(); break;
                     case "stations": body = new StationsSuite(context).Run(); break;
                     case "sleep": body = new SleepSuite(context).Run(); break;
+                    case "combat": body = new CombatSuite(context).Run(); break;
                     default:
                         context.Suite = suite;
                         context.Fail("unknown suite", suite);
@@ -90,6 +93,11 @@ namespace Haugbui.SelfTest
             Player.m_localPlayer?.Message(MessageHud.MessageType.Center, summary);
             Running = false;
             Finished?.Invoke(context);
+            if (!exitAfter) yield break;
+            Log.Info("Self-test: closing the game (and_exit).");
+            // One realtime second so report.txt and LogOutput.log finish writing before the process dies.
+            yield return new WaitForSecondsRealtime(1f);
+            Application.Quit();
         }
 
         private const float MonsterClearRadius = 80f;
@@ -101,7 +109,7 @@ namespace Haugbui.SelfTest
             {
                 if (Player.m_localPlayer != null)
                 {
-                    int removed = SelfTestContext.ClearMonsters(Player.m_localPlayer.transform.position, MonsterClearRadius);
+                    int removed = context.ClearMonsters(Player.m_localPlayer.transform.position, MonsterClearRadius);
                     if (removed > 0)
                     {
                         context.MonstersCleared += removed;
@@ -148,16 +156,22 @@ namespace Haugbui.SelfTest
     {
         public override string Name => "haugbui_selftest";
         public override string Help => "Haugbui: run in-game tests on a TEST world (" + string.Join(", ", SelfTestRunner.Suites) +
-                                       ", or all). Report and pictures in BepInEx/haugbui_selftest.";
+                                       ", or all). Optional " + SelfTestRunner.AndExit + " closes the game when the report is written. " +
+                                       "Report and pictures in BepInEx/haugbui_selftest.";
         public override bool IsCheat => true;
 
-        public override List<string> CommandOptionList() => SelfTestRunner.Suites.Concat(new[] { "all" }).ToList();
+        public override List<string> CommandOptionList() =>
+            SelfTestRunner.Suites.Concat(new[] { "all", SelfTestRunner.AndExit }).ToList();
 
         protected override void Execute(string[] args)
         {
-            IEnumerable<string> suites = args.Length == 0 || args.Contains("all") ? SelfTestRunner.Suites : args;
-            Print(SelfTestRunner.Start(suites)
-                ? "Self-test running; stand still until the result appears on screen (1–2 minutes)."
+            bool exitAfter = args.Any(a => a.Equals(SelfTestRunner.AndExit, StringComparison.OrdinalIgnoreCase));
+            string[] selected = args.Where(a => !a.Equals(SelfTestRunner.AndExit, StringComparison.OrdinalIgnoreCase)).ToArray();
+            IEnumerable<string> suites = selected.Length == 0 || selected.Contains("all") ? SelfTestRunner.Suites : selected;
+            Print(SelfTestRunner.Start(suites, exitAfter)
+                ? exitAfter
+                    ? "Self-test running; the game will close when it finishes. Report: BepInEx/haugbui_selftest/report.txt"
+                    : "Self-test running; stand still until the result appears on screen (1–2 minutes)."
                 : "Self-test already running or no player.");
         }
     }

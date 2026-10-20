@@ -215,9 +215,28 @@ namespace Haugbui.UI
         private static void OnToggle(TombToggles flag, bool on)
         {
             if (_refreshing || _tomb == null) return;
+            if (flag == TombToggles.Combat && on)
+            {
+                RequestCombat();
+                return;
+            }
             if (!_tomb.SetToggle(flag, on, out string refusal) && refusal != null)
                 Player.m_localPlayer?.Message(MessageHud.MessageType.Center, refusal);
             Refresh();
+        }
+
+        private static void RequestCombat()
+        {
+            TombController tomb = _tomb;
+            CombatWarning.RequestEnable(tomb, (on, refusal) =>
+            {
+                if (!string.IsNullOrEmpty(refusal)) Player.m_localPlayer?.Message(MessageHud.MessageType.Center, refusal);
+                if (_root != null && !_root.activeSelf && _tomb == tomb) _root.SetActive(true);
+                if (IsOpen) Refresh();
+            });
+            // The vanilla popup draws under the panel: hide the panel (input stays blocked) until it is answered.
+            if (CombatWarning.Pending != null) _root.SetActive(false);
+            else Refresh();
         }
 
         private static void OpenStorage()

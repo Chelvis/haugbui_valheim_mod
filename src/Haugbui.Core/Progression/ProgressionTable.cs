@@ -7,7 +7,8 @@ namespace Haugbui.Core.Progression
 {
     public readonly struct HaugbuiAttributes
     {
-        public HaugbuiAttributes(int level, float carryCapacity, float maxSpeed, float radius, int slots, float maxHealth)
+        public HaugbuiAttributes(int level, float carryCapacity, float maxSpeed, float radius, int slots, float maxHealth,
+            float combatMultiplier)
         {
             Level = level;
             CarryCapacity = carryCapacity;
@@ -15,6 +16,7 @@ namespace Haugbui.Core.Progression
             Radius = radius;
             Slots = slots;
             MaxHealth = maxHealth;
+            CombatMultiplier = combatMultiplier;
         }
 
         public int Level { get; }
@@ -23,6 +25,9 @@ namespace Haugbui.Core.Progression
         public float Radius { get; }
         public int Slots { get; }
         public float MaxHealth { get; }
+
+        /// <summary>HB-142: multiplies the damage of its hits and divides the damage it takes.</summary>
+        public float CombatMultiplier { get; }
     }
 
     public sealed class ProgressionTable
@@ -36,30 +41,35 @@ namespace Haugbui.Core.Progression
         public static readonly float[] DefaultRadius = { 50, 60, 70, 80, 90, 100 };
         public static readonly int[] DefaultSlots = { 2, 3, 4, 5, 6, 6 };
         public static readonly float[] DefaultMaxHealth = { 20, 40, 60, 80, 100, 120 };
+        public static readonly float[] DefaultCombatMultiplier = { 1.0f, 1.2f, 1.4f, 1.6f, 1.8f, 2.0f };
 
         private readonly float[] _carryCapacity;
         private readonly float[] _maxSpeed;
         private readonly float[] _radius;
         private readonly int[] _slots;
         private readonly float[] _maxHealth;
+        private readonly float[] _combatMultiplier;
 
-        private ProgressionTable(float[] carryCapacity, float[] maxSpeed, float[] radius, int[] slots, float[] maxHealth)
+        private ProgressionTable(float[] carryCapacity, float[] maxSpeed, float[] radius, int[] slots, float[] maxHealth,
+            float[] combatMultiplier)
         {
             _carryCapacity = carryCapacity;
             _maxSpeed = maxSpeed;
             _radius = radius;
             _slots = slots;
             _maxHealth = maxHealth;
+            _combatMultiplier = combatMultiplier;
         }
 
         public static ProgressionTable Default { get; } = new ProgressionTable(
-            DefaultCarryCapacity, DefaultMaxSpeed, DefaultRadius, DefaultSlots, DefaultMaxHealth);
+            DefaultCarryCapacity, DefaultMaxSpeed, DefaultRadius, DefaultSlots, DefaultMaxHealth, DefaultCombatMultiplier);
 
         public HaugbuiAttributes ForLevel(int level)
         {
             int clamped = Math.Max(MinLevel, Math.Min(MaxLevel, level));
             int i = clamped - MinLevel;
-            return new HaugbuiAttributes(clamped, _carryCapacity[i], _maxSpeed[i], _radius[i], _slots[i], _maxHealth[i]);
+            return new HaugbuiAttributes(clamped, _carryCapacity[i], _maxSpeed[i], _radius[i], _slots[i], _maxHealth[i],
+                _combatMultiplier[i]);
         }
 
         /// <summary>
@@ -67,7 +77,7 @@ namespace Haugbui.Core.Progression
         /// so one bad config line never resets the others.
         /// </summary>
         public static ProgressionTable FromCsv(
-            string carryCapacity, string maxSpeed, string radius, string slots, string maxHealth,
+            string carryCapacity, string maxSpeed, string radius, string slots, string maxHealth, string combatMultiplier,
             out IReadOnlyList<string> warnings)
         {
             var problems = new List<string>();
@@ -77,7 +87,8 @@ namespace Haugbui.Core.Progression
                 ParseColumn("Radius", radius, DefaultRadius, problems),
                 ParseColumn("Slots", slots, DefaultSlots.Select(s => (float)s).ToArray(), problems, integer: true)
                     .Select(v => (int)v).ToArray(),
-                ParseColumn("MaxHealth", maxHealth, DefaultMaxHealth, problems));
+                ParseColumn("MaxHealth", maxHealth, DefaultMaxHealth, problems),
+                ParseColumn("CombatMultiplier", combatMultiplier, DefaultCombatMultiplier, problems));
             warnings = problems;
             return table;
         }

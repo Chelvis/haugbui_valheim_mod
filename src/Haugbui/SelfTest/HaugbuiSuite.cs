@@ -134,7 +134,7 @@ namespace Haugbui.SelfTest
             }
             _t.Check("interaction plays the attack animation", creature.Visuals.InteractionAnimations > animations && swinging,
                 $"started {creature.Visuals.InteractionAnimations - animations}, in attack state {swinging}");
-            _t.Check("interaction animation starts halfway (no wind-up)", creature.Visuals.InteractionAnimationsHalved > halved,
+            _t.Check("interaction animation skips the wind-up", creature.Visuals.InteractionAnimationsHalved > halved,
                 $"halved {creature.Visuals.InteractionAnimationsHalved - halved}");
             yield return new WaitForSeconds(1.5f);
 

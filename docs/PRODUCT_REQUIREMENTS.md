@@ -1,6 +1,6 @@
 # Haugbui — Product Requirements Document
 
-Version 0.2 (planning baseline, product-owner decisions of 2026-10-13 applied) · Game: Valheim 1.0.17 (Windows, single-player first)
+Version 0.2 (planning baseline, product-owner decisions of 2026-10-13 applied) · Game: Valheim 1.0.20 (Windows, single-player first)
 Requirement IDs (`HB-xxx`) are referenced by `IMPLEMENTATION_BACKLOG.json`. Text marked **[Decision]** is a design
 choice made during planning to resolve ambiguity or a technical limitation; **[Open]** items need product-owner input.
 
@@ -70,7 +70,7 @@ Upgrades can be built **in any order**. Level and abilities are two independent 
   [Decision 2026-10-13, product owner: order is irrelevant; any-order is not harder to build than sequential.]
 - **HB-011** Each upgrade kind counts once per tomb. One upgrade binds to exactly one tomb (nearest at placement).
 - **HB-012** Workbench-like feedback: a faint spectral beam connects each upgrade to its tomb (like workbench
-  extensions); the hover text shows "Level n/6".
+  extensions); the hover text and the tomb panel show the current level only ("Level n") [Decision 2026-10-19].
 - **HB-013** Level and abilities are recomputed when upgrades are placed/destroyed and on load. Attribute changes apply
   immediately (HP max raises current HP proportionally). Losing the Longsword or Altar removes that ability at once
   (combat stops; a daytime Haugbui returns to its tomb).
@@ -124,14 +124,15 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
 | Operational radius (m) | 50 | 60 | 70 | 80 | 90 | 100 |
 | Inventory slots | 2 | 3 | 4 | 5 | 6 | 6 |
 | HP | 20 | 40 | 60 | 80 | 100 | 120 |
+| Combat multiplier (attack damage ×, incoming damage ÷) | 1.0 | 1.2 | 1.4 | 1.6 | 1.8 | 2.0 |
 
-- **HB-031** Carry capacity uses vanilla item weight (`m_weight × stack`). Both weight and slots must allow an item.
+- **HB-031** Carry capacity uses vanilla item weight (`m_weight × stack`). Weight and slots limit how many units of a stack fit. A stack that does not fit whole is taken in part; the rest stays and is collected on later trips. A single unit heavier than the capacity is never taken.
 - **HB-032** Movement speed is a maximum; the Haugbui accelerates/decelerates smoothly and hovers slowly when idle.
 - **HB-033** Operational radius is centred on the tomb. **Limitation:** only objects in loaded zones exist; at the
   lowest simulation-distance setting the effective radius may be smaller (UI shows "partially loaded" hint). When the
   tomb itself is unloaded, away mode applies (§13.4).
 - **HB-034** Interactions require the Haugbui within **1.0 m** of the target's nearest surface/interaction point.
-- **HB-035** HP regenerates while the Haugbui rests in its tomb (default: full after 1 in-game hour, config). [Decision]
+- **HB-035** HP regenerates in two ways [Decision 2026-10-19]. While it rests in the tomb, healing is linear in world time, full in `RestFullHealSeconds` (default 600, about 10 real minutes; a sleep skip completes it). While outside, it regains 1% of max HP every 10 real seconds (full in about 16.7 minutes) and a sleep skip does not heal it. No regen while dead. The outdoor rate is config.
 
 ## 6. Day and night
 
@@ -192,7 +193,9 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
 
 - **HB-062** It deposits an item only into a storage container that already contains ≥1 item of the same prefab,
   quality and world level. Empty chests never receive items. The item tops up only identical stacks (HB-061); a
-  matching chest with no identical stack takes it into an empty slot.
+  matching chest with no identical stack takes it into an empty slot. **Chest filter** [Decision 2026-10-19]: a chest
+  may store a list of prefabs. Empty list keeps this rule. A non-empty list accepts only those prefabs, even while the
+  chest is empty, and refuses everything else. First UI: typeahead multi-select and clear-all; icons later.
 - **HB-063** Destination choice among matching containers: (1) can accept the whole carried stack, (2) fewest
   free-slot fragmentation (prefer topping identical stacks), (3) nearest to the Haugbui. Never exceed capacity.
 - **HB-064** In its sorting role it never removes items from ordinary storage containers. Removal from storage
@@ -279,7 +282,9 @@ All stations below unlock at `ProductionUnlockLevel` (default **2**).
   supplied inputs, products collected, remaining. Persists across saves.
 - **HB-113** The Haugbui supplies inputs and fuel from storage containers (§8 sources, minus delivery reservations),
   keeps the station topped up without exceeding capacity, and collects outputs from the station's output point into
-  storage (§8.1; retained if no destination).
+  storage (§8.1; retained if no destination). **Ground** [Decision 2026-10-19]: only while the ground-items toggle is
+  on. Then the order is carried items, then eligible ground drops, then storage chests. Toggle off ignores everything
+  on the ground, including job inputs and fuel.
 - **HB-114** Infinite mode runs while resources exist and until disabled; never creates items.
 - **HB-115** Missing input/fuel → job shows "waiting for X" and resumes automatically.
 - **HB-116** Only recipes in the station's conversion list whose input and output materials the owner has discovered
@@ -307,7 +312,7 @@ Planned for release 1.1 (backlog M12), with a feasibility spike in M1; can move 
   destination-first) and is throttled by simulated travel time, so it is never faster than the visible Haugbui.
 - **HB-127** Not done in away mode: harvesting, collecting station outputs, cooking, combat. The game freezes
   those objects while unloaded and catches up when the player returns; the visible Haugbui then collects.
-- **HB-128** Config `AwayModeEnabled`, default ON. The tomb panel shows what was done while away (summary counters).
+- **HB-128** Config `AwayMode.Enabled`, default ON. The tomb panel shows what was done while away (summary counters).
 - **HB-129** Nothing happens while the game is closed (world time is paused).
 
 ## 14. Death and resurrection
@@ -352,12 +357,29 @@ Whenever its tomb is destroyed, it returns as soon as a new tomb is built.
 
 - **HB-140** Available while the Longsword is bound, toggle default OFF, first enable requires warning confirmation (HB-026).
 - **HB-141** Detects valid hostiles inside the operational radius: alive, not players, not tamed, not Haugbuis,
-  driven by monster AI (not passive animals), in loaded zones.
+  enemies of a tamed creature (the game's rule; Dvergr only once angry), in loaded zones. **Outside a raid** only
+  creatures attacking a player, a Haugbui or a player-built piece (monster AI with that target and not fleeing), or that
+  hurt a Haugbui in the last 10 s. **During a raid** whose area overlaps the operational radius, every creature that is
+  not tamed is a target until the raid ends; then only remaining attackers [Decision 2026-10-17]. **Bosses are valid
+  targets** (at the player's own risk; no exclusion and no config) [Decision 2026-10-16]. It always fights the
+  **nearest** valid target [Decision 2026-10-16].
 - **HB-142** On detection: suspend task (after current atomic step), alert sound, fly to target, attack with its
-  spectral blade (wraith-based melee; damage scales with level, config), return to previous tasks when no hostile
-  remains (re-planned).
+  spectral blade (wraith-based melee), return to previous tasks when no hostile remains (re-planned). **Level
+  scaling** [Decision 2026-10-16]: the combat multiplier of its level (§5, config, default 1.0× at level 1 to 2.0× at
+  level 6) multiplies its attack damage and divides the damage it takes (level 6 takes half damage). The multiplier is
+  level-based only; the Altar grants no extra resistance (HB-053). No new fight starts once the return lead (or Rest)
+  sent it home; a fight in progress ends and it flies home. Level 1 never fights: the Longsword is itself an upgrade,
+  so a Haugbui with combat is at least level 2. Offence and defence become two configurable rows. Until they are
+  calibrated, the shared 1.0×–2.0× row stays. Defence target: level 1 handles Meadows animals and struggles against
+  Black Forest monsters other than greylings, up to level 6 surviving the offence target. Offence target: level 2
+  kills greydwarfs and shamans and has some chance against one greydwarf brute; level 6 kills three cultists, or two
+  fenrings, or one troll, in a row; levels 3–5 are even steps between those ends [Decision 2026-10-19].
 - **HB-143** Collateral damage to player structures is possible by design (weapon hits pieces near the enemy).
-- **HB-144** Toggle OFF: never initiates attacks; if attacked, flees toward its tomb.
+- **HB-144** Toggle OFF: never initiates attacks. When it **takes damage** (being targeted alone does not count), it
+  flees to its tomb and waits there **without entering** (entering would end the shift and charge tribute again,
+  HB-167); when no attacker remains it resumes work (re-planned). Carried items stay carried during the flight
+  (HB-045) [Decision 2026-10-16]. An attacker remains while it is alive, loaded and inside the operational radius and
+  either targets the Haugbui or hit it in the last 10 s; the Haugbui also waits until 5 s have passed without damage.
 - **HB-145** Several Haugbuis may attack the same enemy without state conflicts.
 
 ## 16. Ownership and wards
@@ -436,7 +458,7 @@ The Haugbui does not work for free: each shift is paid with valuables offered at
 
 - **HB-180** BepInEx config with defaults from this document: tribute (enabled, costs per level, values, refund on
   destruction), cooldown, base radius & per-level tables, speed,
-  capacity, slots, HP, tick intervals, production unlock level & allowed stations, away mode, bed distance, tomb spacing, upgrade
+  capacity, slots, HP, combat multiplier, tick intervals, production unlock level & allowed stations, away mode, bed distance, tomb spacing, upgrade
   range, effects quality, debug logging. Normal play needs no configuration. Technical settings grouped under
   "Advanced".
 
@@ -486,5 +508,17 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-14 | Item data "code of conduct" (HB-061) | Optional: `StrictItemData` (default ON) keeps identical-data stacking; OFF stacks like vanilla (cheated taint and custom data follow vanilla), but never clears a cheated flag nor marks items cheated out of nothing |
 | 2026-10-14 | Several servants of one owner (HB-004/155) | Same-owner tombs at least 100 m apart (`TombSpacingSameOwner`); with `TerritoryMode` (default ON) each work target belongs to the nearest of the owner's tombs covering it; storage chests stay shared as sources only. "Something must be left for the player to do" |
 | 2026-10-15 | M7 round 2 implementation choices | Fermenter: an exposed/unroofed fermenter is reported and not loaded (the game's own load RPC skips that check). Cooking: a slot is loaded only if the item is done 30 s before the dawn return lead (no limit with the Altar); done items are taken off before anything else, and only when they are the job's own. Sleep fast mode: each step costs travel at max speed plus 1.5 s; a skipped afternoon gives nothing without the Altar. `GroundFallbackToCollectionChest` applies to ground items and harvests only |
+| 2026-10-16 | Combat OFF and attacked (HB-144) | Flight is triggered only by taking damage, not by being targeted. It flees to its tomb, waits there without entering (no shift end, no new tribute charge) and resumes work when no attacker remains |
+| 2026-10-16 | Bosses (HB-141) | Valid targets, at the player's own risk; no exclusion, no config |
+| 2026-10-16 | Level scaling in combat (HB-142, §5) | Configurable multiplier per level, default 1.0× at level 1 rising to 2.0× at level 6, applied to its attack damage; level-based only, the Altar still grants no resistance (HB-053) |
+| 2026-10-16 | Defence formula (HB-142) — **to confirm** | Incoming damage is divided by the same level multiplier (level 6 takes half damage) |
+| 2026-10-16 | Combat details (HB-141/142/144, M8, confirmed by the product owner) | Always the nearest valid target. No new fight once a return is pending (dawn lead, Rest, lost Altar); a fight in progress ends and it flies home. Flight ends when no attacker remains (alive, loaded, inside the radius and targeting it or hit it in the last 10 s) and 5 s passed without damage; damage without an attacker needs only the 5 s. Dvergr only once angry (vanilla rule for tamed creatures). Weapon: the Wraith's own `wraith_melee`, not cloned; config `Combat.DamageMultiplier` (default 1.0) multiplies its hits on top of the level multiplier. Alert: the Wraith's own alerted effect, once per engagement and at most every 10 s (none with `EffectsQuality` Low) |
+| 2026-10-16 | M8 implementation choices — **to confirm** | Hurt with combat ON but no valid target (e.g. the attacker stands outside the radius): it flees like with combat OFF. Losing the Longsword keeps the Combat toggle and the acknowledgement, so a rebuilt Longsword brings combat back without asking (a load-order gap must never switch the toggle off). The confirmation hides the tomb panel until it is answered (the vanilla popup draws under it) |
+| 2026-10-17 | Combat targets (HB-141, confirmed by the product owner) | Mark as a target only creatures that attack the base, the player or a Haugbui. Attacking = monster AI going for that target and not fleeing (the game distinguishes flee vs attack). Base = any player-placed piece; a Haugbui counts as the base. When a raid's area overlaps the operational radius, every creature that is not tamed is a target until the raid ends; afterwards only remaining attackers. Always the nearest valid target. |
+| 2026-10-19 | Chest filter (extends HB-062, HB-T-112) | A chest with a filter accepts only the listed prefabs, even while empty, and refuses everything else. An empty filter keeps HB-062. First UI: typeahead multi-select and a clear-all; icons later |
+| 2026-10-19 | Production inputs on the ground | Only while the ground-items toggle is on. Toggle off: the Haugbui ignores everything on the ground, including job inputs and fuel. When on, a job takes carried items, then ground drops, then storage chests |
+| 2026-10-19 | Combat ladder (HB-142, §5) — **to confirm** the numbers | Defence stays its own per-level parameter (not the same row as offence). Defence target: the 2026-10-19 biome ladder from level 1 (meadows animals easy, Black Forest hard except greylings) up to level 6. Offence target, from the first level that can fight (2, the Longsword): greydwarfs and shamans, and some chance against one greydwarf brute, up to level 6 killing three cultists, or two fenrings, or one troll, in a row. Calibrate from measured fights; do not ship the current 1.0–2.0 Wraith row as that ladder |
+| 2026-10-19 | HP regen (HB-035, confirmed) | Resting in the tomb: full in 600 world seconds (about 10 real minutes; a sleep skip completes it). Outside: 1% of max HP every 10 real seconds (about 16.7 minutes from empty to full); a sleep skip does not heal it. No regen while dead. Both rates are config. The rest default is applied; outdoor regen is HB-T-116 |
+| 2026-10-19 | Level display (HB-012) | Tomb panel and hover show the current level only ("Level 2"), not "2/6" |
 
 Open: none.

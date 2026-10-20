@@ -19,7 +19,8 @@ namespace Haugbui.Core.Creature
 
     /// <summary>
     /// HB-043/142. Interrupt priority: Dead &gt; Combat &gt; Returning &gt; tasks. An Interacting step is atomic: a return
-    /// requested during it waits until the step completes.
+    /// requested during it waits until the step completes. A fight in progress ends into a pending return, but no new
+    /// fight starts once a return is pending or under way.
     /// </summary>
     public sealed class HaugbuiStateMachine
     {
@@ -31,8 +32,8 @@ namespace Haugbui.Core.Creature
             [HaugbuiState.Traveling] = new[] { HaugbuiState.Idle, HaugbuiState.Interacting, HaugbuiState.Combat, HaugbuiState.Fleeing, HaugbuiState.Returning },
             [HaugbuiState.Interacting] = new[] { HaugbuiState.Idle, HaugbuiState.Traveling, HaugbuiState.Returning },
             [HaugbuiState.Combat] = new[] { HaugbuiState.Idle, HaugbuiState.Fleeing, HaugbuiState.Returning },
-            [HaugbuiState.Fleeing] = new[] { HaugbuiState.Idle, HaugbuiState.Returning },
-            [HaugbuiState.Returning] = new[] { HaugbuiState.Entering, HaugbuiState.Combat, HaugbuiState.Idle },
+            [HaugbuiState.Fleeing] = new[] { HaugbuiState.Idle, HaugbuiState.Combat, HaugbuiState.Returning },
+            [HaugbuiState.Returning] = new[] { HaugbuiState.Entering, HaugbuiState.Idle },
             [HaugbuiState.Entering] = new[] { HaugbuiState.Dormant },
             [HaugbuiState.Dead] = new[] { HaugbuiState.Dormant },
         };
@@ -65,7 +66,7 @@ namespace Haugbui.Core.Creature
         public bool TryEnter(HaugbuiState to)
         {
             if (!CanTransition(State, to)) return false;
-            if (ReturnPending && (to == HaugbuiState.Traveling || to == HaugbuiState.Interacting)) return false;
+            if (ReturnPending && (to == HaugbuiState.Traveling || to == HaugbuiState.Interacting || to == HaugbuiState.Combat)) return false;
             HaugbuiState from = State;
             State = to;
             EnteredAt = _clock();

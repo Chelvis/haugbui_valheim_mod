@@ -1,6 +1,7 @@
 # Haugbui — Architecture
 
-Target: Valheim 1.0.17 · BepInEx 5.4.23 · Jötunn 2.30.2 · C# / .NET Framework 4.8 (Windows).
+Target: Valheim 1.0.20 · BepInEx 5.4.23 · Jötunn 2.30.2 · C# / .NET Framework 4.8 (Windows). Notes marked
+"1.0.17" were verified on that version; the API manifest passes on 1.0.20.
 Companion documents: `TECHNICAL_FEASIBILITY.md` (verified facts), `PRODUCT_REQUIREMENTS.md` (behaviour).
 
 ## 1. Principles
@@ -145,9 +146,13 @@ stateDiagram-v2
   Idle --> Combat: valid hostile + combat enabled
   Traveling --> Combat
   Interacting --> Combat: after current atomic step
-  Combat --> Idle: no hostile
-  Combat --> Fleeing: combat disabled and being attacked
-  Fleeing --> Idle
+  Combat --> Idle: no hostile / combat off
+  Combat --> Returning: return pending
+  Idle --> Fleeing: hurt, cannot fight
+  Traveling --> Fleeing
+  Fleeing --> Combat: combat on + valid hostile
+  Fleeing --> Idle: no attacker left
+  Fleeing --> Returning
   Idle --> Dead: HP 0 (any state)
   Dead --> Dormant: cooldown elapsed (handled by tomb)
 ```
@@ -155,7 +160,8 @@ stateDiagram-v2
 - **Dormant / Dead / Cooldown** are tomb states (creature absent). **Emerging, Idle, Traveling, Interacting, Combat,
   Returning, Entering** exist only while the creature is spawned.
 - Interrupts: Combat > Returning(dawn) > tasks. An interrupt never splits an atomic interaction step (e.g. moving one
-  stack); it waits for the step to finish (≤ 1 tick).
+  stack); it waits for the step to finish (≤ 1 tick). A fight in progress ends into a pending return; no new fight
+  starts once a return is pending or under way (M8).
 - On load, a spawned creature never resumes mid-task: the tomb respawns it (if allowed and its shift is paid) at its last
   saved position or at the tomb, in Idle, and tasks are re-planned from persistent state.
 
@@ -431,13 +437,44 @@ interface IStationAdapter {                       // Integration/StationAdapters
 
 ## 10. Combat
 
-- `CombatTaskProvider` scans the registry's characters near the tomb (every 1 s) and validates targets via
-  `ITargetPolicy` (Core rules + Game facts): alive, not player, not tamed, not Haugbui, has `MonsterAI`, not
-  `AnimalsVeg`/`Players` faction, within operational radius, in loaded zone, combat toggle on and acknowledged.
-- The Haugbui character is set **tamed** (no `Tameable` component) so vanilla AI never targets players/tamed animals
-  and enemies treat it as a valid target. Its `MonsterAI` is neutralised; `CombatActuator` aligns, closes to attack
-  range and calls the vanilla `Humanoid` attack with its default weapon (cloned/tuned `wraith_melee`).
-- Multiple Haugbuis may attack the same enemy (no reservation needed: damage is idempotent per hit).
+Built in M8 (PRD §15, decisions 2026-10-16). Pure rules in `Haugbui.Core/Combat`, the game side in
+`Brain/CombatTaskProvider`, `Creature/CombatActuator`, `Creature/CombatPatches` and `Integration/CombatGateway`; every
+game member is in the manifest under feature `Combat` (a missing one disables combat and flight only).
+
+- **Enabled** (`TombController.CombatEnabled`): Longsword bound, `Combat` toggle and `CombatAcknowledged` set, feature
+  `Combat` available. Losing the Longsword keeps the toggle; combat stops because the ability is gone (HB-013).
+- **Targets** (`TargetPolicy`, Core): `CombatGateway.Facts` reads alive, player, tamed, Haugbui, aggressor
+  (`MonsterAI` going for a player, a Haugbui or a player-built piece and not fleeing, or it hurt a Haugbui recently),
+  boss, `BaseAI.IsEnemy(haugbui, target)` (the game only lets a tamed attacker hit enemies; this drops calm Dvergr),
+  loaded (`LoadedArea`) and distance to the tomb. Outside a raid only aggressors are valid; while a random event's area
+  overlaps the operational radius (`GetCurrentRandomEvent`, not the local-player `GetActiveEvent`), every creature that
+  is not tamed is. Bosses follow the same rule. `CombatTaskProvider` scans `Character.GetAllCharacters()` about once a
+  second while combat is enabled (immediately on damage, when a raid starts or ends, or when it is threatened with no
+  target), and keeps the **nearest** valid target; the current target is re-validated every frame.
+- **Decisions** (`CombatRules`, Core) every frame while the creature is out, before the worker's step: Idle/Traveling
+  with a target → Engage (the worker aborts its plan, `Interacting` never spans a frame, so the atomic step is already
+  done); Combat without target, enabled, or with a return pending → Disengage (`CompleteStep`: Idle, or Returning when
+  the dawn lead or Rest asked for it); hurt and unable to fight → Flee; Fleeing → Idle once not threatened. Sleep fast
+  mode (`TombController.SleepFastMode`) pauses all of it. The state machine refuses `Combat` while a return is pending.
+- **Threat** (`ThreatTracker`, Core): fed by `Character.m_onDamaged` (damage after every modifier, attacker). An
+  attacker remains while alive, loaded, inside the radius and targeting the Haugbui (`BaseAI.GetTargetCreature`) or
+  having hit it in the last 10 s; any damage keeps it away for 5 s. Being targeted alone never starts a flight.
+- **Flight** (combat OFF, or hurt with no valid target): flies to `TombController.HoverPoint` and circles there
+  without entering, so the shift and its tribute continue (§5.2); then the worker re-plans. Carried items stay.
+- **Actuator**: equips the Wraith's default weapon from its inventory (`Humanoid.GiveDefaultItems` stores weapons
+  without equipping them; the vanilla AI that would equip it never runs), flies to a point at reach on its side of the
+  target, faces it (`HaugbuiCreature.Facing`, 3D look direction for the swing's vertical aim) and calls
+  `Humanoid.StartAttack` when in `m_aiAttackRange`, within the aim angle and after `m_aiAttackInterval`. The weapon
+  (`wraith_melee`, not cloned) and its damage are logged at the first engagement. The Wraith's alerted effect plays once
+  per engagement (at most every 10 s). Collateral hits on pieces follow the vanilla attack (HB-143).
+- **Level scaling**: `CombatPatches` postfixes `Attack.ModifyDamage` (every hit of a Haugbui's attack) with
+  `CombatMath.DealtFactor` = level `CombatMultiplier` × `Combat.DamageMultiplier`, and prefixes `Character.RPC_Damage`
+  on the owner with `TakenFactor` = 1 / level multiplier (to confirm), before resistances and world modifiers, which
+  all multiply. The tomb sets both factors on the creature at spawn and every tick. Level-based only.
+- **Toggle** (HB-026): `TombController.SetToggle` refuses Combat ON without `combat_ack` (`CombatNeedsConfirmation`);
+  `CombatWarning.RequestEnable` shows a `YesNoPopup` (the tomb panel hides itself until it is answered, because the
+  vanilla popup draws under Jötunn's panel); Yes → `AcknowledgeCombat` + toggle ON, No → off and unacknowledged.
+- Multiple Haugbuis may attack the same enemy (no reservation: damage is per hit).
 
 ## 11. Movement
 
@@ -478,7 +515,8 @@ validates and writes the ZDO (future MP: routed RPC to the owner).
 ## 14. Remote worker ("away mode")
 
 When the tomb ZDO exists but its zone is not instantiated (player away), `RemoteWorkerService` (single instance,
-ticks every `RemoteTickSeconds`, default 10 s) runs each tomb's abstract worker directly on ZDO data:
+ticks every `AwayMode.TickSeconds`, default 10 s; switched by `AwayMode.Enabled`) runs each tomb's abstract worker
+directly on ZDO data:
 
 - Same rules as the physical Haugbui: night/level gating via `ITimeSource`, toggles, storage rule, delivery ledger,
   reservations, access policy (ward data read from `PrivateArea` ZDOs), equipment filter.
@@ -500,13 +538,8 @@ the game skips time and the Haugbui may work (out, no return pending); outside a
 skip `HaugbuiWorker.FastForward` replaces `Step`: up to 20 steps per frame, each paid with distance / max speed + 1.5 s,
 the creature teleported next to the target (`HaugbuiCreature.Teleport`) and the same `Execute` as normal work.
 Presence, shifts and tribute run unchanged, so the shift is charged the same way (HB-167). Self-test hook:
-`TombController.SkippingForTests`.
-
-`SleepFastMode` (owner-side) is active while `EnvMan.IsTimeSkipping()`. Each frame it adds the world-time delta
-(only the part where the Haugbui may work) to a per-tomb budget; the state machine then runs the next planned steps
-with `HaugbuiMovement.TeleportTo` instead of flight while the budget covers `distance / speed + interactionTime`.
-Combat and flee states are suspended. The same budget model backs the away-mode worker (§14), so both share
-`WorkBudget` in Core.
+`TombController.SkippingForTests`. A skip is detected with `EnvMan.IsTimeSkipping()`; combat and flight are paused
+during it (§10): a fight or flight in progress ends into Idle so the fast worker can run. The away-mode worker (§14) reuses `WorkBudget`.
 
 ## 15. Multiplayer readiness (not in v1)
 
@@ -521,4 +554,4 @@ dedicated-server NRE workarounds (`Pickable.RPC_Pick`, `CookingStation.SpawnItem
 - All patches wrapped in try/catch with rate-limited logging.
 - Console commands (Jötunn `ConsoleCommand`): `haugbui_status`, `haugbui_reservations`, `haugbui_ledger`,
   `haugbui_plan` (dry run), `haugbui_cleanup` (orphan creatures), `haugbui_kill`, `haugbui_cooldown_skip`,
-  `haugbui_dump_tomb`, `haugbui_dump_prefabs`.
+  `haugbui_dump_tomb`, `haugbui_dump_prefabs`, `haugbui_radius` (operational radius, workbench `CircleProjector`).

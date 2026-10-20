@@ -94,6 +94,8 @@ namespace Haugbui.Brain
         {
             get
             {
+                if (_tomb.Machine.State == HaugbuiState.Combat) return "$haugbui_activity_defending";
+                if (_tomb.Machine.State == HaugbuiState.Fleeing) return "$haugbui_activity_fleeing";
                 if (Plan != null)
                 {
                     switch (Plan.Kind)

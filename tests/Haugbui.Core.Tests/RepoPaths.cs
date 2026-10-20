@@ -26,12 +26,27 @@ namespace Haugbui.Core.Tests
 
         public static string Translations => Path.Combine(Root, "src", "Haugbui", "Translations");
 
+        /// <summary>
+        /// .reference/Managed, ../haugbui-reference/Managed, then the game install the build used (VALHEIM_MANAGED from
+        /// Directory.Build.props/Environment.props) or the VALHEIM_MANAGED / VALHEIM_INSTALL environment variables.
+        /// </summary>
         public static string ReferenceManaged
         {
             get
             {
-                string inside = Path.Combine(Root, ".reference", "Managed");
-                return Directory.Exists(inside) ? inside : Path.Combine(Root, "..", "haugbui-reference", "Managed");
+                string recorded = typeof(RepoPaths).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+                    .FirstOrDefault(a => a.Key == "ValheimManaged")?.Value;
+                string install = System.Environment.GetEnvironmentVariable("VALHEIM_INSTALL");
+                string[] candidates =
+                {
+                    Path.Combine(Root, ".reference", "Managed"),
+                    Path.Combine(Root, "..", "haugbui-reference", "Managed"),
+                    recorded,
+                    System.Environment.GetEnvironmentVariable("VALHEIM_MANAGED"),
+                    string.IsNullOrEmpty(install) ? null : Path.Combine(install, "valheim_Data", "Managed"),
+                };
+                string found = candidates.FirstOrDefault(c => !string.IsNullOrEmpty(c) && File.Exists(Path.Combine(c, "assembly_valheim.dll")));
+                return found ?? candidates[0];
             }
         }
     }

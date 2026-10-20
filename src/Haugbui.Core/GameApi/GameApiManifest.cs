@@ -23,6 +23,7 @@ namespace Haugbui.Core.GameApi
         public const string RemoteWork = "RemoteWork";
         public const string Structures = "Structures";
         public const string Creature = "Creature";
+        public const string Combat = "Combat";
     }
 
     public sealed class ApiMember
@@ -246,6 +247,59 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "SapCollector", "RPC_Extract", MemberKind.Method, Features.Harvest, "System.Int64"),
             M(Valheim, "SapCollector", "GetLevel", MemberKind.Method, Features.Harvest),
             M(Valheim, "SapCollector", "m_spawnItem", MemberKind.Field, Features.Harvest),
+
+            M(Valheim, "Character", "RPC_Damage", MemberKind.Method, Features.Combat, "System.Int64", "HitData"),
+            M(Valheim, "Character", "m_onDamaged", MemberKind.Field, Features.Combat),
+            M(Valheim, "Character", "m_nview", MemberKind.Field, Features.Combat),
+            M(Valheim, "Character", "GetFaction", MemberKind.Method, Features.Combat),
+            M(Valheim, "Character", "IsBoss", MemberKind.Method, Features.Combat),
+            M(Valheim, "Character", "IsTamed", MemberKind.Method, Features.Combat),
+            M(Valheim, "Character", "GetBaseAI", MemberKind.Method, Features.Combat),
+            M(Valheim, "Character", "GetRadius", MemberKind.Method, Features.Combat),
+            M(Valheim, "Character", "GetCenterPoint", MemberKind.Method, Features.Combat),
+            M(Valheim, "Character", "GetZDOID", MemberKind.Method, Features.Combat),
+            M(Valheim, "Character", "SetLookDir", MemberKind.Method, Features.Combat),
+            M(Valheim, "Character", "Damage", MemberKind.Method, Features.Combat, "HitData"),
+            M(Valheim, "Humanoid", "StartAttack", MemberKind.Method, Features.Combat, "Character", "System.Boolean"),
+            M(Valheim, "Humanoid", "GetCurrentWeapon", MemberKind.Method, Features.Combat),
+            M(Valheim, "Humanoid", "EquipItem", MemberKind.Method, Features.Combat),
+            M(Valheim, "Humanoid", "GetInventory", MemberKind.Method, Features.Combat),
+            M(Valheim, "Humanoid", "InAttack", MemberKind.Method, Features.Combat),
+            M(Valheim, "Humanoid", "m_unarmedWeapon", MemberKind.Field, Features.Combat),
+            M(Valheim, "Attack", "ModifyDamage", MemberKind.Method, Features.Combat, "HitData", "System.Single"),
+            M(Valheim, "Attack", "m_character", MemberKind.Field, Features.Combat),
+            M(Valheim, "HitData", "m_damage", MemberKind.Field, Features.Combat),
+            M(Valheim, "HitData", "GetTotalDamage", MemberKind.Method, Features.Combat),
+            M(Valheim, "HitData", "SetAttacker", MemberKind.Method, Features.Combat),
+            M(Valheim, "HitData+DamageTypes", "Modify", MemberKind.Method, Features.Combat, "System.Single"),
+            M(Valheim, "ItemDrop+ItemData", "m_lastAttackTime", MemberKind.Field, Features.Combat),
+            M(Valheim, "ItemDrop+ItemData+SharedData", "m_aiAttackRange", MemberKind.Field, Features.Combat),
+            M(Valheim, "ItemDrop+ItemData+SharedData", "m_aiAttackInterval", MemberKind.Field, Features.Combat),
+            M(Valheim, "ItemDrop+ItemData+SharedData", "m_aiAttackMaxAngle", MemberKind.Field, Features.Combat),
+            M(Valheim, "ItemDrop+ItemData+SharedData", "m_damages", MemberKind.Field, Features.Combat),
+            M(Valheim, "BaseAI", "IsEnemy", MemberKind.Method, Features.Combat, "Character", "Character"),
+            M(Valheim, "BaseAI", "GetTargetCreature", MemberKind.Method, Features.Combat),
+            M(Valheim, "BaseAI", "m_alertedEffects", MemberKind.Field, Features.Combat),
+            M(Valheim, "MonsterAI", null, MemberKind.Type, Features.Combat),
+            M(Valheim, "MonsterAI", "m_targetCreature", MemberKind.Field, Features.Combat),
+            M(Valheim, "MonsterAI", "m_targetStatic", MemberKind.Field, Features.Combat),
+            M(Valheim, "MonsterAI", "GetStaticTarget", MemberKind.Method, Features.Combat),
+            M(Valheim, "MonsterAI", "m_attackPlayerObjects", MemberKind.Field, Features.Combat),
+            M(Valheim, "BaseAI", "IsAlerted", MemberKind.Method, Features.Combat),
+            M(Valheim, "BaseAI", "SetAlerted", MemberKind.Method, Features.Combat, "System.Boolean"),
+            M(Valheim, "BaseAI", "m_lastFlee", MemberKind.Field, Features.Combat),
+            M(Valheim, "BaseAI", "m_fleeInterval", MemberKind.Field, Features.Combat),
+            M(Valheim, "Piece", "IsPlacedByPlayer", MemberKind.Method, Features.Combat),
+            M(Valheim, "RandEventSystem", "instance", MemberKind.Property, Features.Combat),
+            M(Valheim, "RandEventSystem", "GetCurrentRandomEvent", MemberKind.Method, Features.Combat),
+            M(Valheim, "RandEventSystem", "SetRandomEventByName", MemberKind.Method, Features.Combat),
+            M(Valheim, "RandEventSystem", "ResetRandomEvent", MemberKind.Method, Features.Combat),
+            M(Valheim, "RandEventSystem", "m_events", MemberKind.Field, Features.Combat),
+            M(Valheim, "RandomEvent", "m_pos", MemberKind.Field, Features.Combat),
+            M(Valheim, "RandomEvent", "m_eventRange", MemberKind.Field, Features.Combat),
+            M(Valheim, "RandomEvent", "m_name", MemberKind.Field, Features.Combat),
+            M(Valheim, "YesNoPopup", null, MemberKind.Type, Features.Combat),
+            M(Valheim, "UnifiedPopup", "IsAvailable", MemberKind.Method, Features.Combat),
         };
 
         public static IEnumerable<string> FeaturesOf(IEnumerable<ApiMember> members) =>

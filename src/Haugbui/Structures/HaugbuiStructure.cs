@@ -125,8 +125,7 @@ namespace Haugbui.Structures
         {
             HaugbuiStructure tomb = Kind == StructureKind.Tomb ? this : StructureRegistry.FindTomb(BoundTombGuid);
             if (tomb == null) return "$haugbui_hover_unbound";
-            return Localization.instance.Localize("$haugbui_hover_level",
-                tomb.Progress.Level.ToString(), ProgressionTable.MaxLevel.ToString());
+            return Localization.instance.Localize("$haugbui_hover_level", tomb.Progress.Level.ToString());
         }
     }
 }

@@ -54,11 +54,11 @@ namespace Haugbui.Creature
             return light;
         }
 
-        private const float InteractionAnimationSpeed = 1.75f;
+        private const float InteractionAnimationSpeed = 2f;
         private const float InteractionAnimationSeconds = 1.5f;
 
-        /// <summary>The swing's wind-up is long; only its second half is played (normalized time).</summary>
-        private const float InteractionAnimationStart = 0.5f;
+        /// <summary>The swing's wind-up is long; playback starts this far into it (normalized time).</summary>
+        private const float InteractionAnimationStart = 0.35f;
 
         private static string _attackTrigger;
         private float _fastAnimationUntil;
@@ -94,7 +94,7 @@ namespace Haugbui.Creature
             InteractionAnimations++;
         }
 
-        /// <summary>Once the trigger reaches the attack state (or the transition into it), jump to its second half.</summary>
+        /// <summary>Once the trigger reaches the attack state (or the transition into it), jump past the wind-up.</summary>
         private void SkipWindUp(Animator animator)
         {
             if (animator == null) return;

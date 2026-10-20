@@ -1,14 +1,16 @@
-# Haugbui — Handover (2026-10-16)
+# Haugbui — Handover (2026-10-19)
 
-State of the project when development moved from Claude Code to Cursor. Read this, then `AGENTS.md`, the PRD
+State of the project when development moved from Claude Code to Cursor (updated 2026-10-19, M8 done). Read
+this, then `AGENTS.md`, the PRD
 decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M1–M7).
 
 ## 1. Where we are
 
-- **Version 0.0.7** (tag `v0.0.7`, commit `7631d86` on `main`). Milestones **M1–M7 done** and validated in game by
-  Kelvin with the in-game self-test (last full runs: 408/410 then fixes, final stations + production 80/80).
-- Valheim updated to **1.0.20** during M7. The runtime API self-check passes, but the decompiled references used for
-  API work are still **1.0.17** — regenerate them before M8 (section 5).
+- **Version 0.0.8** (tag `v0.0.8` on `main`). Milestones **M1–M8 done** and validated in game by Kelvin with the
+  in-game self-test (M8 full run 2026-10-19: 494 passed, 2 storage failures from world wood drops; storage re-run
+  after the suite stopped picking ground items: 55/55). Combat: 72/72 before that full run.
+- Valheim updated to **1.0.20** during M7. The runtime API self-check passes, and since 2026-10-16 the decompiled
+  references in `.reference/` are 1.0.20 too (section 5); the GameApiManifest unit test passes against them.
 
 | Milestone | Scope | Version |
 |---|---|---|
@@ -19,6 +21,7 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 | M5 | Collection and Delivery chests, request editor; identical-data stacking | 0.0.5 |
 | M6 | Ground items, harvesting, tribute (wages), servant slots, death/new-tomb timing | 0.0.6 |
 | M7 | Production automation (smelter family, fermenter, cooking, fuel-only), sleep fast mode, `StrictItemData`, territories | 0.0.7 |
+| M8 | Combat (Longsword, nearest aggressor, raid overlap, level scaling, flee without entering) | 0.0.8 |
 
 ## 2. What is next
 
@@ -26,18 +29,18 @@ Remaining milestones (tickets in `docs/IMPLEMENTATION_BACKLOG.json`):
 
 | Milestone | Tickets | Notes |
 |---|---|---|
-| **M8 Combat** (next, 0.0.8) | HB-T-071..074 | Longsword grants combat; toggle OFF by default with warning; flee when OFF. Since M7 the creature is really tamed, so monsters already target it. |
-| M9 World safety | HB-T-075..079 | World marker + guard warning, opt-in backup, integrity checks, missing-mod end-to-end, save/reload torture. |
-| M10 UI + localization | HB-T-080..083, 099, 106, 107 | Panel v2, hovers, full pt-BR/en-US pass, looks (HB-T-099 has the owner's kitbash ideas), custom icons drawn by Kelvin (HB-T-106), optional custom 3D models (HB-T-107). |
+| **M9 World safety** (next, 0.0.9) | HB-T-075..079 | World marker + guard warning, opt-in backup, integrity checks, missing-mod end-to-end, save/reload torture. |
+| M10 UI + localization | HB-T-080..083, 099, 106, 107, 111 | Panel v2, hovers, full pt-BR/en-US pass, looks (HB-T-099 has the owner's kitbash ideas), custom icons drawn by Kelvin (HB-T-106), optional custom 3D models (HB-T-107). |
 | M11 Optimization + release | HB-T-084..089 | Performance budget (HB-201), multi-Haugbui validation, config review, README, Thunderstore package, regression checklist. |
 | M12 Away mode | HB-T-094..097 | Remote logistics on world data while the player is far away; spike HB-T-090 already passed. Charges tribute shifts. |
 
-Approved but not yet ticketed: renaming a servant in the tomb panel (PRD HB-139).
+Renaming a servant in the tomb panel (PRD HB-139) is ticket HB-T-111 in M10.
 
 ## 3. Known gaps carried forward
 
 - Tomb zone unloaded while the Haugbui is out: it despawns and resumes on the next load; the deposit happens then.
-- No custom emerge/enter VFX, idle or alert sounds.
+- No custom emerge/enter VFX or idle sounds. Combat plays the Wraith's own alert effect.
+- Combat defence (incoming damage divided by the level multiplier) is still marked "to confirm" in PRD §23.
 - Non-owner peers see stale state text (multiplayer is out of scope for v1).
 - Deposits do not reserve destination room (re-read when putting); each planning tick snapshots all containers in
   radius — measure in M11 (HB-201).
@@ -56,52 +59,65 @@ Approved but not yet ticketed: renaming a servant in the tomb panel (PRD HB-139)
 
 ## 5. Environment
 
-### Machines and folders (as used until now)
+### Machine and folders (since 2026-10-16: Windows only, Cursor)
 
-- **Mac** (planning + builds, no Valheim): repo at `~/Projects/M/haugbui-valheim-mod`, synced to the Windows PC with
-  Google Drive "My computer". To keep the sync light, `.git` lives in `~/Projects/M/haugbui-git` (separate git dir; the
-  repo holds a one-line `.git` file) and game references in `~/Projects/M/haugbui-reference` (`Managed/`,
-  `decompiled/`, `dumps/`). Build outside the tree on the Mac:
-  `HAUGBUI_BUILD_ROOT=$HOME/.cache/haugbui-build dotnet build Haugbui.sln -p:MOD_DEPLOYPATH=`.
-- **Windows** (game + tests): builds in-tree with its own `Environment.props` (Valheim path, r2modman profile
-  `HaugbuiDev` as `MOD_DEPLOYPATH`). That file is per machine and git-ignored.
-- If you start fresh on one machine (e.g. Cursor on Windows), a normal `git clone` works; set `Environment.props` from
-  `Environment.props.example`.
+- Everything happens on Kelvin's Windows PC: repo at `D:\ProjetosGit\haugbui_valheim_mod` (normal clone, `.git` inside,
+  no Drive sync). Game at `F:\SteamLibrary\steamapps\common\Valheim` (an old `E:\SteamLibrary\...\Valheim` folder only
+  holds leftover BepInEx files; ignore it). Test profile (r2modman) `HaugbuiDev`:
+  `C:\Users\ponto\AppData\Roaming\r2modmanPlus-local\Valheim\profiles\HaugbuiDev`; Debug builds deploy there via
+  `Environment.props` (per machine, git-ignored). Self-test output and `LogOutput.log` are in that profile's `BepInEx\`.
+- Until M7 planning ran on a Mac with the repo synced through Google Drive, a separate git dir and
+  `../haugbui-reference`; that setup is retired (details in `docs/history/PLANNING_LOG.md`). `HAUGBUI_BUILD_ROOT` and
+  the `../haugbui-reference` fallback still work if it is ever needed again.
 
 ### Game references (never commit)
 
-- `VALHEIM_MANAGED` resolves to the game's `valheim_Data/Managed`, else `.reference/Managed`, else
-  `../haugbui-reference/Managed` (`Directory.Build.props`). The GameApiManifest unit test uses the same DLLs.
-- Decompile with ilspycmd (8.x works; on macOS set `DOTNET_ROLL_FORWARD=Major`):
-  `ilspycmd -p -o <ref>/decompiled/assembly_valheim -r <ref>/Managed <ref>/Managed/assembly_valheim.dll`
-  (also `assembly_utils`, `assembly_guiutils`, Jötunn from the NuGet cache). Search with a plain `grep` over `./*.cs`
-  (one generated file is named `-PrivateImplementationDetails-.cs`).
-- Prefab values (capacities, conversions, recipes) are asset data: run `haugbui_dump_prefabs` in game and keep the JSON
-  next to the references.
-- **To do before M8:** copy the 1.0.20 `Managed` folder and re-decompile; rerun `dotnet test` (manifest check).
+- `VALHEIM_MANAGED` (build) resolves to the game's `valheim_Data/Managed`, else `.reference/Managed`, else
+  `../haugbui-reference/Managed` (`Directory.Build.props`). The GameApiManifest unit test only looks in
+  `.reference/Managed` or `../haugbui-reference/Managed` and is **skipped** when neither exists (M8 adds a fallback to
+  the game install).
+- **Done 2026-10-16:** the 1.0.20 `Managed` DLLs are in `.reference/Managed` and decompiled with ilspycmd **9.1**
+  (`dotnet tool install -g ilspycmd --version 9.1.0.7988`; the latest version does not install on the .NET 8 SDK) into
+  `.reference/decompiled/{assembly_valheim, assembly_utils, assembly_guiutils, Jotunn}` (`Version.CurrentVersion =
+  1.0.20`). `dotnet test`: 297/297, manifest test included. Redo both steps after each game update (DEVELOPMENT_GUIDE §6).
+- Search the decompile with ripgrep/grep over `*.cs` (one generated file is named `-PrivateImplementationDetails-.cs`).
+- Prefab values (capacities, conversions, recipes, attack damage) are asset data: run `haugbui_dump_prefabs` in game
+  and keep the JSON in `.reference/dumps/`. The last dump is from 1.0.17; a 1.0.20 dump is welcome for M8.
 
-### Accounts
+### Accounts and git
 
-- The repo belongs to Kelvin's personal GitHub account. Commit author:
-  `Kelvin Marques <11822757+Chelvis@users.noreply.github.com>` (repo-local git config).
+- The repo belongs to Kelvin's personal GitHub account (`Chelvis`). Commit author: Kelvin's global git config
+  (`Kelvin Marques <kelvin.marques@gmail.com>`), decision 2026-10-16; no repo-local identity. Commits up to 0.0.7 used
+  the noreply address, which is fine.
+- No `gh` CLI on this machine: push over HTTPS with Git Credential Manager (`credential.helper = manager`). On
+  2026-10-16 a dry-run push failed with "Invalid username or token", so Kelvin may need to sign in again (GCM prompt)
+  before the first push.
+- **Approval guard (local hooks, never committed):** `.git/hooks/pre-commit` refuses a commit and `.git/hooks/pre-push`
+  refuses a push unless the token file `.git/haugbui-desatracar` exists. An agent creates the token only after Kelvin
+  writes "Desatracar"; `pre-push` deletes it after allowing the push (one approval = one round). Push the branch and
+  the tag in **one** command (`git push origin main vX.Y.Z`), because the token is gone after the first push. Never
+  bypass with `--no-verify`. The hooks live only in this clone; recreate them in a new clone (see AGENTS.md).
 
 ## 6. Workflow that worked: planner + implementation sessions
 
 - One **planner** session owns product decisions, the PRD/backlog, milestone order and reviews. It does not implement
   features. For each milestone it writes a self-contained brief (goal, ticket ids, product rules, file locations,
-  build/test/git/version rules) and starts an **implementation** session (Cursor: a new chat/agent or background
-  agent) that works in the main checkout, never in a separate worktree when the folder is synced.
+  build/test/git/version rules) in `docs/briefs/M<n>.md` and starts an **implementation** session (Cursor: a new
+  chat/agent started with "Read docs/briefs/M<n>.md and follow it") that works in the main checkout, never in a
+  separate worktree.
 - The implementation session proposes a short plan, implements in rounds, extends the self-test, asks Kelvin to run
   it, fixes failures, and only after his approval commits, bumps the version and tags. It reports back to the planner:
   commit/tag, test numbers, decisions taken alone, gaps.
 - Only one session edits docs at a time; relay decisions instead of editing files another session is changing.
-- Milestone briefs used so far are in `docs/history/PLANNING_LOG.md`; the M7 brief is a good template.
+- Briefs up to M7 are in `docs/history/PLANNING_LOG.md` (the M7 brief is the template); from M8 on they are in
+  `docs/briefs/`.
 
 ## 7. Quick reference
 
 - Build: `dotnet build Haugbui.sln -c Debug` (deploys to `MOD_DEPLOYPATH`), `-c Release` (no spikes/self-test).
-- Unit tests: `dotnet test tests/Haugbui.Core.Tests` (about 300 tests).
+- Unit tests: `dotnet test tests/Haugbui.Core.Tests` (341 tests at 0.0.8, incl. the manifest check when
+  `.reference/Managed` or the game install exists).
 - In game (Debug build, `devcommands`): `haugbui_selftest [basics structures flight transfers haugbui storage chests
-  harvest tribute territory production stations sleep]`; diagnostics `haugbui_status`, `haugbui_dump_tomb`,
+  harvest tribute territory production stations sleep combat] [and_exit]`; diagnostics `haugbui_status`, `haugbui_dump_tomb`,
   `haugbui_dump_prefabs`, `haugbui_reservations`, `haugbui_ledger`, `haugbui_registry`.
 - Config: `BepInEx/config/com.kelvinmarques.haugbui.cfg`.

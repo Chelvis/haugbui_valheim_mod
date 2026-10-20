@@ -30,6 +30,7 @@ namespace Haugbui.Config
         private ConfigEntry<string> _radius;
         private ConfigEntry<string> _slots;
         private ConfigEntry<string> _maxHealth;
+        private ConfigEntry<string> _combatMultiplier;
 
         public HaugbuiConfig(ConfigFile file)
         {
@@ -115,6 +116,8 @@ namespace Haugbui.Config
                 "Carried inventory slots per level 1..6 (whole numbers).");
             _maxHealth = BindLevels("MaxHealth", ProgressionTable.ToCsv(ProgressionTable.DefaultMaxHealth),
                 "Health per level 1..6.");
+            _combatMultiplier = BindLevels("CombatMultiplier", ProgressionTable.ToCsv(ProgressionTable.DefaultCombatMultiplier),
+                "Combat multiplier per level 1..6: the damage of its hits is multiplied by it and the damage it takes is divided by it.");
 
             DawnReturnLeadSeconds = BindAdmin(Timing, "DawnReturnLeadSeconds", 60f,
                 "Real seconds before dawn when the Haugbui starts returning to its tomb.", 0f, 600f);
@@ -125,8 +128,8 @@ namespace Haugbui.Config
 
             CooldownDays = BindAdmin(Death, "CooldownDays", 1f,
                 "In-game days before a dead Haugbui may return. Without the Altar it then waits for the next nightfall.", 0f, 30f);
-            RestFullHealSeconds = BindAdmin(Death, "RestFullHealSeconds", 3600f,
-                "World-time seconds for a resting Haugbui to heal from zero to full.", 1f, 86400f);
+            RestFullHealSeconds = BindAdmin(Death, "RestFullHealSeconds", 600f,
+                "World-time seconds for a resting Haugbui to heal from zero to full (about 10 real minutes).", 1f, 86400f);
 
             ProductionUnlockLevel = BindAdmin(Production, "ProductionUnlockLevel", 2,
                 "Tomb level that unlocks production automation.", ProgressionTable.MinLevel, ProgressionTable.MaxLevel);
@@ -152,7 +155,9 @@ namespace Haugbui.Config
                     AdminDescription("Ingredients as Item:Amount,Item:Amount (item prefab names). Invalid text uses the default."));
             }
 
-            CombatDamageMultiplier = BindAdmin(Combat, "DamageMultiplier", 1f, "Multiplier for Haugbui attack damage.", 0.1f, 10f);
+            CombatDamageMultiplier = BindAdmin(Combat, "DamageMultiplier", 1f,
+                "Base multiplier for the damage of the Haugbui's hits (the Wraith's own attack), applied together with the " +
+                "CombatMultiplier of its level.", 0.1f, 10f);
 
             HarvestWildPickables = BindAdmin(Harvest, "WildPickables", false,
                 "Also pick wild plants (berries, mushrooms, thistle...), not only cultivated crops.");
@@ -204,7 +209,7 @@ namespace Haugbui.Config
         private ProgressionTable BuildProgressionTable()
         {
             ProgressionTable table = ProgressionTable.FromCsv(
-                _carryCapacity.Value, _maxSpeed.Value, _radius.Value, _slots.Value, _maxHealth.Value,
+                _carryCapacity.Value, _maxSpeed.Value, _radius.Value, _slots.Value, _maxHealth.Value, _combatMultiplier.Value,
                 out IReadOnlyList<string> warnings);
             foreach (string warning in warnings)
                 Log.Warning("Config " + Progression + ": " + warning);

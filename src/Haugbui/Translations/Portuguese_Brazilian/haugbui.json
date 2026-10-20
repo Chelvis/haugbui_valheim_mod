@@ -19,7 +19,7 @@
   "haugbui_msg_api_check_failed": "Haugbui: alguns recursos foram desativados porque o jogo mudou. Veja o log do BepInEx.",
   "haugbui_msg_piece_disabled": "Haugbui: uma construção foi desativada porque a receita é inválida. Veja o log do BepInEx.",
   "haugbui_tomb_storage": "Depósito do túmulo",
-  "haugbui_hover_level": "Nível $1/$2",
+  "haugbui_hover_level": "Nível $1",
   "haugbui_hover_unbound": "Não está ligado a um túmulo",
   "haugbui_msg_need_bed": "O túmulo precisa ficar perto de uma cama sua.",
   "haugbui_msg_tomb_too_close": "Muito perto de outro túmulo.",
@@ -128,5 +128,8 @@
   "haugbui_station_no_fire": "precisa de fogo",
   "haugbui_job_too_close_to_dawn": "aguardando: perto demais do amanhecer para cozinhar com segurança",
   "haugbui_activity_tending": "cuidando de uma estação",
-  "haugbui_job_cooking_warning": "Sem o Altar, só coloca o que fica pronto antes do amanhecer; itens que você deixar cozinhando podem queimar."
+  "haugbui_job_cooking_warning": "Sem o Altar, só coloca o que fica pronto antes do amanhecer; itens que você deixar cozinhando podem queimar.",
+  "haugbui_combat_confirm_text": "Com esta espada o Haugbui defenderá o túmulo a qualquer custo, e seus golpes podem danificar suas construções. Ativar o combate?",
+  "haugbui_activity_defending": "defendendo o local de sepultamento",
+  "haugbui_activity_fleeing": "ferido: esperando junto ao túmulo"
 }

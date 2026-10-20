@@ -47,6 +47,41 @@ namespace Haugbui.Creature
 
         internal event Action Died;
 
+        /// <summary>Damage it took after every game modifier, and who dealt it (null for none).</summary>
+        internal event Action<float, Character> Damaged;
+
+        /// <summary>HB-142: set by the tomb from its level; applied to every hit it deals and takes.</summary>
+        internal float DealtFactor { get; set; } = 1f;
+        internal float TakenFactor { get; set; } = 1f;
+
+        /// <summary>While set and nearly still, it turns to face this point and looks at it (combat).</summary>
+        internal Vector3? Facing { get; set; }
+
+        internal Humanoid Humanoid => _character as Humanoid;
+
+        internal int HitsDealt { get; private set; }
+        internal float LastDealtBase { get; private set; }
+        internal float LastDealtScaled { get; private set; }
+        internal int HitsTaken { get; private set; }
+        internal float LastTakenIncoming { get; private set; }
+        internal float LastTakenScaled { get; private set; }
+
+        internal void ScaleDealt(HitData hit)
+        {
+            LastDealtBase = hit.GetTotalDamage();
+            hit.m_damage.Modify(DealtFactor);
+            LastDealtScaled = hit.GetTotalDamage();
+            HitsDealt++;
+        }
+
+        internal void ScaleTaken(HitData hit)
+        {
+            LastTakenIncoming = hit.GetTotalDamage();
+            hit.m_damage.Modify(TakenFactor);
+            LastTakenScaled = hit.GetTotalDamage();
+            HitsTaken++;
+        }
+
         private void Awake()
         {
             _view = GetComponent<ZNetView>();
@@ -62,6 +97,7 @@ namespace Haugbui.Creature
             _character.m_tamed = true;
             if (_view.IsOwner()) _view.GetZDO().Set(ZDOVars.s_tamed, true);
             _character.m_onDeath += () => Died?.Invoke();
+            _character.m_onDamaged += (damage, attacker) => Damaged?.Invoke(damage, attacker);
             Visuals = gameObject.AddComponent<CreatureVisuals>();
             _lastPosition = transform.position;
             Instances.Add(this);
@@ -115,6 +151,7 @@ namespace Haugbui.Creature
         {
             _target = null;
             _targetCollider = null;
+            Facing = null;
             Arrived = false;
             _speed = 0;
             if (_character != null) _character.SetMoveDir(Vector3.zero);
@@ -164,17 +201,33 @@ namespace Haugbui.Creature
             if (_character == null || _view == null || !_view.IsValid() || !_view.IsOwner() || _character.IsDead()) return;
             Vector3 heading = _body != null ? _body.linearVelocity : Vector3.zero;
             heading.y = 0f;
+            Vector3 look = heading;
             if (heading.magnitude < MinHeadingSpeed)
             {
-                if (!HasTarget) return;
-                heading = (_targetCollider != null ? _targetCollider.ClosestPoint(transform.position) : _target.Value) - transform.position;
+                Vector3 goal;
+                if (Facing != null) goal = Facing.Value;
+                else if (HasTarget) goal = _targetCollider != null ? _targetCollider.ClosestPoint(transform.position) : _target.Value;
+                else return;
+                heading = goal - transform.position;
                 heading.y = 0f;
                 if (heading.magnitude < 0.05f) return;
+                // A melee swing takes only its vertical aim from the look direction (Attack.GetMeleeAttackDir).
+                look = Facing != null ? goal - transform.position : heading;
             }
             Quaternion want = Quaternion.LookRotation(heading.normalized);
             Quaternion yaw = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
             transform.rotation = Quaternion.RotateTowards(yaw, want, TurnDegreesPerSecond * Time.deltaTime);
-            _character.SetLookDir(heading);
+            _character.SetLookDir(look);
+        }
+
+        /// <summary>Horizontal angle between where it faces and a point.</summary>
+        internal float AngleTo(Vector3 point)
+        {
+            Vector3 to = point - transform.position;
+            to.y = 0f;
+            Vector3 forward = transform.forward;
+            forward.y = 0f;
+            return to.sqrMagnitude < 0.0001f ? 0f : Vector3.Angle(forward, to);
         }
 
         /// <summary>Angle between where it faces and where it moves, both flattened; 0 while nearly still.</summary>

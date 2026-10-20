@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Brain;
 using Haugbui.Core.Creature;
+using Haugbui.Core.Persistence;
 using Haugbui.Core.Storage;
 using Haugbui.Core.Structures;
 using Haugbui.Creature;
@@ -73,6 +74,10 @@ namespace Haugbui.SelfTest
             yield return SelfTestContext.WaitFrames(3);
             _tomb = tomb.GetComponent<TombController>();
             _t.Check("tomb has a worker", _tomb != null && _tomb.Worker != null);
+            if (_tomb == null) yield break;
+            // World drops near the player are not part of the counts; only the harvest suite picks them up.
+            _tomb.SetToggle(TombToggles.GroundItems, false, out _);
+            _tomb.SetToggle(TombToggles.Harvesting, false, out _);
         }
 
         private void Registry()

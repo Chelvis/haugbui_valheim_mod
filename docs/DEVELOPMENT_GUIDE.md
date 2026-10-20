@@ -1,9 +1,7 @@
 # Haugbui — Development Guide
 
-Platform: **Windows** (the mod targets Windows only for now). Game: Valheim 1.0.17.
+Platform: **Windows** (the mod targets Windows only for now). Game: Valheim 1.0.20.
 Stack: BepInExPack_Valheim 5.4.2351 · Jötunn 2.30.2 · .NET Framework 4.8 · C#.
-
-> The solution described here is created by ticket HB-T-001. Until then, this guide is the target state.
 
 ## 1. Prerequisites
 
@@ -70,7 +68,8 @@ cooldown math, state-machine transitions, localization key parity.
 3. Useful commands: `tod 0.5` (noon) / `tod 0` (midnight), `skiptime <seconds>`, `env ThunderStorm`, `resetenv`,
    `spawn Greydwarf 3`, `god`, `nocost`, `killall`, `save`, `wind 0 1`. Some cheats can block achievements in 1.0.
 4. Haugbui commands (HB-T-010): `haugbui_status`, `haugbui_dump_tomb`, `haugbui_reservations`, `haugbui_ledger`,
-   `haugbui_registry`; planned: `haugbui_plan` (dry run), `haugbui_cleanup`, `haugbui_kill`, `haugbui_cooldown_skip`.
+   `haugbui_registry`, `haugbui_radius` (show or hide the operational radius; the workbench circle, tinted purple);
+   planned: `haugbui_plan` (dry run), `haugbui_cleanup`, `haugbui_kill`, `haugbui_cooldown_skip`.
 5. `haugbui_dump_prefabs` (HB-T-091) writes `BepInEx\haugbui_prefabs.json` with station conversions, capacities,
    crafting recipes and item names from the installed game. Run it after each game update and attach the file when
    planning changes on the Mac.
@@ -137,11 +136,13 @@ Each item: setup → action → expected. Record pass/fail per release in `docs/
 Most in-game checks are automated. Use a throwaway test world: the suites build, reload and destroy objects about
 15 m around the player and remove everything they created.
 
-- **Manual run:** in the world, `devcommands`, then `haugbui_selftest` (all suites) or
-  `haugbui_selftest basics structures flight transfers haugbui storage chests harvest tribute production territory stations sleep`. Stand still for about a minute.
-- **Unattended run:** in r2modman, *Settings → Set launch parameters*:
-  `-console -haugbui-autotest "<character>" "<world>" -haugbui-autotest-quit`, then *Start modded*. The mod picks the
-  character and world from the main menu, waits for the spawn, runs every suite, writes the report and quits.
+- **Run:** in the world, `devcommands`, then `haugbui_selftest` (all suites) or
+  `haugbui_selftest basics structures flight transfers haugbui storage chests harvest tribute production territory stations sleep combat`. Stand still for about a minute.
+  Add `and_exit` to close the game when the report is written (`haugbui_selftest and_exit`,
+  `haugbui_selftest production combat and_exit`).
+  Kelvin runs it himself and sends back the output folder and `LogOutput.log`.
+- The code also contains an unattended launch mode (`SelfTest/AutoTest.cs`); it is not part of the workflow and is
+  not proposed.
 - **Output:** `BepInEx\haugbui_selftest\report.txt` (PASS/FAIL per check) and PNG pictures of each structure taken
   at noon from fixed angles (`tomb.png`, `Offering.png`, …, `tomb_without_mod.png`, `flyer.png`).
 
@@ -159,6 +160,7 @@ What the suites cover:
 | territory | Own tomb 20 m away refused with `TombSpacingSameOwner` (100 m); with the spacing lowered for the test, two overlapping tombs: deposits only into chests of the own territory, storage chests shared as sources, a Collection Chest belongs to the nearest tomb, positions split the same way, TerritoryMode off shares again. The runner turns both rules off (in memory) for the older suites |
 | stations | Fermenter (recipes and yield 6 read from the prefab, exposed fermenter reported and not loaded, then with the cover rule skipped and 1 s fermentation: one base fed, tapped, 6 meads produced and stored); hot tub, frost kiln, shield generator kept above half fuel, never above max, nothing added once disabled; oven (cook time 4 s for the test): near dawn nothing loaded and the status says why, at night 3 loaded, taken off and stored, nothing burnt, fuel within capacity; `GroundFallbackToCollectionChest` off: a drop without destination stays, on: it goes to the Collection Chest, never tomb storage, and stays there |
 | sleep | Sleep fast mode on the fake clock: a skipped afternoon banks nothing without the Altar; 2 s of world time do not finish a delivery trip; pushing world time forward completes it without flight, item totals conserved; the bank empties when the skip ends |
+| combat | Two tombs on the fake clock, player in god mode, spawned monsters without loot (the runner's monster cleanup spares them). Toggle: OFF and unacknowledged by default, refused without the Longsword, binding the Longsword does not turn it on, first enable opens the yes/no confirmation, cancel keeps OFF and no ack, confirm stores `combat_ack` and turns it ON, later enables ask nothing. Targets: greydwarf attacking the player, skeleton attacking a Haugbui, greydwarf attacking a building, angry wild boar: valid; calm greydwarf, fleeing greydwarf, deer, calm boar, tamed wolf, player, the other Haugbui, a greydwarf outside the radius and a calm boss: ignored; during a raid the calm greydwarf, deer, boar and boss become valid (tamed/player/Haugbui/outside still ignored). A real `army_eikthyr` at the tomb: fights a calm deer or boar while it lasts, then only remaining attackers. Level 1: factors ×1/÷1 and a hit of 10 taken in full. Level 2: fights the nearest hostile, alert effect, kills a greydwarf, hit damage ×1.2, then the next hostile, back to Idle; two Haugbuis on one Greydwarf Elite. Interrupt: a greydwarf during a delivery trip suspends it (plan aborted after the step, carried wood kept), the delivery completes after the fight, wood totals conserved. Combat OFF (tribute on, shift paid): a pinned greyling targeting it causes no flight; a hit makes it fly home and circle outside the tomb while the attacker remains, no new charge, never attacks; once the attacker is gone it resumes the delivery. Longsword removed mid-fight stops combat at once (no further swing); rebuilt, combat is back. Sleep fast mode: no combat or flight while skipping, combat resumes after. Level 6: factors ×2/÷2, a kill with hits ×2.0, a hit of 10 halved and level 1 / level 6 health lost = 2 |
 | production | Station adapters (smelter capacities, eitr refinery/charcoal kiln/blast furnace/windmill recipes and fuel, no adapter for workbench, forge, cauldron, mead ketill, prep table or obliterator); Shift+E opens the panel on the smelter, only discovered recipes, finite job needs an amount, hover hint; level 1: panel explains the unlock level and nothing is produced, level 2 after the Offering; finite job of 3 copper (smelter set to 1 s per bar): 3 supplied/3 produced, queue and fuel within capacity, output trip reserves its drops, bars stored, clean ore first and cheated ore untouched, clean bars, nothing left at the output point, hover progress, no more ore once complete; job survives a reload and a raised target resumes; manual tin in the queue pauses the job (never removed) and it resumes when the queue is empty; ore requested by a Delivery Chest is delivered, not smelted; a job owned by another tomb is ignored until `JobTakeoverMinutes`; Production toggle off stops all tasks; unroofed spinning wheel reports "needs roof" |
 | haugbui | spawned creature tamed and not an enemy of the player (green health bar), interaction plays the attack animation, countdown label not mirrored; creature prefab (not saved, no drops, tamed, purple material copies, aura parts), dormant at noon / emerges at night / returns inside the dawn lead (fake clock, so no `tod` needed), movement (arrival ≤ 1 m, max speed, no jumps), one creature after a tomb reload, deposit on entering and overflow with full storage, Rest toggle, death (items to storage, cooldown, countdown label, waits for night, resurrects), Altar (works at noon, dark aura on/off, returns when removed), toggle gating and persistence, tomb destruction (carried + overflow dropped, creature gone) |
 
@@ -217,7 +219,7 @@ with the Altar.
    you own"; with your bed it places. A second tomb closer than 5 m is refused.
 3. Upgrades: refused with no tomb within 8 m; a second upgrade of the same kind is refused; any order works. The
    Longsword shows the combat warning popup.
-4. Hover the tomb: "Level n/6" goes up by one per upgrade; `haugbui_dump_tomb` lists the bound upgrades.
+4. Hover the tomb: "Level n" goes up by one per upgrade; `haugbui_dump_tomb` lists the bound upgrades.
 5. Destroy an upgrade with the hammer: level drops by one and the refund is the Haugbui recipe.
 6. `E` on the tomb opens "Tomb storage" (10 slots).
 7. Save, quit, reload: same look, level and storage. Remove `Haugbui.dll`, load: a wooden chest and tables (or
@@ -253,14 +255,21 @@ with the Altar.
 
 ## 6. API reference workflow (decompiled game)
 
-Never guess game APIs. On the Windows machine use ILSpy/dnSpy on `assembly_valheim.dll`. On macOS (planning machine),
-the game's `Managed` folder is copied to `.reference/Managed/` and decompiled to `.reference/decompiled/` (git-ignored,
-never committed or redistributed):
+Never guess game APIs. The game's `Managed` folder is copied to `.reference/Managed/` and decompiled to
+`.reference/decompiled/` (git-ignored, never committed or redistributed). The GameApiManifest unit test checks every
+member against `.reference/Managed`, else `../haugbui-reference/Managed`, else the game install the build resolved
+(`VALHEIM_MANAGED`, or the `VALHEIM_MANAGED` / `VALHEIM_INSTALL` environment variables); it is skipped only when none
+of them exists. On Windows
+(ilspycmd 9.1; the latest ilspycmd does not install on the .NET 8 SDK):
 
-```bash
-export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH" DOTNET_ROLL_FORWARD=Major
-ilspycmd -p -o .reference/decompiled/assembly_valheim -r .reference/Managed .reference/Managed/assembly_valheim.dll
+```powershell
+dotnet tool install -g ilspycmd --version 9.1.0.7988
+Copy-Item "<VALHEIM_INSTALL>\valheim_Data\Managed\*.dll" .reference\Managed\
+ilspycmd -p -o .reference\decompiled\assembly_valheim -r .reference\Managed .reference\Managed\assembly_valheim.dll
 ```
+
+Repeat for `assembly_utils`, `assembly_guiutils` and Jötunn (`%USERPROFILE%\.nuget\packages\jotunnlib\2.30.2\lib\net462\Jotunn.dll`).
+On macOS set `DOTNET_ROLL_FORWARD=Major` first.
 
 After each game update: refresh `.reference/`, diff key files (Container, Smelter, Pickable, Beehive, Player, ZNetScene,
 ZDOMan, EnvMan) and update `Haugbui.Core/GameApi/GameApiManifest.cs` + `TECHNICAL_FEASIBILITY.md`.
@@ -273,9 +282,10 @@ repository. To compile `Haugbui.dll` on macOS (no game run), also copy `BepInEx\
 ## 7. Configuration
 
 File: `BepInEx\config\<plugin guid>.cfg` (or F1 with ConfigurationManager). Defaults equal the PRD. Main sections:
-`General`, `Progression` (CSV per level), `Timing`, `Death` (`CooldownSeconds`, world time), `Production`
+`General`, `Progression` (CSV per level), `Timing`, `Death` (`CooldownDays`, world time), `Production`
 (`ProductionUnlockLevel` = 2, allowed station kinds), `AwayMode`
-(`AwayModeEnabled`, `RemoteTickSeconds`), `Construction` (`BedDistance`, `TombSpacing`, `UpgradeRange`), `Combat`,
+(`Enabled`, `TickSeconds`), `Construction` (`BedDistance`, `TombSpacing`, `UpgradeRange`), `Combat` (`DamageMultiplier`,
+the base multiplier of its hits; the per-level `CombatMultiplier` is a `Progression` row),
 `Advanced` (tick intervals, reservation lease, debug).
 
 ## 8. How to add a production station

@@ -14,7 +14,7 @@ namespace Haugbui.Core.Tests
         public void Manifest_matches_the_reference_game_assemblies()
         {
             if (!Directory.Exists(RepoPaths.ReferenceManaged))
-                Assert.Ignore("Game assemblies not available in .reference/Managed");
+                Assert.Ignore("Game assemblies not found (.reference/Managed, ../haugbui-reference/Managed or the game install)");
 
             string[] dlls = Directory.GetFiles(RepoPaths.ReferenceManaged, "*.dll");
             using var context = new MetadataLoadContext(new PathAssemblyResolver(dlls), "mscorlib");

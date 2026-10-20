@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Haugbui.Core.Progression;
 using NUnit.Framework;
 
@@ -10,7 +11,7 @@ namespace Haugbui.Core.Tests
         private static string Csv(int[] values) => ProgressionTable.ToCsv(values);
 
         private static ProgressionTable Parse(
-            string carry = null, string speed = null, string radius = null, string slots = null, string hp = null)
+            string carry = null, string speed = null, string radius = null, string slots = null, string hp = null, string combat = null)
         {
             return ProgressionTable.FromCsv(
                 carry ?? Csv(ProgressionTable.DefaultCarryCapacity),
@@ -18,6 +19,7 @@ namespace Haugbui.Core.Tests
                 radius ?? Csv(ProgressionTable.DefaultRadius),
                 slots ?? Csv(ProgressionTable.DefaultSlots),
                 hp ?? Csv(ProgressionTable.DefaultMaxHealth),
+                combat ?? Csv(ProgressionTable.DefaultCombatMultiplier),
                 out _);
         }
 
@@ -38,6 +40,24 @@ namespace Haugbui.Core.Tests
             Assert.That(l6.Radius, Is.EqualTo(100));
             Assert.That(l6.Slots, Is.EqualTo(6));
             Assert.That(l6.MaxHealth, Is.EqualTo(120));
+
+            Assert.That(Enumerable.Range(1, 6).Select(l => ProgressionTable.Default.ForLevel(l).CombatMultiplier),
+                Is.EqualTo(new[] { 1.0f, 1.2f, 1.4f, 1.6f, 1.8f, 2.0f }));
+        }
+
+        [Test]
+        public void Combat_multiplier_column_is_configurable_and_falls_back_alone()
+        {
+            Assert.That(Parse(combat: "1,1,1,1,1,3").ForLevel(6).CombatMultiplier, Is.EqualTo(3f));
+
+            ProgressionTable bad = ProgressionTable.FromCsv(
+                Csv(ProgressionTable.DefaultCarryCapacity), Csv(ProgressionTable.DefaultMaxSpeed), "1,2,3,4,5,6",
+                Csv(ProgressionTable.DefaultSlots), Csv(ProgressionTable.DefaultMaxHealth), "1,2,0,4,5,6",
+                out IReadOnlyList<string> warnings);
+            Assert.That(warnings, Has.Count.EqualTo(1));
+            Assert.That(warnings[0], Does.StartWith("CombatMultiplier"));
+            Assert.That(bad.ForLevel(6).CombatMultiplier, Is.EqualTo(2f));
+            Assert.That(bad.ForLevel(6).Radius, Is.EqualTo(6f));
         }
 
         [TestCase(0, 1)]
@@ -54,7 +74,7 @@ namespace Haugbui.Core.Tests
             ProgressionTable.FromCsv(
                 Csv(ProgressionTable.DefaultCarryCapacity), Csv(ProgressionTable.DefaultMaxSpeed),
                 Csv(ProgressionTable.DefaultRadius), Csv(ProgressionTable.DefaultSlots),
-                Csv(ProgressionTable.DefaultMaxHealth), out IReadOnlyList<string> warnings);
+                Csv(ProgressionTable.DefaultMaxHealth), Csv(ProgressionTable.DefaultCombatMultiplier), out IReadOnlyList<string> warnings);
 
             Assert.That(warnings, Is.Empty);
         }
@@ -79,7 +99,7 @@ namespace Haugbui.Core.Tests
             ProgressionTable table = ProgressionTable.FromCsv(
                 Csv(ProgressionTable.DefaultCarryCapacity), Csv(ProgressionTable.DefaultMaxSpeed), radius,
                 Csv(ProgressionTable.DefaultSlots), Csv(ProgressionTable.DefaultMaxHealth),
-                out IReadOnlyList<string> warnings);
+                Csv(ProgressionTable.DefaultCombatMultiplier), out IReadOnlyList<string> warnings);
 
             Assert.That(warnings, Has.Count.EqualTo(1));
             Assert.That(warnings[0], Does.StartWith("Radius"));
@@ -100,7 +120,7 @@ namespace Haugbui.Core.Tests
         {
             ProgressionTable table = ProgressionTable.FromCsv(
                 Csv(ProgressionTable.DefaultCarryCapacity), Csv(ProgressionTable.DefaultMaxSpeed),
-                Csv(ProgressionTable.DefaultRadius), "2,3,4.5,5,6,6", Csv(ProgressionTable.DefaultMaxHealth),
+                Csv(ProgressionTable.DefaultRadius), "2,3,4.5,5,6,6", Csv(ProgressionTable.DefaultMaxHealth), Csv(ProgressionTable.DefaultCombatMultiplier),
                 out IReadOnlyList<string> warnings);
 
             Assert.That(warnings, Has.Count.EqualTo(1));

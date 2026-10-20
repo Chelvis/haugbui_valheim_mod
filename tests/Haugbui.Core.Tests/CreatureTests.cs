@@ -181,15 +181,43 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
-        public void Combat_outranks_returning()
+        public void Fight_in_progress_ends_into_the_return()
         {
             HaugbuiStateMachine sm = Machine(HaugbuiState.Idle);
-            sm.RequestReturn();
             Assert.That(sm.TryEnter(HaugbuiState.Combat), Is.True);
             Assert.That(sm.RequestReturn(), Is.False);
+            Assert.That(sm.State, Is.EqualTo(HaugbuiState.Combat));
             Assert.That(sm.TryEnter(HaugbuiState.Traveling), Is.False);
             sm.CompleteStep();
             Assert.That(sm.State, Is.EqualTo(HaugbuiState.Returning));
+        }
+
+        [Test]
+        public void No_new_fight_once_a_return_is_pending_or_under_way()
+        {
+            HaugbuiStateMachine returning = Machine(HaugbuiState.Idle);
+            returning.RequestReturn();
+            Assert.That(returning.State, Is.EqualTo(HaugbuiState.Returning));
+            Assert.That(returning.TryEnter(HaugbuiState.Combat), Is.False);
+            Assert.That(returning.TryEnter(HaugbuiState.Fleeing), Is.False);
+
+            HaugbuiStateMachine pending = Machine(HaugbuiState.Idle);
+            pending.TryEnter(HaugbuiState.Combat);
+            pending.RequestReturn();
+            pending.TryEnter(HaugbuiState.Fleeing);
+            Assert.That(pending.TryEnter(HaugbuiState.Combat), Is.False);
+        }
+
+        [Test]
+        public void Flight_can_turn_into_a_fight_and_back_to_work()
+        {
+            HaugbuiStateMachine sm = Machine(HaugbuiState.Traveling);
+            Assert.That(sm.TryEnter(HaugbuiState.Fleeing), Is.True);
+            Assert.That(sm.TryEnter(HaugbuiState.Combat), Is.True);
+            sm.CompleteStep();
+            Assert.That(sm.State, Is.EqualTo(HaugbuiState.Idle));
+            Assert.That(HaugbuiStateMachine.CanTransition(HaugbuiState.Interacting, HaugbuiState.Combat), Is.False, "never splits a step");
+            Assert.That(HaugbuiStateMachine.CanTransition(HaugbuiState.Fleeing, HaugbuiState.Entering), Is.False, "waits outside the tomb");
         }
 
         [Test]

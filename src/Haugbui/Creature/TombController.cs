@@ -49,7 +49,16 @@ namespace Haugbui.Creature
         internal HaugbuiCreature Creature { get; private set; }
         internal HaugbuiStructure Structure => _tomb;
         internal HaugbuiWorker Worker { get; private set; }
+        internal CombatTaskProvider Combat { get; private set; }
         internal string Guid => _tomb.Guid;
+
+        /// <summary>SetToggle refusal: the first enable must confirm the combat warning (HB-026).</summary>
+        internal const string CombatNeedsConfirmation = "combat_needs_confirmation";
+
+        /// <summary>HB-140/013: Longsword bound, toggle on and acknowledged, and the game API it needs is there.</summary>
+        internal bool CombatEnabled =>
+            State != null && _tomb.Progress.Has(TombAbilities.Combat) && State.Has(TombToggles.Combat | TombToggles.CombatAcknowledged)
+            && GameApiSelfCheck.IsAvailable(Core.GameApi.Features.Combat);
 
         /// <summary>The servant bound to this tomb (HB-137); null until bound or when every slot is taken.</summary>
         internal ServantSlot Slot { get; private set; }
@@ -106,6 +115,7 @@ namespace Haugbui.Creature
             Machine = new HaugbuiStateMachine(() => TimeSource.Current.Now);
             Carried = new CarriedInventory(1, 1);
             Worker = new HaugbuiWorker(this);
+            Combat = new CombatTaskProvider(this);
             if (_tomb.Zdo == null) return;
 
             var store = new ZdoBlobStore(_tomb.Zdo);
@@ -280,6 +290,7 @@ namespace Haugbui.Creature
             if (Machine.IsOut && Creature != null)
             {
                 SyncHealth(attributes);
+                SyncCombatFactors(attributes);
                 Vector3 p = Creature.transform.position;
                 state.PositionX = p.x;
                 state.PositionY = p.y;
@@ -295,6 +306,7 @@ namespace Haugbui.Creature
             if (Machine.IsOut && Creature == null)
             {
                 Worker.ReleaseAll();
+                Combat.Reset();
                 // Destroyed by something else than death (e.g. removed with a command): count it as back inside.
                 Machine.Restore(HaugbuiState.Dormant);
                 EnteredTomb();
@@ -302,6 +314,7 @@ namespace Haugbui.Creature
             }
             if (Creature == null) return;
 
+            Combat.Step(fast);
             bool working = fast ? Worker.FastForward(Budget, FastStepsPerFrame) : Worker.Step();
             Creature.SetState(Machine.State);
             switch (Machine.State)
@@ -312,7 +325,7 @@ namespace Haugbui.Creature
                 case HaugbuiState.Idle:
                     if (working) break;
                     Creature.MaxSpeed = Mathf.Min(IdleSpeed, Attributes.MaxSpeed);
-                    if (!Creature.HasTarget || Creature.Arrived) Creature.MoveTo(IdlePoint());
+                    if (!Creature.HasTarget || Creature.Arrived) Creature.MoveTo(HoverPoint());
                     break;
                 case HaugbuiState.Returning:
                     Creature.MaxSpeed = Attributes.MaxSpeed;
@@ -325,7 +338,8 @@ namespace Haugbui.Creature
             }
         }
 
-        private Vector3 IdlePoint()
+        /// <summary>A point circling above the tomb: idle hover, and where a hurt Haugbui waits without entering (HB-144).</summary>
+        internal Vector3 HoverPoint()
         {
             float angle = Time.time * 0.3f + _tomb.Guid.GetHashCode() % 7;
             return transform.position + new Vector3(Mathf.Cos(angle) * 2.5f, IdleHeight, Mathf.Sin(angle) * 2.5f);
@@ -337,6 +351,8 @@ namespace Haugbui.Creature
             if (Creature == null) Creature = HaugbuiCreature.Find(_tomb.Guid);
             if (Creature == null) Spawn(Home, emergeEffect: true);
             else Adopt(Creature);
+            // The killing blow reports its damage after the death, so a new shift starts without old threats.
+            Combat.Reset();
             Machine.TryEnter(HaugbuiState.Emerging);
             Creature.SetState(Machine.State);
             State.CreatureState = (int)HaugbuiState.Idle;
@@ -354,6 +370,7 @@ namespace Haugbui.Creature
             HaugbuiAttributes attributes = Attributes;
             Creature.Character.SetMaxHealth(attributes.MaxHealth);
             Creature.Character.SetHealth(EffectiveHealth(attributes.MaxHealth));
+            SyncCombatFactors(attributes);
             Creature.Visuals?.SetDarkAura(DarkAura);
             if (emergeEffect) PlayEffect(position);
         }
@@ -362,6 +379,17 @@ namespace Haugbui.Creature
         {
             creature.Died -= OnCreatureDied;
             creature.Died += OnCreatureDied;
+            creature.Damaged -= Combat.OnDamaged;
+            creature.Damaged += Combat.OnDamaged;
+            SyncCombatFactors(Attributes);
+        }
+
+        private void SyncCombatFactors(HaugbuiAttributes attributes)
+        {
+            if (Creature == null) return;
+            Creature.DealtFactor = Core.Combat.CombatMath.DealtFactor(attributes.CombatMultiplier,
+                HaugbuiPlugin.Instance.Settings.CombatDamageMultiplier.Value);
+            Creature.TakenFactor = Core.Combat.CombatMath.TakenFactor(attributes.CombatMultiplier);
         }
 
         /// <summary>Health with dormant regeneration applied up to now; saved health is "full" when negative.</summary>
@@ -397,6 +425,7 @@ namespace Haugbui.Creature
         private void Enter()
         {
             Worker.ReleaseAll();
+            Combat.Reset();
             if (Creature != null)
             {
                 RecordHealth(Creature.Character.GetHealth(), Creature.Character.GetMaxHealth());
@@ -420,6 +449,7 @@ namespace Haugbui.Creature
         {
             if (!IsOwner || State == null) return;
             Worker.ReleaseAll();
+            Combat.Reset();
             if (Creature != null) PlayEffect(Creature.transform.position);
             Creature = null;
             Machine.Kill();
@@ -480,13 +510,28 @@ namespace Haugbui.Creature
             if (on && toggle == TombToggles.Production && _tomb.Progress.Level < HaugbuiPlugin.Instance.Settings.ProductionUnlockLevel.Value)
                 refusal = "$haugbui_panel_needs_level";
             if (refusal != null || State == null || !IsOwner) return false;
+            if (on && toggle == TombToggles.Combat && !State.Has(TombToggles.CombatAcknowledged))
+            {
+                refusal = CombatNeedsConfirmation;
+                return false;
+            }
 
             State.Set(toggle, on);
-            if (toggle == TombToggles.Combat && on) State.Set(TombToggles.CombatAcknowledged, true);
             SaveStateIfChanged();
             TombToggles toggles = State.Toggles;
             UpdateSlot(s => s.Toggles = toggles);
             TickNow();
+            return true;
+        }
+
+        /// <summary>HB-026: the player confirmed the combat warning; later enables need no confirmation.</summary>
+        internal bool AcknowledgeCombat()
+        {
+            if (State == null || !IsOwner || !_tomb.Progress.Has(TombAbilities.Combat)) return false;
+            State.Set(TombToggles.CombatAcknowledged, true);
+            SaveStateIfChanged();
+            TombToggles toggles = State.Toggles;
+            UpdateSlot(s => s.Toggles = toggles);
             return true;
         }
 
