@@ -22,6 +22,9 @@ namespace Haugbui.Structures
         internal ZNetView View { get; private set; }
         internal StructureDefinition Definition => StructureDefinitions.For(Kind);
         internal TombState TombState { get; private set; }
+
+        /// <summary>Set when a saved blob is corrupt or from a newer schema. That tomb does not run, and the bytes stay.</summary>
+        internal bool BlobsBlocked { get; set; }
         internal TombProgress Progress { get; set; } = new TombProgress(ProgressionTable.MinLevel, TombAbilities.None);
 
         internal ZDO Zdo => View != null && View.IsValid() ? View.GetZDO() : null;
@@ -49,6 +52,8 @@ namespace Haugbui.Structures
         private void OnDestroy()
         {
             StructureRegistry.Unregister(this);
+            // Zone unload keeps the ZDO, so the count does not move. A real destroy has already dropped the ZDO.
+            if (Kind == StructureKind.Tomb) WorldSafety.RecordLive();
         }
 
         /// <summary>Runs once on the placing client, right after the vanilla placement flow.</summary>
@@ -79,6 +84,7 @@ namespace Haugbui.Structures
                 if (slot == null) Log.Error($"Tomb {Guid}: placed without a free servant slot; it stays empty.");
                 SaveTombState();
                 GetComponent<Creature.TombController>()?.OnStateCreated(slot);
+                WorldSafety.RecordLive();
             }
             else if (TombProgression.IsUpgrade(Kind))
             {
@@ -108,7 +114,16 @@ namespace Haugbui.Structures
             _tombSlot = new PersistentSlot<TombState>(new ZdoBlobStore(Zdo), ZdoKeys.TombState, TombStateSerializer.Instance);
             TombState = _tombSlot.Load();
             if (_tombSlot.State == SlotState.ReadOnly)
-                Log.Error($"Tomb {Guid}: saved state unreadable ({_tombSlot.LastReadStatus}); it is kept untouched.");
+            {
+                BlobsBlocked = true;
+                Log.Error($"Tomb {Guid}: saved state unreadable ({_tombSlot.LastReadStatus}); it is kept untouched and this tomb will not run.");
+                return;
+            }
+            if (TombState != null && BlobIntegrity.RepairTomb(TombState))
+            {
+                Log.Warning($"Tomb {Guid}: saved state had values out of range; they were clamped and the level is still taken from its upgrades.");
+                SaveTombState();
+            }
         }
 
         public string GetHoverText()

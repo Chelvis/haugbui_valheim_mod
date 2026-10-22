@@ -121,8 +121,31 @@ namespace Haugbui.Creature
             var store = new ZdoBlobStore(_tomb.Zdo);
             _carriedSlot = new PersistentSlot<List<ItemStack>>(store, ZdoKeys.Carried, ItemStacksSerializer.Instance);
             _overflowSlot = new PersistentSlot<List<ItemStack>>(store, ZdoKeys.Overflow, ItemStacksSerializer.Instance);
-            Carried.Restore(Refresh(_carriedSlot.Load() ?? new List<ItemStack>()));
-            Overflow = Refresh(_overflowSlot.Load() ?? new List<ItemStack>());
+            List<ItemStack> carried = _carriedSlot.Load();
+            List<ItemStack> overflow = _overflowSlot.Load();
+            if (_tomb.BlobsBlocked || _carriedSlot.State == SlotState.ReadOnly || _overflowSlot.State == SlotState.ReadOnly)
+            {
+                if (!_tomb.BlobsBlocked)
+                    Log.Error($"Tomb {_tomb.Guid}: carried inventory unreadable; it is kept untouched and this tomb will not run.");
+                _tomb.BlobsBlocked = true;
+                WearNTear blocked = GetComponent<WearNTear>();
+                if (blocked != null) blocked.m_onDestroyed += () => WorldSafety.RecordLive(_tomb.Guid);
+                return;
+            }
+            carried = carried ?? new List<ItemStack>();
+            overflow = overflow ?? new List<ItemStack>();
+            if (BlobIntegrity.RepairStacks(carried))
+            {
+                Log.Warning($"Tomb {_tomb.Guid}: carried stacks had invalid amounts; they were clamped.");
+                _carriedSlot.TrySave(carried);
+            }
+            if (BlobIntegrity.RepairStacks(overflow))
+            {
+                Log.Warning($"Tomb {_tomb.Guid}: overflow stacks had invalid amounts; they were clamped.");
+                _overflowSlot.TrySave(overflow);
+            }
+            Carried.Restore(Refresh(carried));
+            Overflow = Refresh(overflow);
             Carried.Changed += SaveCarried;
             if (State != null) Machine.Restore((HaugbuiState)State.CreatureState);
 
@@ -146,7 +169,7 @@ namespace Haugbui.Creature
 
         private void Update()
         {
-            if (_destroyed || State == null || !IsOwner || CreaturePrefab.Prefab == null) return;
+            if (_destroyed || State == null || _tomb.BlobsBlocked || !IsOwner || CreaturePrefab.Prefab == null) return;
             if (!_resumeChecked)
             {
                 _resumeChecked = true;
@@ -626,6 +649,7 @@ namespace Haugbui.Creature
             foreach (HaugbuiStructure upgrade in StructureRegistry.Upgrades.Where(u => u.BoundTombGuid == _tomb.Guid && u.View.IsOwner()).ToList())
                 upgrade.Zdo.Set(ZdoKeys.TombGuid, string.Empty);
             StructureRegistry.MarkDirty();
+            WorldSafety.RecordLive(_tomb.Guid);
             Log.Info($"Tomb {_tomb.Guid} destroyed: {dropped} carried/overflow items dropped, upgrades unbound.");
         }
 

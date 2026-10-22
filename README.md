@@ -16,14 +16,15 @@ harvest your fields and keep your smelters running — while you go adventuring.
 </div>
 
 > [!WARNING]
-> **Pre-alpha — not playable yet.** Version 0.0.8 contains the project foundation, the tomb and its five upgrades
+> **Pre-alpha — not playable yet.** Version 0.0.9 contains the project foundation, the tomb and its five upgrades
 > (with placeholder looks), the Haugbui itself (emerges at night, returns at dawn, dies and returns at a later dusk,
 > tomb panel with toggles), its jobs — sorting its tomb storage and Collection Chests into chests that already
 > hold the same item, bringing requested items to Delivery Chests, picking up ground items, harvesting ripe crops,
 > beehives and birds' nests, running simple production stations (smelters, kilns, windmill, spinning wheel, eitr
 > refinery, fermenter, ovens and cooking stations, fuel for hot tubs and shield generators) and working while the
 > player sleeps — the tribute it asks for each shift, permanent servant slots per player with territories, opt-in
-> combat with the Longsword (it defends its radius, or flees to the tomb when combat is off), and an in-game
+> combat with the Longsword (it defends its radius, or flees to the tomb when combat is off), a world marker that
+> warns when tombs disappear, an opt-in world-folder backup (off by default), and an in-game
 > self-test. The gameplay described below is the planned design, not shipped features.
 
 ---
@@ -93,7 +94,8 @@ anything Haugbui-related is missing.
 | M6 | Ground items, harvesting, tribute per shift, servant slots, death and new-tomb timing | ✅ (0.0.6) |
 | M7 | Production automation, sleep fast mode, territories, optional strict item data | ✅ (0.0.7) |
 | M8 | Combat: defend the radius, level scaling, flee home when combat is off | ✅ (0.0.8) |
-| M9–M11 | World safety, full UI, performance, release | ⏳ |
+| M9 | World safety: marker and warning, opt-in backup, blob integrity, save/reload checks | ✅ (0.0.9) |
+| M10–M11 | Full UI, performance, release | ⏳ |
 | M12 | Away mode (release 1.1) | ⏳ |
 
 The full plan lives in [`docs/`](docs):

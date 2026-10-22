@@ -63,6 +63,11 @@ namespace Haugbui.Integration.StationAdapters
             StationJobState job = slot?.Load();
             if (slot != null && slot.State == SlotState.ReadOnly)
                 Log.ErrorRateLimited("job:" + StationAdapterRegistry.IdOf(station), $"Station {StationAdapterRegistry.IdOf(station)}: job unreadable ({slot.LastReadStatus}); kept untouched.");
+            else if (job != null && BlobIntegrity.RepairJob(job))
+            {
+                Log.Warning($"Station {StationAdapterRegistry.IdOf(station)}: job had values out of range; they were clamped.");
+                Save(station, slot, job);
+            }
             return job;
         }
 

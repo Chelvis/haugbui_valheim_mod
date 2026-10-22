@@ -17,7 +17,7 @@ namespace Haugbui.SelfTest
     /// </summary>
     internal static class SelfTestRunner
     {
-        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute", "production", "territory", "stations", "sleep", "combat" };
+        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute", "production", "territory", "stations", "sleep", "combat", "world", "backup", "integrity", "torture" };
 
         public const string AndExit = "and_exit";
 
@@ -40,6 +40,9 @@ namespace Haugbui.SelfTest
             if (Directory.Exists(OutputFolder)) Directory.Delete(OutputFolder, true);
             var context = new SelfTestContext(OutputFolder);
             Log.Info($"Self-test started: {string.Join(", ", suites)}");
+            Integration.WorldSafety.SuppressPopup = true;
+            for (int i = 0; i < 5 && UnifiedPopup.IsVisible(); i++) UnifiedPopup.Pop();
+            Integration.WorldSafety.RecordLive();
             Player.m_localPlayer?.Message(MessageHud.MessageType.Center, "Haugbui self-test running…");
 
             HaugbuiPlugin.Instance.StartCoroutine(KeepAreaClear(context));
@@ -62,6 +65,10 @@ namespace Haugbui.SelfTest
                     case "stations": body = new StationsSuite(context).Run(); break;
                     case "sleep": body = new SleepSuite(context).Run(); break;
                     case "combat": body = new CombatSuite(context).Run(); break;
+                    case "world": body = new WorldSuite(context).Run(); break;
+                    case "backup": body = new BackupSuite(context).Run(); break;
+                    case "integrity": body = new IntegritySuite(context).Run(); break;
+                    case "torture": body = new TortureSuite(context).Run(); break;
                     default:
                         context.Suite = suite;
                         context.Fail("unknown suite", suite);
@@ -81,8 +88,10 @@ namespace Haugbui.SelfTest
                 Brain.WorkContext.TerritorySuspendedForTests = false;
                 context.Cleanup();
                 yield return SelfTestContext.WaitFrames(5);
+                Integration.WorldSafety.RecordLive();
                 Integration.ServantRegistry.Unpark(player, parked);
             }
+            Integration.WorldSafety.SuppressPopup = false;
 
             context.WriteReport(stopwatch.Elapsed);
             int failed = context.Results.Count(r => r.Status == TestStatus.Fail);

@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Core.Persistence;
 using Haugbui.Core.Recipes;
+using Haugbui.Core.Storage;
 using Haugbui.Core.Structures;
 using Haugbui.Integration;
+using Haugbui.Integration.StationAdapters;
 using Haugbui.Structures;
 using UnityEngine;
 
@@ -45,6 +47,7 @@ namespace Haugbui.SelfTest
             yield return Pictures();
             yield return ReloadAll();
             yield return MissingMod();
+            yield return MissingModOthers();
             yield return RemoveUpgrade();
             yield return Rebind();
         }
@@ -217,6 +220,92 @@ namespace Haugbui.SelfTest
             yield return SelfTestContext.WaitFrames(2);
             _t.Check("with the mod again: tomb restored with level 6", _tomb != null && _tomb.Guid == guid && _tomb.Progress.Level == 6,
                 _tomb != null ? $"level {_tomb.Progress.Level}" : "missing");
+        }
+
+        private HaugbuiStructure _restored;
+
+        /// <summary>Every other structure, plus a delivery request and a station job, through the same mod-missing reload.</summary>
+        private IEnumerator MissingModOthers()
+        {
+            if (_tomb == null) yield break;
+            HaugbuiStructure collection = Place(StructureKind.CollectionChest, SelfTestContext.OnGround(_arena + new Vector3(6f, 0f, 1f)));
+            HaugbuiStructure delivery = Place(StructureKind.DeliveryChest, SelfTestContext.OnGround(_arena + new Vector3(6f, 0f, -1.5f)));
+            GameObject smelterObject = _t.PlaceVanilla("smelter", SelfTestContext.OnGround(_arena + new Vector3(-2f, 0f, 6f)), Quaternion.identity);
+            yield return SelfTestContext.WaitFrames(3);
+            DeliveryChest chest = delivery != null ? delivery.GetComponent<DeliveryChest>() : null;
+            Smelter smelter = smelterObject != null ? smelterObject.GetComponentInChildren<Smelter>() : null;
+            bool requested = chest != null && chest.Edit(ledger => ledger.Request("Wood", 5) == RequestEditResult.Ok);
+            bool jobSet = smelter != null && StationJobs.Edit(smelter, job =>
+            {
+                job.Enabled = true;
+                job.InputPrefab = "CopperOre";
+                job.OutputPrefab = "Copper";
+                job.Mode = JobMode.Finite;
+                job.Target = 3;
+                job.Supplied = 1;
+                job.TombGuid = _tomb.Guid;
+                return true;
+            });
+            _t.Check("delivery request and station job saved for the missing-mod pass", requested && jobSet);
+            byte[] requestBytes = delivery != null ? delivery.Zdo.GetByteArray(ZdoKeys.Requests.GetStableHashCode()) : null;
+            ZDO stationZdo = smelter != null ? smelter.m_nview.GetZDO() : null;
+            byte[] jobBytes = stationZdo != null ? stationZdo.GetByteArray(ZdoKeys.Job.GetStableHashCode()) : null;
+
+            var kept = new List<HaugbuiStructure>();
+            foreach (HaugbuiStructure upgrade in _upgrades.Where(u => u != null).ToList())
+            {
+                yield return RoundTrip(upgrade.gameObject, upgrade.Kind.ToString(), upgrade.Kind, upgrade.Guid, null, null);
+                if (_restored != null) kept.Add(_restored);
+            }
+            _upgrades.Clear();
+            _upgrades.AddRange(kept);
+
+            if (collection != null)
+                yield return RoundTrip(collection.gameObject, "CollectionChest", StructureKind.CollectionChest, collection.Guid, null, null);
+            if (delivery != null)
+                yield return RoundTrip(delivery.gameObject, "DeliveryChest", StructureKind.DeliveryChest, delivery.Guid, requestBytes, "request");
+
+            if (smelterObject == null || jobBytes == null) yield break;
+            GameObject stationAgain = null;
+            yield return _t.Reload(smelterObject, go => stationAgain = go);
+            ZDO again = stationAgain != null ? stationAgain.GetComponentInChildren<Smelter>()?.m_nview.GetZDO() : null;
+            byte[] jobNow = again != null ? again.GetByteArray(ZdoKeys.Job.GetStableHashCode()) : null;
+            _t.Check("without a special host: station job kept across reload", jobNow != null && jobNow.SequenceEqual(jobBytes),
+                jobNow == null ? "missing" : jobNow.Length + " bytes");
+            if (UnifiedPopup.IsVisible()) UnifiedPopup.Pop();
+        }
+
+        private IEnumerator RoundTrip(GameObject go, string label, StructureKind kind, string guid, byte[] extra, string extraName)
+        {
+            _restored = null;
+            HostPrefabSystem.SuppressAugmentation = true;
+            GameObject plain = null;
+            try
+            {
+                yield return _t.Reload(go, reloaded => plain = reloaded);
+            }
+            finally
+            {
+                HostPrefabSystem.SuppressAugmentation = false;
+            }
+
+            if (_t.Check($"{label}: without the mod it is a vanilla object", plain != null && plain.GetComponent<HaugbuiStructure>() == null))
+            {
+                ZDO zdo = plain.GetComponent<ZNetView>().GetZDO();
+                _t.Check($"{label}: keys kept", zdo.GetString(ZdoKeys.Guid) == guid && zdo.GetInt(ZdoKeys.Kind) == (int)kind);
+                _t.Check($"{label}: no Haugbui look", plain.transform.Find(StructureVisuals.RootName) == null);
+                if (extra != null)
+                {
+                    byte[] now = zdo.GetByteArray((extraName == "request" ? ZdoKeys.Requests : ZdoKeys.Job).GetStableHashCode());
+                    _t.Check($"{label}: {extraName} kept", now != null && now.SequenceEqual(extra));
+                }
+            }
+            if (plain == null) yield break;
+
+            GameObject back = null;
+            yield return _t.Reload(plain, reloaded => back = reloaded);
+            _restored = back != null ? back.GetComponent<HaugbuiStructure>() : null;
+            _t.Check($"{label}: returns with the mod", _restored != null && _restored.Kind == kind && _restored.Guid == guid);
         }
 
         private IEnumerator RemoveUpgrade()

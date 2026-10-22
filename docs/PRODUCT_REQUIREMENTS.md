@@ -521,5 +521,9 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-19 | HP regen (HB-035, confirmed) | Resting in the tomb: full in 600 world seconds (about 10 real minutes; a sleep skip completes it). Outside: 1% of max HP every 10 real seconds (about 16.7 minutes from empty to full); a sleep skip does not heal it. No regen while dead. Both rates are config. The rest default is applied; outdoor regen is HB-T-116 |
 | 2026-10-19 | Movement speed (HB-030) | Max speed per level is 1, 2, 3, 4, 5, 6 m/s |
 | 2026-10-19 | Level display (HB-012) | Tomb panel and hover show the current level only ("Level 2"), not "2/6" |
+| 2026-10-19 | World guard scan (HB-173) — **to confirm** | The count is tomb ZDOs in `ZDOMan.m_objectsByID`. `LoadChunks` loads every chunk, so a tomb in an unloaded zone is still counted and does not raise the warning. A shortfall keeps the remembered count, so putting the ZDO back clears the warning. A tomb removed while the mod is loaded updates the count in the same call that deletes its ZDO, so a save cannot remember a tomb that is already gone. An unreadable count is rewritten from the scan without a popup. A marker schema newer than 1 is not overwritten |
+| 2026-10-19 | World marker schema (HB-172) — **to confirm** | The marker schema starts at 1. It is not the tomb blob schema (v3) |
+| 2026-10-19 | World backup (HB-172) — **to confirm** | Opt-in, default off, once each time a world with Haugbui data loads. Local folder worlds only (`FileHelpers.FileSource.Local` and `World.GetSaveDirectory`); cloud and legacy files are skipped. The copy waits while `ZNet.IsSaving` and is discarded if a save starts during the copy. Old backup folders are not deleted |
+| 2026-10-19 | Blob repair (HB-175) — **to confirm** | Readable blobs are clamped in place (level cache 1..6, tribute, job counters, request lines). A request with delivered above requested is closed by raising the request, so it does not ask for more items. Corrupt and future blobs stay byte-for-byte and that object does not run. Reservations are cleared on load because they are not saved |
 
-Open: none.
+Open: every row marked **to confirm**.

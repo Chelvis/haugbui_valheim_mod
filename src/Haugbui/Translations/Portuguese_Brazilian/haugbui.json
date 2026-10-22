@@ -131,5 +131,7 @@
   "haugbui_job_cooking_warning": "Sem o Altar, só coloca o que fica pronto antes do amanhecer; itens que você deixar cozinhando podem queimar.",
   "haugbui_combat_confirm_text": "Com esta espada o Haugbui defenderá o túmulo a qualquer custo, e seus golpes podem danificar suas construções. Ativar o combate?",
   "haugbui_activity_defending": "defendendo o local de sepultamento",
-  "haugbui_activity_fleeing": "ferido: esperando junto ao túmulo"
+  "haugbui_activity_fleeing": "ferido: esperando junto ao túmulo",
+  "haugbui_world_guard_title": "Faltam túmulos de Haugbui",
+  "haugbui_world_guard_text": "Este mundo lembra $1 túmulos de Haugbui, mas os dados do mundo têm $2. O que falta pode ter se perdido. Saia do jogo. Se houver uma pasta de cópia do Haugbui ao lado dos mundos, copie-a de volta por cima da pasta deste mundo antes de continuar."
 }

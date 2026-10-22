@@ -1,14 +1,16 @@
 # Haugbui — Handover (2026-10-19)
 
-State of the project when development moved from Claude Code to Cursor (updated 2026-10-19, M8 done). Read
+State of the project when development moved from Claude Code to Cursor (updated 2026-10-22, M9 tagged). Read
 this, then `AGENTS.md`, the PRD
 decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M1–M7).
 
 ## 1. Where we are
 
-- **Version 0.0.8** (tag `v0.0.8` on `main`). Milestones **M1–M8 done** and validated in game by Kelvin with the
-  in-game self-test (M8 full run 2026-10-19: 494 passed, 2 storage failures from world wood drops; storage re-run
-  after the suite stopped picking ground items: 55/55). Combat: 72/72 before that full run.
+- **Version 0.0.9** (tag `v0.0.9` on `main`). Tag `v0.0.8` stays on `22177fa`. Milestones **M1–M9 done**.
+  M9 self-test 2026-10-21: `world backup integrity torture`, 33 passed, 0 failed. The on-disk missing-mod round trip
+  (DLL removed) is still the product owner's observation; the protection table in `TECHNICAL_FEASIBILITY.md` §9.3
+  stays the host-prefab design until that is written in. M8 full run 2026-10-19: 494 passed, 2 storage failures from
+  world wood drops; storage re-run after the suite stopped picking ground items: 55/55. Combat: 72/72 before that full run.
 - Valheim updated to **1.0.20** during M7. The runtime API self-check passes, and since 2026-10-16 the decompiled
   references in `.reference/` are 1.0.20 too (section 5); the GameApiManifest unit test passes against them.
 
@@ -22,6 +24,7 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 | M6 | Ground items, harvesting, tribute (wages), servant slots, death/new-tomb timing | 0.0.6 |
 | M7 | Production automation (smelter family, fermenter, cooking, fuel-only), sleep fast mode, `StrictItemData`, territories | 0.0.7 |
 | M8 | Combat (Longsword, nearest aggressor, raid overlap, level scaling, flee without entering) | 0.0.8 |
+| M9 | World marker and guard warning, opt-in backup, blob integrity, save/reload torture | 0.0.9 |
 
 ## 2. What is next
 
@@ -29,8 +32,7 @@ Remaining milestones (tickets in `docs/IMPLEMENTATION_BACKLOG.json`):
 
 | Milestone | Tickets | Notes |
 |---|---|---|
-| **M9 World safety** (next, 0.0.9) | HB-T-075..079 | World marker + guard warning, opt-in backup, integrity checks, missing-mod end-to-end, save/reload torture. |
-| M10 UI + localization | HB-T-080..083, 099, 106, 107, 111 | Panel v2, hovers, full pt-BR/en-US pass, looks (HB-T-099 has the owner's kitbash ideas), custom icons drawn by Kelvin (HB-T-106), optional custom 3D models (HB-T-107). |
+| **M10 UI + localization** (next) | HB-T-080..083, 099, 106, 107, 111 | Panel v2, hovers, full pt-BR/en-US pass, looks (HB-T-099 has the owner's kitbash ideas), custom icons drawn by Kelvin (HB-T-106), optional custom 3D models (HB-T-107). |
 | M11 Optimization + release | HB-T-084..089 | Performance budget (HB-201), multi-Haugbui validation, config review, README, Thunderstore package, regression checklist. |
 | M12 Away mode | HB-T-094..097 | Remote logistics on world data while the player is far away; spike HB-T-090 already passed. Charges tribute shifts. |
 
@@ -115,9 +117,9 @@ Renaming a servant in the tomb panel (PRD HB-139) is ticket HB-T-111 in M10.
 ## 7. Quick reference
 
 - Build: `dotnet build Haugbui.sln -c Debug` (deploys to `MOD_DEPLOYPATH`), `-c Release` (no spikes/self-test).
-- Unit tests: `dotnet test tests/Haugbui.Core.Tests` (341 tests at 0.0.8, incl. the manifest check when
+- Unit tests: `dotnet test tests/Haugbui.Core.Tests` (incl. the manifest check when
   `.reference/Managed` or the game install exists).
 - In game (Debug build, `devcommands`): `haugbui_selftest [basics structures flight transfers haugbui storage chests
-  harvest tribute territory production stations sleep combat] [and_exit]`; diagnostics `haugbui_status`, `haugbui_dump_tomb`,
+  harvest tribute territory production stations sleep combat world backup integrity torture] [and_exit]`; diagnostics `haugbui_status`, `haugbui_dump_tomb`,
   `haugbui_dump_prefabs`, `haugbui_reservations`, `haugbui_ledger`, `haugbui_registry`.
 - Config: `BepInEx/config/com.kelvinmarques.haugbui.cfg`.

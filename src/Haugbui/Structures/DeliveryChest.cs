@@ -43,6 +43,11 @@ namespace Haugbui.Structures
             List<DeliveryRequest> lines = _slot.Load();
             if (_slot.State == SlotState.ReadOnly)
                 Log.ErrorRateLimited("requests:" + zdo.m_uid, $"Delivery Chest {zdo.m_uid}: requests unreadable ({_slot.LastReadStatus}); kept untouched.");
+            else if (lines != null && BlobIntegrity.RepairRequests(lines) && View.IsValid() && View.IsOwner())
+            {
+                Log.Warning($"Delivery Chest {zdo.m_uid}: request lines had values out of range; they were clamped.");
+                _slot.TrySave(lines);
+            }
             _ledger = new DeliveryLedger(lines);
             _readRevision = zdo.DataRevision;
         }

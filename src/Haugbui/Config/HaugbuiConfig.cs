@@ -84,6 +84,7 @@ namespace Haugbui.Config
         public ConfigEntry<float> PlanningIntervalSeconds { get; private set; }
         public ConfigEntry<int> MaxTicksPerFrame { get; private set; }
         public ConfigEntry<float> ReservationLeaseSeconds { get; private set; }
+        public ConfigEntry<bool> BackupWorldOnLoad { get; private set; }
 
         public string GetRecipeIngredients(string pieceId) =>
             _recipeEntries.TryGetValue(pieceId, out ConfigEntry<string> entry) ? entry.Value : null;
@@ -190,6 +191,8 @@ namespace Haugbui.Config
                 "Maximum Haugbui planning ticks per frame across all tombs.", 1, 10);
             ReservationLeaseSeconds = BindAdmin(Advanced, "ReservationLeaseSeconds", 30f,
                 "How long a task reservation lives without renewal.", 5f, 300f);
+            BackupWorldOnLoad = BindAdmin(Advanced, "BackupWorldOnLoad", false,
+                "When on, and this world has Haugbui data, copy its folder once each time it loads into a timestamped folder next to the saves. Restore by copying that folder back over the world folder. Local worlds only. Off by default.");
         }
 
         private ConfigEntry<string> BindLevels(string key, string defaults, string description)

@@ -131,5 +131,7 @@
   "haugbui_job_cooking_warning": "Without the Altar it loads only what is done before dawn; items you leave cooking may burn.",
   "haugbui_combat_confirm_text": "With this sword the Haugbui will defend its burial place at all costs, and its blows may damage your buildings. Enable combat?",
   "haugbui_activity_defending": "defending the burial place",
-  "haugbui_activity_fleeing": "hurt: waiting by the tomb"
+  "haugbui_activity_fleeing": "hurt: waiting by the tomb",
+  "haugbui_world_guard_title": "Haugbui tombs missing",
+  "haugbui_world_guard_text": "This world remembers $1 Haugbui tombs, but the world data holds $2. What is missing may be lost. Quit the game. If a Haugbui backup folder sits next to your worlds, copy it back over this world's folder before you play on."
 }

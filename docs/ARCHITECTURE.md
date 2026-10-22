@@ -336,7 +336,7 @@ All keys are namespaced `haugbui_*` and versioned. Blobs are `ZPackage` byte arr
 | Upgrade | `haugbui_tomb_guid` (binding, written on placement), upgrade kind in `haugbui_kind` |
 | Delivery chest | `haugbui_requests` (byte[]: list of {itemPrefab, requested, delivered}) |
 | Vanilla station | `haugbui_job` (byte[]: {enabled, recipe input/output prefab, mode finite/infinite, target, supplied, produced, tombGuid}) |
-| World | global key `haugbui <schemaVersion>`; `haugbui_tombs <count>` (planned, M9); servant slots `haugbui_slot_<ownerId>_<n> <lower-case hex of ServantSlot blob>` (M6, written directly to `ZoneSystem.m_globalKeys`/`m_globalKeysValues`: `SetGlobalKey` would route an RPC and add every new text to the player profile's known keys; the world load lower-cases the whole key text, hence hex; not synced to other peers yet) |
+| World | global key `haugbui <schemaVersion>` (schema 1) and `haugbui_tombs <count>` (tomb ZDOs from `ZDOMan.m_objectsByID`, not servant slots); servant slots `haugbui_slot_<ownerId>_<n> <lower-case hex of ServantSlot blob>` (written directly to `ZoneSystem.m_globalKeys`/`m_globalKeysValues`: `SetGlobalKey` would route an RPC and add every new text to the player profile's known keys; the world load lower-cases the whole key text, hence hex for slots and plain numbers for the marker; not synced to other peers yet) |
 
 Rules:
 - Never write defaults over existing data: readers return `null` for missing blobs; writers only run after a successful

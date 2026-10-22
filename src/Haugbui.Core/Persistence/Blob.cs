@@ -111,8 +111,9 @@ namespace Haugbui.Core.Persistence
                 value = serializer.Read(reader);
                 return BlobReadStatus.Ok;
             }
-            catch (Exception e) when (e is EndOfStreamException || e is IOException || e is ArgumentException)
+            catch (Exception)
             {
+                // A bad blob disables that feature. It must not take the load down with it.
                 value = default;
                 return BlobReadStatus.Corrupt;
             }

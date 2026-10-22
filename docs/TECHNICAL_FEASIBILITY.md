@@ -309,9 +309,11 @@ seconds) in the tomb ZDO. No real-time option in v1.
      object degrades to; players never see it while the mod runs. Constraint: the host's ZDO prefab hash and
      component set stay (e.g. a `Container`), so the host must be chosen to be compatible with the Haugbui role.
 4. **World marker:** global key `haugbui <version>` plus a tomb count; on load, the mod compares the marker with the tombs
-   it finds and shows a prominent warning if structures disappeared.
-5. **Backups:** Valheim keeps its own automatic backups (folder per backup in 1.0 [W]); the mod additionally offers an
-   opt-in "backup world folder on load when Haugbui data is detected" [U — path API in 1.0 save system to confirm].
+   it finds and shows a prominent warning if structures disappeared. The scan is `ZDOMan.m_objectsByID`. On 1.0.20
+   `LoadChunks` still loads every chunk into that dictionary, so a tomb whose zone is not instantiated is still counted.
+5. **Backups:** Valheim keeps its own automatic backups (folder per backup in 1.0 [W]). The mod's opt-in copy uses
+   `World.GetSaveDirectory(FileHelpers.FileSource)` (1.0.20), which is `worlds_local/<name>/` for a local world, and
+   refuses to copy while `ZNet.IsSaving()` is true. Cloud and legacy saves are skipped.
 
 **Spike HB-T-007 (2026-10-13, Windows, 1.0.17) [V]:** a vanilla `piece_chest_wood` tagged with `haugbui_kind` and
 `haugbui_guid` got its new look from a `Container.Awake` postfix on every load (log: "applied look … 5 meshes copied"),
@@ -330,6 +332,11 @@ is opened and played near them without the mod).
 |---|---|
 | Structures (as vanilla objects), their containers and items, all Haugbui keys (levels, toggles, cooldown, requests, jobs), carried inventory (in tomb ZDO), station automation settings | Visuals/behaviour while the mod is missing; vanilla deconstruction refunds only the host's vanilla cost; if a player deconstructs a host without the mod, the tomb state is gone (items fall out normally) |
 | Worlds saved without the mod, then reopened with it | Anything another mod deletes; manual edits; Valheim save corruption bugs (e.g. fixed in 1.0.17 "chunk splitting could remove all objects") |
+
+The in-process missing-mod simulation (augmentation suppressed, then the object reloaded from its ZDO) covers every
+structure, a tomb that holds items, a delivery request and a station job. The on-disk round trip — quit, remove
+`Haugbui.dll`, load, save, put the DLL back — is still the product owner's observation. This table stays the
+host-prefab design until that observation is written in. Do not treat the simulation as that observation.
 
 ### 9.4 Loaded area limits the operational radius
 

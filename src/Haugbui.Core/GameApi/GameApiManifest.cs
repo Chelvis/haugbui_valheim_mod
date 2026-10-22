@@ -24,6 +24,7 @@ namespace Haugbui.Core.GameApi
         public const string Structures = "Structures";
         public const string Creature = "Creature";
         public const string Combat = "Combat";
+        public const string WorldSafety = "WorldSafety";
     }
 
     public sealed class ApiMember
@@ -300,6 +301,16 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "RandomEvent", "m_name", MemberKind.Field, Features.Combat),
             M(Valheim, "YesNoPopup", null, MemberKind.Type, Features.Combat),
             M(Valheim, "UnifiedPopup", "IsAvailable", MemberKind.Method, Features.Combat),
+
+            M(Valheim, "ZNet", "GetWorld", MemberKind.Method, Features.WorldSafety),
+            M(Valheim, "ZNet", "IsSaving", MemberKind.Method, Features.WorldSafety),
+            M(Valheim, "ZNet", "Save", MemberKind.Method, Features.WorldSafety, "System.Boolean", "System.Boolean", "System.Boolean"),
+            M(Valheim, "World", "GetSaveDirectory", MemberKind.Method, Features.WorldSafety, "FileHelpers+FileSource"),
+            M(Valheim, "World", "GetSaveDirectory", MemberKind.Method, Features.WorldSafety, "FileHelpers+FileSource", "System.String"),
+            M(Valheim, "ZNet", "GetWorldName", MemberKind.Method, Features.WorldSafety),
+            M(Valheim, "World", "m_fileSource", MemberKind.Field, Features.WorldSafety),
+            M(Valheim, "World", "m_worldName", MemberKind.Field, Features.WorldSafety),
+            M("assembly_utils", "FileHelpers", null, MemberKind.Type, Features.WorldSafety),
         };
 
         public static IEnumerable<string> FeaturesOf(IEnumerable<ApiMember> members) =>
