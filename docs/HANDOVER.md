@@ -6,7 +6,7 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 
 ## 1. Where we are
 
-- **Version 0.0.9** (tag `v0.0.9` on `main`). Tag `v0.0.8` stays on `22177fa`. Milestones **M1–M9 done**.
+- **Version 0.0.10** (tag `v0.0.10` on `main`). Tag `v0.0.9` stays on `8d06b9f`. Milestones **M1–M10 done**.
   M9 self-test 2026-10-21: `world backup integrity torture`, 33 passed, 0 failed. The on-disk missing-mod round trip
   (DLL removed) is still the product owner's observation; the protection table in `TECHNICAL_FEASIBILITY.md` §9.3
   stays the host-prefab design until that is written in. M8 full run 2026-10-19: 494 passed, 2 storage failures from
@@ -25,6 +25,7 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 | M7 | Production automation (smelter family, fermenter, cooking, fuel-only), sleep fast mode, `StrictItemData`, territories | 0.0.7 |
 | M8 | Combat (Longsword, nearest aggressor, raid overlap, level scaling, flee without entering) | 0.0.8 |
 | M9 | World marker and guard warning, opt-in backup, blob integrity, save/reload torture | 0.0.9 |
+| M10 | Tomb panel, hovers, chest filter, rename, localization, kitbash looks, build-menu icons | 0.0.10 |
 
 ## 2. What is next
 
@@ -32,11 +33,8 @@ Remaining milestones (tickets in `docs/IMPLEMENTATION_BACKLOG.json`):
 
 | Milestone | Tickets | Notes |
 |---|---|---|
-| **M10 UI + localization** (next) | HB-T-080..083, 099, 106, 107, 111 | Panel v2, hovers, full pt-BR/en-US pass, looks (HB-T-099 has the owner's kitbash ideas), custom icons drawn by Kelvin (HB-T-106), optional custom 3D models (HB-T-107). |
-| M11 Optimization + release | HB-T-084..089 | Performance budget (HB-201), multi-Haugbui validation, config review, README, Thunderstore package, regression checklist. |
+| **M11 Optimization + release** (next) | HB-T-084..089 | Performance budget (HB-201), multi-Haugbui validation, config review, README, Thunderstore package, regression checklist. Custom 3D models (HB-T-107) stay optional. |
 | M12 Away mode | HB-T-094..097 | Remote logistics on world data while the player is far away; spike HB-T-090 already passed. Charges tribute shifts. |
-
-Renaming a servant in the tomb panel (PRD HB-139) is ticket HB-T-111 in M10.
 
 ## 3. Known gaps carried forward
 

@@ -17,5 +17,6 @@ namespace Haugbui.Integration
         public const string Overflow = "haugbui_overflow";
         public const string Requests = "haugbui_requests";
         public const string Job = "haugbui_job";
+        public const string Filter = "haugbui_filter";
     }
 }

@@ -180,7 +180,7 @@ namespace Haugbui.SelfTest
             Print(SelfTestRunner.Start(suites, exitAfter)
                 ? exitAfter
                     ? "Self-test running; the game will close when it finishes. Report: BepInEx/haugbui_selftest/report.txt"
-                    : "Self-test running; stand still until the result appears on screen (1–2 minutes)."
+                    : "Self-test running; stand still until the result appears on screen (up to 12 minutes)."
                 : "Self-test already running or no player.");
         }
     }

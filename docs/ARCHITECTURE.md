@@ -491,8 +491,9 @@ game member is in the manifest under feature `Combat` (a missing one disables co
 
 | UI | Entry point | Built with |
 |---|---|---|
-| Tomb panel | `E` on tomb (hover shows level/state/cooldown) | Jötunn woodpanel: stats, carried inventory grid (read-only view), overflow, toggles, rest button |
+| Tomb panel | `E` on tomb (hover shows name, level, state, HP, cooldown) | Jötunn woodpanel: stats, carried inventory grid (read-only view), overflow retrieve, rename, toggles, rest button |
 | Tomb storage | Button in tomb panel → vanilla container UI via request-open flow | Vanilla `InventoryGui` |
+| Chest filter | `Shift+E` on a player-built vanilla chest | Jötunn panel: typeahead of discovered transportable items, clear-all. Stored in `haugbui_filter` |
 | Delivery panel | `E` opens vanilla chest UI; `Shift+E` opens request editor | Jötunn panel: item picker (known materials), quantity, requested/delivered/remaining |
 | Production panel | `Shift+E` on supported station (Switch/Interactable patch) | Jötunn panel: enable, recipe dropdown, finite/infinite, target, progress |
 | Countdown | World-space TMP label on tomb, 1 Hz | TMP + `Billboard` |

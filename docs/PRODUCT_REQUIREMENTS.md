@@ -28,7 +28,7 @@ impossible (see ARCHITECTURE §15).
 ## 3. The Tomb
 
 - **HB-001** The tomb is built with the hammer (Haugbui build category). Cost (tunable, see §4.3): Stone ×20,
-  BoneFragments ×10, SurtlingCore ×1, GreydwarfEye ×5; requires a nearby Workbench.
+  TrophySkeleton ×5, SurtlingCore ×2; requires a nearby Workbench.
 - **HB-002** Visual: based on the player tombstone mesh with stones/bones; the vanilla `TombStone` *component* is not used
   (it self-destructs when empty — see feasibility §2.2).
 - **HB-003** Placement is valid only within **50 m** (config) of a bed whose owner is the placing player. The ghost
@@ -79,11 +79,11 @@ Upgrades can be built **in any order**. Level and abilities are two independent 
 
 | Upgrade | Visual | Mandatory per brief | Default recipe | Station | Biome |
 |---|---|---|---|---|---|
-| **HB-020 Offering** | plate with roasted boar meat and a mead mug | boar meat, honey, a Black Forest ingredient | CookedMeat ×5, Honey ×10, Thistle ×5, Wood ×10 | Workbench | Black Forest |
+| **HB-020 Offering** | plate with roasted boar meat and a mead mug | boar meat, honey, a Black Forest ingredient | CookedMeat ×5, CookedDeerMeat ×3, Carrot ×10, Thistle ×5, Honey ×10, Wood ×10 | Workbench | Black Forest |
 | **HB-021 Personal Treasure** | reinforced iron chest with coins, rubies, amber | coins, rubies, amber pearls, iron | Coins ×150, Ruby ×3, AmberPearl ×3, Amber ×5, Iron ×10 | Forge | Swamp |
-| **HB-022 Silver Bracelets** | small stand with silver arm rings | silver | Silver ×10, WolfPelt ×2, FineWood ×4 | Forge | Mountains |
-| **HB-023 Fallen King's Longsword** | black-metal two-handed longsword on a wall mount | black metal | BlackMetal ×15, LinenThread ×5, TrophyDraugrElite ×1 | Forge | Plains |
-| **HB-024 Altar of Darkness** | dark altar radiating purple energy | eitr, black marble | BlackMarble ×20, Eitr ×10, BoneFragments ×20, Ectoplasm ×10 | Galdr table | Mistlands |
+| **HB-022 Silver Bracelets** | small stand with silver arm rings | silver | Silver ×10, Bronze ×5, WolfClaw ×3 | Forge | Mountains |
+| **HB-023 Fallen King's Longsword** | black-metal two-handed longsword on a wall mount | black metal | BlackMetal ×20, Chain ×2, TrophyDraugrElite ×1 | Forge | Plains |
+| **HB-024 Altar of Darkness** | dark altar radiating purple energy | eitr, black marble | BlackMarble ×20, Eitr ×10, WitheredBone ×20, Ectoplasm ×10 | Galdr table | Mistlands |
 
 All item and station names above were verified in game on 1.0.17 (startup validation 8/8 and `haugbui_dump_prefabs`,
 2026-10-13). All recipe ingredients
@@ -95,9 +95,8 @@ that piece with a logged error instead of breaking the game.
 The brief only fixed each upgrade's mandatory ingredient; the rest is a balance proposal (product owner delegated it,
 2026-10-13), meant to be tuned in playtests. Principles:
 
-- **The tomb is a burial-chamber reward.** Tomb, Collection Chest and Delivery Chest use Black Forest burial-chamber
-  loot (bone fragments, surtling core) and early materials only, so level 1 is useful as soon as the player clears
-  the first crypt — fitting for a mound-dweller.
+- **The tomb is a burial-chamber reward.** Tomb, Collection Chest and Delivery Chest use burial loot and early materials,
+  so level 1 is useful as soon as the player clears the first crypt — fitting for a mound-dweller.
 - **One upgrade per biome.** Each upgrade's mandatory material belongs to a different biome, so the Haugbui grows
   with the playthrough. Since order is free, the player picks which bonus comes first once they own the materials.
 - **The first upgrade is cheap.** Any upgrade reaches level 2, which unlocks production. The Offering is the
@@ -106,7 +105,7 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
   king" — and full-time work (Altar) needs Mistlands eitr: the two strongest effects arrive late.
 - **Quantities stay below the matching vanilla station** of the same tier (e.g. the Longsword costs less black metal
   than a black-metal weapon set), so the upgrade feels like decoration that pays off, not a resource sink.
-- Ghost-themed extras (bone fragments, ectoplasm) keep the undead flavour without adding new farming.
+- Ghost-themed extras (withered bone, ectoplasm) keep the undead flavour without adding new farming.
 
 - **HB-025** Upgrades have no gameplay interaction other than hover info; they can be deconstructed (refund = recipe).
 - **HB-026 Combat warning.** When the Longsword binds to a tomb, a modal popup explains: the Haugbui will defend its
@@ -210,15 +209,15 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
 ## 9. Collection Chest
 
 - **HB-070** Buildable chest, **exactly 10 slots**, distinct look (bone/rune trim, faint glow). Cost (tunable, §4.3):
-  Wood ×10, BoneFragments ×5, Resin ×5 (wood chest = Wood ×10); Workbench.
+  Wood ×10, AncientSeed ×2; Workbench.
 - **HB-071** Every collection cycle (config, default 10 s while working) a Haugbui whose radius contains it takes
   eligible items that have a valid destination and distributes them per §8.1.
 - **HB-072** Ineligible items (equipment) stay in the chest untouched.
 
 ## 10. Delivery Chest
 
-- **HB-080** Buildable chest, **exactly 10 slots**, distinct look. Cost (tunable, §4.3): Wood ×15, BoneFragments ×10,
-  GreydwarfEye ×5, Resin ×5; Workbench.
+- **HB-080** Buildable chest, **exactly 10 slots**, distinct look. Cost (tunable, §4.3): Wood ×10,
+  GreydwarfEye ×10; Workbench.
 - **HB-081** `E` opens the chest normally; `Shift+E` (alt-interact) opens the request editor.
 - **HB-082** A request line = {item, requested quantity}. Up to 10 lines [Decision]. Item picker lists transportable
   items the player has discovered.
@@ -525,5 +524,33 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-19 | World marker schema (HB-172) — **to confirm** | The marker schema starts at 1. It is not the tomb blob schema (v3) |
 | 2026-10-19 | World backup (HB-172) — **to confirm** | Opt-in, default off, once each time a world with Haugbui data loads. Local folder worlds only (`FileHelpers.FileSource.Local` and `World.GetSaveDirectory`); cloud and legacy files are skipped. The copy waits while `ZNet.IsSaving` and is discarded if a save starts during the copy. Old backup folders are not deleted |
 | 2026-10-19 | Blob repair (HB-175) — **to confirm** | Readable blobs are clamped in place (level cache 1..6, tribute, job counters, request lines). A request with delivered above requested is closed by raising the request, so it does not ask for more items. Corrupt and future blobs stay byte-for-byte and that object does not run. Reservations are cleared on load because they are not saved |
+| 2026-10-22 | Servant name length (HB-139, confirmed) | Same cap as the character name: 15. The creation screen enables Done from 3 characters (`FejdStartup`) and the name field stops at 15. Trimmed, control characters removed. Empty or whitespace restores "Haugbui" / "Haugbui #2" |
+| 2026-10-22 | Chest filter entry (HB-062, confirmed) | Shift+E (alt-interact) on a player-built vanilla chest opens the filter. E still opens the chest. Haugbui pieces keep their own panels |
+| 2026-10-22 | Chest filter size (HB-062, confirmed) | The saved list stops at 10 prefab names. A full chest still refuses an item that does not fit, even when the filter names it and the chest does not currently hold it. The black metal chest is the largest vanilla storage (32 slots); the cap is not that slot count |
+| 2026-10-23 | Longsword model (confirmed) | The wall piece shows the Primal Slayer (`THSwordSlayerNature`). The Brutal Slayer is red, and the sword is black metal |
+| 2026-10-23 | Break debris (confirmed) | Offering, treasure, bracelets and the altar shatter the meshes the player sees. Their old table-plank fragment roots are not used. Tomb, longsword and the two chests keep the host's own break, which already matches |
+| 2026-10-23 | Tomb albedo test (to confirm) | The colour blocks proved the diffuse map paints the stone. The branch veins are the dark grain in that same map, not a second image |
+| 2026-10-26 | Tomb texture (confirmed) | The colour-block test is off. The tomb uses the original grausten colour, plus the purple emission mask on the dark grain |
+| 2026-10-26 | Altar rune glow (confirmed) | The purple pixels in `Runetable_e` are stripped and the rune glow is blue. The edited `Runetable_d.png` replaces the stone colour |
+| 2026-10-26 | Tomb facing (to confirm) | The grausten chest visual is yawed 180 degrees, so the hammer ghost shows the front (skull and branch) on the first selection |
+| 2026-10-26 | Tomb vein glow (to confirm) | Best result so far is kept: the branch-shaped texels only, without the straight bars and without splitting the skulls off the mesh. A copy is saved at `art/reference/grausten-chest/backup/graustenchest_veins_best.png` |
+| 2026-10-26 | Build costs (confirmed) | Tomb: Stone ×20, TrophySkeleton ×5, SurtlingCore ×2, workbench. Offering: CookedMeat ×5, CookedDeerMeat ×3, Carrot ×10, Thistle ×5, Honey ×10, Wood ×10, workbench. Bracelets: Silver ×10, Bronze ×5, WolfClaw ×3, forge. Longsword: BlackMetal ×20, Chain ×2, TrophyDraugrElite ×1, forge. Altar swaps BoneFragments for WitheredBone ×20. Treasure is unchanged |
+| 2026-10-26 | Bracelets lie flat (to confirm) | The ring mesh is already flat. The extra 90 degree tilt was standing it up. The rings rest in the bowl, each 3 cm closer to the centre than the previous spread |
+| 2026-10-26 | Treasure facing (to confirm) | The treasure visual is no longer yawed 180 degrees, so the hammer ghost shows the chest front |
+| 2026-10-23 | Treasure break (to confirm) | The treasure chest's distance mesh (`lod1`) is not copied. It is a second chest, and the break was throwing both. The chest the player sees still breaks |
+| 2026-10-26 | Altar break (to confirm) | The rune table's distance mesh (`low`) is not copied. It is a second altar, and the break was throwing both |
+| 2026-10-23 | Bracelets on a brazier (to confirm) | Test look: `piece_brazierfloor01` as the hammer shows it, without coals, flames or the ash mesh in the bowl. Three bracelets lie on the rim, spread apart, using the silver ingot material. The black-marble column look stays in code |
+| 2026-10-22 | Cheated mark on the carried grid (HB-160, confirmed) | A localized word after the amount, "(cheated)" / "(adulterado)". With StrictItemData the Haugbui still stacks only identical item data, so a cheated stack never joins a clean one |
+| 2026-10-26 | Upgrade arrow (confirmed) | Offering, treasure, bracelets, longsword and the altar set `Piece.m_isUpgrade`, so the hammer shows the same up arrow as vanilla upgrades. The tomb and the two chests do not |
+| 2026-10-26 | Build-menu icons, five upgrades (confirmed) | Offering uses the vanilla feast icon. Bracelets, treasure and the altar use the owner's 64×64 PNGs. The longsword uses the Primal Slayer icon until a replacement is saved. Tomb, collection and delivery use the owner's 64×64 PNGs |
+| 2026-10-26 | Storage opens without the crafting list (to confirm) | Opening the tomb, the collection chest or the delivery chest hides the crafting column. A vanilla chest still shows it. Closing the inventory brings it back |
+| 2026-10-26 | Delivery chest look, test (to confirm) | The trophy and eyes are off. It is the plain wood chest. `delivery-chest.png` replaces the wood colour. The relief stays the vanilla wood chest normal map; the painted `delivery-chest_n.png` warped the model. The open lid uses the same material |
+| 2026-10-27 | Chest marks (to confirm) | Collection and delivery keep the wood chest. A sign canvas floats above each one, without the board and without a Sign component, so it cannot be edited. Collection is a bright emerald up arrow (`#5EFFC0`). Delivery is a bright sky-blue down arrow (`#6ED4FF`). The face colour of the text is forced white so the arrow is not dulled. The mark's centre sits another 10 cm closer to the lid. It rises 5 cm over one second and returns over the next. `art/reference/collection.png` and `delivery.png` replace the wood colour. The collection bones and resin are off |
+| 2026-10-27 | Tomb vein pulse (to confirm) | The existing purple emission colour fades over a 5 second loop: off at 0%, full from 30% to 70% (2 seconds), off at 100%. The same material is recoloured; no second glow is added |
+| 2026-10-27 | Chest costs and hover (to confirm) | Collection: Wood ×10, AncientSeed ×2. Delivery: Wood ×10, GreydwarfEye ×10. Both stay on the workbench. The hover no longer repeats the chest name in the role line. The return countdown sits 50 cm lower |
+| 2026-10-27 | Tribute offers (to confirm) | The five offer buttons use three rows and two wider columns, so Amber Pearl and Silver Necklace are not clipped |
+| 2026-10-27 | Tomb veins, v1 (to confirm) | Skull stains stay as they are. The purple mask is one 128×128 emission texture on one material copy, replaced in place each try, not stacked. Another growth fills more of the remaining black tips and stays off the skull texels. The earlier backup is kept |
+| 2026-10-26 | Tomb skull stain test (to confirm) | The tomb stays the original Grausten chest, 20% larger. Colour, relief and metal stay the vanilla maps. The purple mask is painted onto the chest's own glow and is not blurred, so it does not smear onto the skull faces |
+| 2026-10-26 | Tomb vein glow, next try (to confirm) | The backed-up branch mask is kept. The live mask grows only onto front and lid texels the skulls do not use, so the purple can fill more of the grain without lighting the skull faces |
 
 Open: every row marked **to confirm**.

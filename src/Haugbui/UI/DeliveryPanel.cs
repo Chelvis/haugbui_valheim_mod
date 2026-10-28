@@ -7,7 +7,6 @@ using Haugbui.Creature;
 using Haugbui.Structures;
 using Jotunn.Managers;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Haugbui.UI
@@ -49,7 +48,7 @@ namespace Haugbui.UI
             if (!_root.activeSelf)
             {
                 _root.SetActive(true);
-                GUIManager.BlockInput(true);
+                PanelInput.Acquired();
             }
         }
 
@@ -57,7 +56,7 @@ namespace Haugbui.UI
         {
             if (!IsOpen) return;
             _root.SetActive(false);
-            GUIManager.BlockInput(false);
+            PanelInput.Released();
             _chest = null;
         }
 
@@ -65,8 +64,7 @@ namespace Haugbui.UI
         public static void Update()
         {
             if (!IsOpen) return;
-            if (_chest == null || Player.m_localPlayer == null || Input.GetKeyDown(KeyCode.Escape)
-                || (Time.time - _openedAt > 0.2f && !Typing() && Input.GetKeyDown(KeyCode.E)))
+            if (_chest == null || Player.m_localPlayer == null || PanelInput.ShouldClose(_openedAt))
             {
                 Close();
                 return;
@@ -86,13 +84,6 @@ namespace Haugbui.UI
 
         internal static IReadOnlyList<(string Prefab, string Name)> KnownItems => Known;
 
-        private static bool Typing()
-        {
-            GameObject selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
-            InputField field = selected != null ? selected.GetComponent<InputField>() : null;
-            return field != null && field.isFocused;
-        }
-
         private static void Build()
         {
             GUIManager gui = GUIManager.Instance;
@@ -111,7 +102,7 @@ namespace Haugbui.UI
                 GameObject edit = gui.CreateButton(Localization.instance.Localize("$haugbui_delivery_edit_line"), _root.transform,
                     new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(420f, y), 80f, 30f);
                 edit.GetComponent<Button>().onClick.AddListener(() => EditLine(index));
-                GameObject cancel = gui.CreateButton("X", _root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(500f, y), 40f, 30f);
+                GameObject cancel = gui.CreateButton(Localization.instance.Localize("$haugbui_delivery_remove"), _root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(500f, y), 40f, 30f);
                 cancel.GetComponent<Button>().onClick.AddListener(() => CancelLine(index));
                 RowButtons.Add(edit);
                 RowButtons.Add(cancel);

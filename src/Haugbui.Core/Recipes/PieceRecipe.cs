@@ -100,21 +100,21 @@ namespace Haugbui.Core.Recipes
         public static IReadOnlyList<PieceRecipe> All { get; } = new[]
         {
             Recipe(PieceIds.Tomb, StationPrefabs.Workbench,
-                "Stone:20,BoneFragments:10,SurtlingCore:1,GreydwarfEye:5"),
+                "Stone:20,TrophySkeleton:5,SurtlingCore:2"),
             Recipe(PieceIds.Offering, StationPrefabs.Workbench,
-                "CookedMeat:5,Honey:10,Thistle:5,Wood:10"),
+                "CookedMeat:5,CookedDeerMeat:3,Carrot:10,Thistle:5,Honey:10,Wood:10"),
             Recipe(PieceIds.PersonalTreasure, StationPrefabs.Forge,
                 "Coins:150,Ruby:3,AmberPearl:3,Amber:5,Iron:10"),
             Recipe(PieceIds.SilverBracelets, StationPrefabs.Forge,
-                "Silver:10,WolfPelt:2,FineWood:4"),
+                "Silver:10,Bronze:5,WolfClaw:3"),
             Recipe(PieceIds.Longsword, StationPrefabs.Forge,
-                "BlackMetal:15,LinenThread:5,TrophyDraugrElite:1"),
+                "BlackMetal:20,Chain:2,TrophyDraugrElite:1"),
             Recipe(PieceIds.Altar, StationPrefabs.GaldrTable,
-                "BlackMarble:20,Eitr:10,BoneFragments:20,Ectoplasm:10"),
+                "BlackMarble:20,Eitr:10,WitheredBone:20,Ectoplasm:10"),
             Recipe(PieceIds.CollectionChest, StationPrefabs.Workbench,
-                "Wood:10,BoneFragments:5,Resin:5"),
+                "Wood:10,AncientSeed:2"),
             Recipe(PieceIds.DeliveryChest, StationPrefabs.Workbench,
-                "Wood:15,BoneFragments:10,GreydwarfEye:5,Resin:5"),
+                "Wood:10,GreydwarfEye:10"),
         };
 
         private static PieceRecipe Recipe(string pieceId, string station, string ingredients)

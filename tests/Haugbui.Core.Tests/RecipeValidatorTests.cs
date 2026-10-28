@@ -36,7 +36,7 @@ namespace Haugbui.Core.Tests
         public void Unknown_item_disables_only_the_pieces_that_use_it()
         {
             HashSet<string> items = AllDefaultItems();
-            items.Remove("WolfPelt");
+            items.Remove("WolfClaw");
 
             IReadOnlyDictionary<string, RecipeValidation> result = Validate(items);
 

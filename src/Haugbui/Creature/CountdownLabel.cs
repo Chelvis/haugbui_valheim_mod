@@ -31,7 +31,7 @@ namespace Haugbui.Creature
             // Inactive until the font is set; otherwise TMP looks for its default font, which Valheim does not ship.
             go.SetActive(false);
             go.transform.SetParent(transform, false);
-            go.transform.localPosition = Vector3.up * 2.4f;
+            go.transform.localPosition = Vector3.up * 1.9f;
             // Billboard points +forward at the camera, but TMP text reads from its -forward side: invert it.
             go.AddComponent<Billboard>().m_invert = true;
             _text = go.AddComponent<TextMeshPro>();

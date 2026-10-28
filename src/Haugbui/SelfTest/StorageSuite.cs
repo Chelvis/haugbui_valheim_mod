@@ -12,6 +12,7 @@ using Haugbui.Creature;
 using Haugbui.Integration;
 using Haugbui.Registry;
 using Haugbui.Structures;
+using Haugbui.UI;
 using UnityEngine;
 using Reservations = Haugbui.Coordination.Reservations;
 
@@ -45,6 +46,7 @@ namespace Haugbui.SelfTest
                 yield return Transfers();
                 yield return VanillaStacking();
                 yield return Sorting();
+                yield return Filter();
                 yield return TwoTombs();
                 LoadedAreaChecks();
             }
@@ -266,8 +268,21 @@ namespace Haugbui.SelfTest
 
             yield return SetTime(FakeTime.Night);
             _t.Check("emerges to work", _tomb.Creature != null, _tomb.Machine.State.ToString());
-            yield return SelfTestContext.WaitFor(() => Count(tombContainer, "Wood") == 0 && Count(tombContainer, "Stone") == 0
-                                                     && _tomb.Carried.Stacks.All(s => s.Prefab == "Resin") && _tomb.Worker.Plan == null, 90f);
+            bool sawCarriedGrid = false;
+            yield return SelfTestContext.WaitFor(() =>
+            {
+                if (!sawCarriedGrid && _tomb.Carried.CountPrefab("Wood") > 0)
+                {
+                    TombPanel.Open(_tomb);
+                    string shown = TombPanel.CarriedText;
+                    int amount = _tomb.Carried.CountPrefab("Wood");
+                    sawCarriedGrid = shown.Contains(amount.ToString());
+                    TombPanel.Close();
+                }
+                return Count(tombContainer, "Wood") == 0 && Count(tombContainer, "Stone") == 0
+                       && _tomb.Carried.Stacks.All(s => s.Prefab == "Resin") && _tomb.Worker.Plan == null;
+            }, 90f);
+            _t.Check("carried grid matches the carried inventory during a transfer", sawCarriedGrid);
 
             _t.Check("tomb storage sorted first after emerging", Count(tombContainer, "Wood") == 0 && Count(tombContainer, "Stone") == 0,
                 $"left in tomb storage: wood {Count(tombContainer, "Wood")}, stone {Count(tombContainer, "Stone")}; carried {string.Join(", ", _tomb.Carried.Stacks)}");
@@ -312,6 +327,73 @@ namespace Haugbui.SelfTest
             yield return SelfTestContext.WaitFor(() => _tomb.Machine.State == HaugbuiState.Dormant, 30f);
             _t.Check("dawn: kept items back in tomb storage", _tomb.Carried.IsEmpty, string.Join(", ", _tomb.Carried.Stacks));
             _t.Check("totals conserved at the end", Same(expected, WorldTotals()), $"{Format(expected)} → {Format(WorldTotals())}");
+        }
+
+        private IEnumerator Filter()
+        {
+            Container empty = Chest(new Vector3(2, 0, -7));
+            if (!_t.Check("filter chest placed", empty != null)) yield break;
+            var from = WorldRegistry.ToVec3(empty.transform.position);
+            ContainerSnapshot snap = WorkContext.Snapshot(empty);
+            _t.Check("empty filter: an empty chest receives nothing",
+                StorageSelector.Plan(Stack("Wood", 5), 5, new[] { snap }, from).Count == 0);
+
+            ChestFilterStore.Write(empty.m_nview.GetZDO(), new[] { "Wood" });
+            snap = WorkContext.Snapshot(empty);
+            int woodPlan = StorageSelector.Plan(Stack("Wood", 5), 5, new[] { snap }, from).Sum(a => a.Amount);
+            int stonePlan = StorageSelector.Plan(Stack("Stone", 5), 5, new[] { snap }, from).Sum(a => a.Amount);
+            _t.Check("wood filter accepts wood and refuses stone", woodPlan == 5 && stonePlan == 0, $"wood {woodPlan}, stone {stonePlan}");
+
+            ItemStack wood = Stack("Wood", 5);
+            ItemBridge.RefreshShared(wood);
+            int woodBefore = Count(empty, "Wood") + _tomb.Carried.CountPrefab("Wood");
+            _tomb.Carried.Add(wood.Copy(5));
+            int moved = ItemBridge.AddTo(empty.GetInventory(), wood.Copy(woodPlan));
+            _tomb.Carried.Remove(wood, moved);
+            ItemStack stone = Stack("Stone", 5);
+            _tomb.Carried.Add(stone.Copy(5));
+            _t.Check("empty chest with a wood filter receives the wood", moved == 5 && Count(empty, "Wood") == 5, Count(empty, "Wood").ToString());
+            _t.Check("stone stays carried", _tomb.Carried.CountPrefab("Stone") == 5 && Count(empty, "Stone") == 0);
+            _t.Check("filter move conserves wood", Count(empty, "Wood") + _tomb.Carried.CountPrefab("Wood") == woodBefore + 5,
+                $"{Count(empty, "Wood")}+{_tomb.Carried.CountPrefab("Wood")}");
+
+            var cheated = Stack("Resin", 2);
+            cheated.Cheated = true;
+            ItemBridge.RefreshShared(cheated);
+            _tomb.Carried.Add(cheated);
+            TombPanel.Open(_tomb);
+            string mark = Localization.instance.Localize("$haugbui_panel_cheated");
+            _t.Check("carried grid shows the amount and the cheated mark",
+                TombPanel.CarriedText.Contains("2") && TombPanel.CarriedText.Contains(mark), TombPanel.CarriedText);
+            _t.Check("panel shows speed and radius",
+                TombPanel.StatusText.Contains(Localization.instance.Localize("$haugbui_panel_speed", _tomb.Attributes.MaxSpeed.ToString("0.#")))
+                && TombPanel.StatusText.Contains(Localization.instance.Localize("$haugbui_panel_radius", _tomb.Attributes.Radius.ToString("0"))),
+                TombPanel.StatusText);
+            _t.Check("tomb panel blocks movement", TombPanel.IsOpen && !_t.Player.TakeInput());
+            TombPanel.Close();
+            _t.Check("closing the tomb panel leaves the player able to move", !TombPanel.IsOpen && _t.Player.TakeInput());
+            _tomb.Carried.Remove(cheated, 2);
+            _tomb.Carried.Remove(stone, 5);
+
+            ChestFilterPanel.Open(empty);
+            _t.Check("filter panel blocks movement", ChestFilterPanel.IsOpen && !_t.Player.TakeInput());
+            ChestFilterPanel.Clear();
+            snap = WorkContext.Snapshot(empty);
+            _t.Check("clear-all restores the existing-item rule",
+                StorageSelector.Plan(Stack("Stone", 1), 1, new[] { snap }, from).Count == 0
+                && StorageSelector.Plan(Stack("Wood", 1), 1, new[] { snap }, from).Sum(a => a.Amount) > 0);
+            ChestFilterPanel.Close();
+            _t.Check("closing the filter panel leaves the player able to move", !ChestFilterPanel.IsOpen && _t.Player.TakeInput());
+
+            ChestFilterStore.Write(empty.m_nview.GetZDO(), new[] { "Wood" });
+            GameObject again = null;
+            yield return _t.Reload(empty.gameObject, go => again = go);
+            Container reloaded = again != null ? again.GetComponent<Container>() : null;
+            _chests.Remove(empty);
+            if (reloaded != null) _chests.Add(reloaded);
+            List<string> kept = ChestFilterStore.Read(reloaded != null ? reloaded.m_nview.GetZDO() : null);
+            _t.Check("the filter list survives a reload", reloaded != null && kept.Count == 1 && kept[0] == "Wood",
+                kept != null ? string.Join(",", kept) : "missing");
         }
 
         private IEnumerator TwoTombs()

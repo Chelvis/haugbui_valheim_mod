@@ -16,8 +16,8 @@ harvest your fields and keep your smelters running — while you go adventuring.
 </div>
 
 > [!WARNING]
-> **Pre-alpha — not playable yet.** Version 0.0.9 contains the project foundation, the tomb and its five upgrades
-> (with placeholder looks), the Haugbui itself (emerges at night, returns at dawn, dies and returns at a later dusk,
+> **Pre-alpha — not playable yet.** Version 0.0.10 contains the project foundation, the tomb and its five upgrades,
+> the Haugbui itself (emerges at night, returns at dawn, dies and returns at a later dusk,
 > tomb panel with toggles), its jobs — sorting its tomb storage and Collection Chests into chests that already
 > hold the same item, bringing requested items to Delivery Chests, picking up ground items, harvesting ripe crops,
 > beehives and birds' nests, running simple production stations (smelters, kilns, windmill, spinning wheel, eitr
@@ -95,7 +95,8 @@ anything Haugbui-related is missing.
 | M7 | Production automation, sleep fast mode, territories, optional strict item data | ✅ (0.0.7) |
 | M8 | Combat: defend the radius, level scaling, flee home when combat is off | ✅ (0.0.8) |
 | M9 | World safety: marker and warning, opt-in backup, blob integrity, save/reload checks | ✅ (0.0.9) |
-| M10–M11 | Full UI, performance, release | ⏳ |
+| M10 | Tomb panel, hovers, chest filter, localization, structure looks and build-menu icons | ✅ (0.0.10) |
+| M11 | Performance and release | ⏳ |
 | M12 | Away mode (release 1.1) | ⏳ |
 
 The full plan lives in [`docs/`](docs):

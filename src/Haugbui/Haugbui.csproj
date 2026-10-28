@@ -43,17 +43,26 @@
     <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(VALHEIM_MANAGED)/UnityEngine.ImageConversionModule.dll" Private="false" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="Translations\**\*.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+    <ItemGroup>
+      <None Include="Translations\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+      <None Include="..\..\art\icons\*.png" Link="icons\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+      <None Include="..\..\art\reference\grausten-chest\graustenchest_veins.png" Link="textures\graustenchest_veins.png" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\art\reference\grausten-chest\graustenchest_veins.png')" />
+      <None Include="..\..\art\reference\rune-table\Runetable_d.png" Link="textures\Runetable_d.png" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\art\reference\rune-table\Runetable_d.png')" />
+      <None Include="..\..\art\reference\collection.png" Link="textures\collection.png" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\art\reference\collection.png')" />
+      <None Include="..\..\art\reference\delivery.png" Link="textures\delivery.png" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\art\reference\delivery.png')" />
+    </ItemGroup>
 
   <Target Name="DeployToPlugins" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' And '$(MOD_DEPLOYPATH)' != ''">
     <ItemGroup>
       <DeployFiles Include="$(OutDir)Haugbui.dll;$(OutDir)Haugbui.pdb;$(OutDir)Haugbui.Core.dll;$(OutDir)Haugbui.Core.pdb" />
       <DeployTranslations Include="$(OutDir)Translations\**\*.json" />
+      <DeployIcons Include="$(OutDir)icons\*.png" />
+      <DeployTextures Include="$(OutDir)textures\*.png" />
     </ItemGroup>
     <Copy SourceFiles="@(DeployFiles)" DestinationFolder="$(MOD_DEPLOYPATH)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(DeployTranslations)" DestinationFolder="$(MOD_DEPLOYPATH)\Translations\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(DeployIcons)" DestinationFolder="$(MOD_DEPLOYPATH)\icons" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(DeployTextures)" DestinationFolder="$(MOD_DEPLOYPATH)\textures" SkipUnchangedFiles="true" />
     <Message Importance="high" Text="Haugbui deployed to $(MOD_DEPLOYPATH)" />
   </Target>
 </Project>

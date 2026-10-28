@@ -6,6 +6,7 @@ using Haugbui.Core.Persistence;
 using Haugbui.Core.Recipes;
 using Haugbui.Core.Storage;
 using Haugbui.Core.Structures;
+using Haugbui.Creature;
 using Haugbui.Integration;
 using Haugbui.Integration.StationAdapters;
 using Haugbui.Structures;
@@ -109,6 +110,11 @@ namespace Haugbui.SelfTest
 
                 _t.Check($"{order[i]} bound to tomb", upgrade.BoundTombGuid == _tomb.Guid);
                 _t.Check($"level {i + 2} after {order[i]}", _tomb.Progress.Level == i + 2, $"level {_tomb.Progress.Level}");
+                if (order[i] == StructureKind.Altar)
+                {
+                    _t.Check("altar explains daylight work", UnifiedPopup.IsVisible());
+                    if (UnifiedPopup.IsVisible()) UnifiedPopup.Pop();
+                }
                 if (order[i] == StructureKind.Longsword)
                 {
                     _t.Check("combat warning shown for the Longsword", UnifiedPopup.IsVisible());
@@ -143,6 +149,11 @@ namespace Haugbui.SelfTest
                 yield return Screenshots.Capture(_t.OutputFolder, upgrade.Kind.ToString(), upgrade.transform.position, 2f);
             yield return Screenshots.Capture(_t.OutputFolder, "tomb_and_upgrades", _arena, 7f);
             _t.Check("visual parts all found", StructureVisuals.MissingParts.Count == 0, string.Join(", ", StructureVisuals.MissingParts));
+            _t.Check("tomb vein pulse holds full for the middle of the loop",
+                Mathf.Approximately(VeinPulse.Level(0f), 0f) && Mathf.Approximately(VeinPulse.Level(0.3f), 1f)
+                && Mathf.Approximately(VeinPulse.Level(0.5f), 1f) && Mathf.Approximately(VeinPulse.Level(0.7f), 1f)
+                && Mathf.Approximately(VeinPulse.Level(1f), 0f));
+            _t.Check("tomb vein pulse is on the chest", _tomb.GetComponentInChildren<VeinPulse>(true) != null);
             foreach (KeyValuePair<string, string> tint in StructureVisuals.MaterialDiagnostics)
                 _t.Check($"glow recoloured: {tint.Key}", true, tint.Value);
             if (StructureVisuals.MaterialDiagnostics.Count == 0)
@@ -154,6 +165,27 @@ namespace Haugbui.SelfTest
                     StructureVisuals.PartDiagnostics.TryGetValue(definition.PieceId + "/" + part.Prefab, out string detail);
                     _t.Check($"{definition.Kind} shows {part.Prefab}", StructureVisuals.CopiedCount(definition.PieceId, part.Prefab) > 0, detail ?? "not applied");
                 }
+                string icon = StructureIcons.Describe(definition.Kind);
+                _t.Check($"{definition.Kind} icon", icon == "custom" || icon == "fallback", icon);
+            }
+
+            TombController controller = _tomb.GetComponent<TombController>();
+            string tombHover = _tomb.GetComponent<Container>().GetHoverText();
+            string levelText = Localization.instance.Localize("$haugbui_hover_level", _tomb.Progress.Level.ToString());
+            string cooldownLabel = Localization.instance.Localize("$haugbui_panel_cooldown", "¤").Replace("¤", "").Trim();
+            _t.Check("tomb hover shows name, level, state, health and cooldown",
+                controller != null && tombHover.Contains(controller.ServantName) && tombHover.Contains(levelText)
+                && tombHover.Contains(Localization.instance.Localize("$haugbui_panel_state"))
+                && tombHover.Contains(Localization.instance.Localize("$haugbui_panel_health"))
+                && tombHover.Contains(cooldownLabel), tombHover);
+            _t.Check("tomb hover offset", !float.IsNaN(_tomb.GetComponent<Container>().GetHoverOffset()));
+            HaugbuiStructure bound = _upgrades.FirstOrDefault(u => u != null);
+            if (bound != null)
+            {
+                string upgradeHover = bound.GetHoverText();
+                _t.Check("upgrade hover shows whether it is bound, without the level",
+                    upgradeHover.Contains(Localization.instance.Localize("$haugbui_hover_bound")) && !upgradeHover.Contains(levelText), upgradeHover);
+                _t.Check("upgrade hover offset", !float.IsNaN(bound.GetHoverOffset()));
             }
         }
 

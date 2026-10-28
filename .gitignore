@@ -16,3 +16,9 @@ Packages/
 # Self-test results dropped into the root (never committed)
 haugbui_selftest*/
 LogOutput.log
+
+# Extracted vanilla textures kept locally for editing
+art/reference/
+
+# Vanilla build-menu icons exported as references for the owner to redraw
+art/icon-sources/

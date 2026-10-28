@@ -13,7 +13,7 @@
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <HaugbuiVersion>0.0.9</HaugbuiVersion>
+    <HaugbuiVersion>0.0.10</HaugbuiVersion>
     <Version>$(HaugbuiVersion)</Version>
 
     <VALHEIM_INSTALL Condition="'$(VALHEIM_INSTALL)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</VALHEIM_INSTALL>

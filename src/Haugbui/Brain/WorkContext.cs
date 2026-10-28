@@ -256,6 +256,8 @@ namespace Haugbui.Brain
                 Slots = inventory.GetWidth() * inventory.GetHeight(),
             };
             foreach (ItemDrop.ItemData item in inventory.GetAllItems()) snapshot.Items.Add(ItemBridge.FromItemData(item));
+            ZNetView view = container.m_nview;
+            snapshot.Filter = ChestFilterStore.Read(view != null && view.IsValid() ? view.GetZDO() : null);
             return snapshot;
         }
     }

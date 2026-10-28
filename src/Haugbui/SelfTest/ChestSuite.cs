@@ -90,12 +90,42 @@ namespace Haugbui.SelfTest
                     chest.m_name);
                 _t.Check($"{name} chest costs more than a wood chest", Cost(chest.GetComponent<Piece>()) > Cost(ZNetScene.instance.GetPrefab("piece_chest_wood").GetComponent<Piece>()),
                     $"{Cost(chest.GetComponent<Piece>())} items");
-                _t.Check($"{name} chest looks different", chest.transform.Find(StructureVisuals.RootName) != null);
+                Transform mark = chest.transform.Find(StructureVisuals.MarkName);
+                var label = mark != null ? mark.GetComponentInChildren<TMPro.TextMeshProUGUI>(true) : null;
+                _t.Check($"{name} chest mark is not a sign", mark != null && mark.GetComponent<Sign>() == null && label != null && !label.raycastTarget, label != null ? label.text : "missing");
+                _t.Check($"{name} chest mark bobs five centimetres",
+                    mark != null && mark.GetComponent<MarkFloat>() != null
+                    && Mathf.Approximately(MarkFloat.Lift(0f), 0f) && Mathf.Approximately(MarkFloat.Lift(1f), MarkFloat.Travel)
+                    && Mathf.Approximately(MarkFloat.Lift(2f), 0f));
+                if (chest.GetComponent<HaugbuiStructure>().Kind == StructureKind.DeliveryChest)
+                {
+                    _t.Check("delivery chest has no extra props", chest.transform.Find(StructureVisuals.RootName) == null);
+                    _t.Check("delivery chest uses the painted wood texture",
+                        chest.GetComponentsInChildren<Renderer>(true).Any(r => r.sharedMaterials.Any(m => m != null && m.mainTexture != null && m.mainTexture.name == "delivery.png")));
+                    _t.Check("delivery chest keeps the wood relief",
+                        chest.GetComponentsInChildren<Renderer>(true).Any(r => r.sharedMaterials.Any(m => m != null && m.HasProperty("_BumpMap") && m.GetTexture("_BumpMap") != null && m.GetTexture("_BumpMap").name.Contains("woodchest"))));
+                    _t.Check("delivery chest mark points down", label != null && label.text.Contains("#6ED4FF"));
+                }
+                else
+                {
+                    _t.Check("collection chest uses the painted wood texture",
+                        chest.GetComponentsInChildren<Renderer>(true).Any(r => r.sharedMaterials.Any(m => m != null && m.mainTexture != null && m.mainTexture.name == "collection.png")));
+                    _t.Check("collection chest mark points up", label != null && label.text.Contains("#5EFFC0"));
+                }
             }
             _t.Check("delivery chest has a request ledger", _deliveryA.GetComponent<DeliveryChest>() != null);
             _t.Check("collection chest has no request ledger", _collection.GetComponent<DeliveryChest>() == null);
             string hover = _deliveryA.GetHoverText();
             _t.Check("delivery hover shows the alt-interact hint", hover.Contains(Localization.instance.Localize("$haugbui_delivery_edit")), hover);
+            _t.Check("delivery hover states its role", hover.Contains(Localization.instance.Localize("$haugbui_hover_delivery")), hover);
+            _t.Check("collection hover states its role",
+                _collection.GetHoverText().Contains(Localization.instance.Localize("$haugbui_hover_collection")), _collection.GetHoverText());
+            _t.Check("chest hover offset", !float.IsNaN(_deliveryA.GetHoverOffset()) && !float.IsNaN(_collection.GetHoverOffset()));
+            CraftMenuHidden();
+            DeliveryPanel.Open(_deliveryA.GetComponent<DeliveryChest>());
+            _t.Check("delivery panel blocks movement", DeliveryPanel.IsOpen && !_t.Player.TakeInput());
+            DeliveryPanel.Close();
+            _t.Check("closing the delivery panel leaves the player able to move", !DeliveryPanel.IsOpen && _t.Player.TakeInput());
             IAccessPolicy policy = SinglePlayerAccessPolicy.Instance;
             long owner = _t.Player.GetPlayerID();
             _t.Check("collection chest is a source, never a destination",
@@ -105,6 +135,28 @@ namespace Haugbui.SelfTest
                 policy.CheckContainer(_deliveryA, owner, ContainerUse.DeliveryTarget) == ContainerVerdict.Allowed
                 && policy.CheckContainer(_deliveryA, owner, ContainerUse.StorageSource) == ContainerVerdict.HaugbuiRole
                 && policy.CheckContainer(_deliveryA, owner, ContainerUse.StorageDestination) == ContainerVerdict.HaugbuiRole);
+        }
+
+        private void CraftMenuHidden()
+        {
+            InventoryGui gui = InventoryGui.instance;
+            if (!_t.Check("inventory is available", gui != null && gui.m_crafting != null)) return;
+            try
+            {
+                gui.Show(_tomb.GetComponent<Container>());
+                _t.Check("tomb storage hides the crafting menu", !gui.m_crafting.gameObject.activeSelf);
+                gui.Show(_collection);
+                _t.Check("collection chest hides the crafting menu", !gui.m_crafting.gameObject.activeSelf);
+                gui.Show(_deliveryA);
+                _t.Check("delivery chest hides the crafting menu", !gui.m_crafting.gameObject.activeSelf);
+                gui.Show(_wood);
+                _t.Check("a wood chest still shows the crafting menu", gui.m_crafting.gameObject.activeSelf);
+            }
+            finally
+            {
+                gui.Hide();
+                _t.Check("closing storage brings the crafting menu back", gui.m_crafting.gameObject.activeSelf);
+            }
         }
 
         private IEnumerator Editor()

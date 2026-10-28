@@ -31,6 +31,44 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void Empty_filter_keeps_the_existing_item_rule()
+        {
+            ContainerSnapshot empty = Items.Chest("empty", 1, 10);
+            empty.Filter = new List<string>();
+            Assert.That(StorageSelector.Plan(Items.Make("Wood", 10), 10, new[] { empty }, Origin), Is.Empty);
+        }
+
+        [Test]
+        public void Wood_filter_on_an_empty_chest_accepts_wood_and_refuses_stone()
+        {
+            ContainerSnapshot chest = Items.Chest("filtered", 1, 10);
+            chest.Filter = new List<string> { "Wood" };
+            Assert.That(StorageSelector.Plan(Items.Make("Wood", 10), 10, new[] { chest }, Origin).Single().Amount, Is.EqualTo(10));
+            Assert.That(StorageSelector.Plan(Items.Make("Stone", 10), 10, new[] { chest }, Origin), Is.Empty);
+        }
+
+        [Test]
+        public void Clearing_the_filter_restores_the_existing_item_rule()
+        {
+            ContainerSnapshot chest = Items.Chest("filtered", 1, 10);
+            chest.Filter = ChestFilterRules.Normalize(new[] { "Wood" });
+            chest.Filter = ChestFilterRules.Normalize(new string[0]);
+            Assert.That(StorageSelector.Plan(Items.Make("Wood", 10), 10, new[] { chest }, Origin), Is.Empty);
+        }
+
+        [Test]
+        public void Filter_list_drops_blanks_and_duplicates_and_stops_at_the_cap()
+        {
+            var names = new List<string> { " Wood ", "", "Wood", "Stone" };
+            for (int i = 0; i < 40; i++) names.Add("Item" + i);
+            List<string> normalized = ChestFilterRules.Normalize(names);
+            Assert.That(normalized[0], Is.EqualTo("Wood"));
+            Assert.That(normalized[1], Is.EqualTo("Stone"));
+            Assert.That(normalized, Has.Count.EqualTo(ChestFilterRules.MaxEntries));
+            Assert.That(normalized, Is.Unique);
+        }
+
+        [Test]
         public void Wood_never_goes_to_a_stone_only_chest()
         {
             ContainerSnapshot stone = Items.Chest("stone", 1, 10, Items.Make("Stone", 5));

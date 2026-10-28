@@ -165,6 +165,9 @@ namespace Haugbui.SelfTest
                 string.Join(", ", ProductionPanel.Recipes.Select(r => r.Key)));
             _t.Check("finite job needs an amount", !ProductionPanel.Apply(true, _recipe, JobMode.Finite, 0));
             _t.Check("hover shows the Shift+E hint", addOre.GetHoverText().Contains(Localization.instance.Localize("$haugbui_job_open")));
+            _t.Check("station hover shows the automation status",
+                addOre.GetHoverText().Contains(Localization.instance.Localize("$haugbui_job_hover")), addOre.GetHoverText());
+            _t.Check("station hover offset", !float.IsNaN(addOre.GetHoverOffset()));
         }
 
         private IEnumerator LevelGate()
@@ -175,7 +178,9 @@ namespace Haugbui.SelfTest
             _t.Check("level 1: panel explains the unlock level",
                 ProductionPanel.StatusText(_smelter, job) == Localization.instance.Localize("$haugbui_job_needs_level", "2"),
                 ProductionPanel.StatusText(_smelter, job));
+            _t.Check("production panel blocks movement", ProductionPanel.IsOpen && !Player.m_localPlayer.TakeInput());
             ProductionPanel.Close();
+            _t.Check("closing the production panel leaves the player able to move", !ProductionPanel.IsOpen && Player.m_localPlayer.TakeInput());
 
             yield return SetTime(FakeTime.Night);
             _t.Check("emerges at night", _tomb.Creature != null, _tomb.Machine.State.ToString());

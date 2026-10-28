@@ -8,6 +8,7 @@ using Haugbui.Core.Structures;
 using Haugbui.Creature;
 using Haugbui.Integration;
 using Haugbui.Structures;
+using Haugbui.UI;
 using UnityEngine;
 
 namespace Haugbui.SelfTest
@@ -206,6 +207,27 @@ namespace Haugbui.SelfTest
             _t.Check("full storage: fills the open stack, rest to overflow, totals kept",
                 Count("Wood") == 50 && Count("Wood") + overflow == total,
                 $"storage {Count("Wood")}, overflow {overflow}, expected total {total}");
+
+            Player player = _t.Player;
+            int emptySlots = player.GetInventory().GetEmptySlots();
+            int playerBefore = ItemBridge.CountPrefab(player.GetInventory(), "Wood");
+            int storageBefore = Count("Wood");
+            ItemStack sample = _tomb.Overflow.First(s => s.Prefab == "Wood");
+            int left = _tomb.RetrieveOverflow(player);
+            int playerAfter = ItemBridge.CountPrefab(player.GetInventory(), "Wood");
+            int storageAfter = Count("Wood");
+            int overflowAfter = _tomb.Overflow.Where(s => s.Prefab == "Wood").Sum(s => s.Amount);
+            _t.Check("overflow retrieve conserves wood",
+                playerAfter + storageAfter + overflowAfter == playerBefore + storageBefore + overflow,
+                $"player {playerBefore}->{playerAfter}, storage {storageBefore}->{storageAfter}, overflow {overflow}->{overflowAfter}");
+            if (emptySlots > 0)
+                _t.Check("overflow moves to the player before tomb storage", playerAfter > playerBefore && storageAfter == storageBefore,
+                    $"player +{playerAfter - playerBefore}, storage {storageAfter - storageBefore}");
+            else
+                _t.Check("overflow stays when the player and the tomb are full", overflowAfter == overflow && storageAfter == storageBefore);
+            _t.Check("what does not fit stays in overflow", left == overflowAfter, $"{left}/{overflowAfter}");
+            int gained = playerAfter - playerBefore;
+            if (gained > 0) ItemBridge.RemoveFrom(player.GetInventory(), sample.Copy(gained), gained);
             storage.RemoveAll();
         }
 
@@ -288,12 +310,18 @@ namespace Haugbui.SelfTest
         {
             _t.Check("combat refused without Longsword", !_tomb.SetToggle(TombToggles.Combat, true, out string refusal) && refusal != null);
             _tomb.SetToggle(TombToggles.Harvesting, false, out _);
+            bool renamed = _tomb.Rename("  Draugr  ");
             GameObject reloaded = null;
             yield return _t.Reload(_tomb.gameObject, go => reloaded = go);
             _tomb = reloaded != null ? reloaded.GetComponent<TombController>() : null;
             if (!_t.Check("tomb reloaded for toggles", _tomb != null)) yield break;
             _tomb.Worker.Paused = true;
             _t.Check("toggles persist across reload", _tomb.State != null && !_tomb.State.Has(TombToggles.Harvesting) && _tomb.State.Has(TombToggles.GroundItems));
+            _t.Check("renamed name survives a reload", renamed && _tomb.ServantName == "Draugr", _tomb.ServantName);
+            TombPanel.Open(_tomb);
+            string hover = _tomb.GetComponent<Container>().GetHoverText();
+            _t.Check("hover and panel show the new name", hover.Contains("Draugr") && TombPanel.TitleText == "Draugr", hover);
+            TombPanel.Close();
         }
 
         private IEnumerator Destruction()
@@ -310,6 +338,15 @@ namespace Haugbui.SelfTest
                 .Sum(d => d.m_itemData.m_stack);
             _t.Check("tomb destroyed: carried and overflow dropped", flint == 10, $"{flint}/10 flint on the ground");
             _t.Check("tomb destroyed: creature gone", CountCreatures() == 0);
+            HaugbuiStructure rebuilt = _t.PlaceStructure(StructureKind.Tomb, SelfTestContext.OnGround(at + new Vector3(2f, 0, 0)));
+            yield return SelfTestContext.WaitFrames(3);
+            TombController next = rebuilt != null ? rebuilt.GetComponent<TombController>() : null;
+            _t.Check("a new tomb inherits the name", next != null && next.ServantName == "Draugr", next != null ? next.ServantName : "missing");
+            if (next != null)
+            {
+                next.Rename("   ");
+                _t.Check("empty input restores the default name", next.ServantName == ServantSlots.DefaultName(next.State.SlotIndex), next.ServantName);
+            }
             foreach (ItemDrop drop in UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None)
                          .Where(d => Vector3.Distance(d.transform.position, at) < 5f))
                 _t.Track(drop.gameObject);

@@ -141,6 +141,7 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "Bed", "Awake", MemberKind.Method, Features.Structures),
             M(Valheim, "Bed", "GetOwner", MemberKind.Method, Features.Structures),
             M(Valheim, "Container", "GetHoverText", MemberKind.Method, Features.Structures),
+            M(Valheim, "InventoryGui", "CloseContainer", MemberKind.Method, Features.Structures),
             M(Valheim, "Container", "m_name", MemberKind.Field, Features.Structures),
             M(Valheim, "Inventory", "m_name", MemberKind.Field, Features.Structures),
             M(Valheim, "ZDO", "SetPrefab", MemberKind.Method, Features.Structures),

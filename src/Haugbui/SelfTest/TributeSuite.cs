@@ -189,6 +189,9 @@ namespace Haugbui.SelfTest
             }
             _t.Check("panel has one offer button per valuable", TombPanel.OfferButtons.Select(b => b.Prefab).SequenceEqual(Table.Values.Select(v => v.Key)),
                 string.Join(", ", TombPanel.OfferButtons.Select(b => b.Prefab)));
+            int offerRows = TombPanel.OfferButtons
+                .Select(b => Mathf.RoundToInt(((RectTransform)b.Button.transform).anchoredPosition.y)).Distinct().Count();
+            _t.Check("offer buttons sit on three rows", offerRows == Math.Min(3, TombPanel.OfferButtons.Count), offerRows.ToString());
             _t.Check("offer buttons disabled without the item",
                 TombPanel.OfferButtons.Where(b => Count(b.Prefab) == 0).All(b => !b.Button.interactable));
             _t.Check("panel shows balance and shift timer",

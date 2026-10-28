@@ -14,6 +14,9 @@ namespace Haugbui.Core.Storage
         public int Slots { get; set; }
         public List<ItemStack> Items { get; set; } = new List<ItemStack>();
 
+        /// <summary>Prefab names this chest accepts. Empty keeps the existing-item rule (HB-062).</summary>
+        public List<string> Filter { get; set; } = new List<string>();
+
         public int FreeSlots => Math.Max(0, Slots - Items.Count);
 
         public bool Contains(ItemStack item) => Items.Any(i => i.SameKind(item) && i.Amount > 0);
@@ -29,7 +32,9 @@ namespace Haugbui.Core.Storage
 
         public ContainerSnapshot Clone() => new ContainerSnapshot
         {
-            Id = Id, Position = Position, Slots = Slots, Items = Items.Select(i => i.Copy(i.Amount)).ToList()
+            Id = Id, Position = Position, Slots = Slots,
+            Items = Items.Select(i => i.Copy(i.Amount)).ToList(),
+            Filter = Filter != null ? new List<string>(Filter) : new List<string>()
         };
 
         /// <summary>Simulates adding up to <paramref name="amount"/> by the identical-stack rule; returns the amount accepted.</summary>
@@ -74,8 +79,14 @@ namespace Haugbui.Core.Storage
     /// </summary>
     public static class StorageSelector
     {
-        public static bool IsCandidate(ContainerSnapshot container, ItemStack item) =>
-            container.Contains(item) && container.RoomFor(item) > 0;
+        public static bool IsCandidate(ContainerSnapshot container, ItemStack item)
+        {
+            if (container == null || item == null) return false;
+            if (!ChestFilterRules.Allows(container.Filter, item.Prefab)) return false;
+            // A listed prefab may enter an empty chest. An empty list still requires an existing item (HB-062).
+            if (ChestFilterRules.IsSet(container.Filter)) return container.RoomFor(item) > 0;
+            return container.Contains(item) && container.RoomFor(item) > 0;
+        }
 
         public static List<ContainerSnapshot> Rank(ItemStack item, int amount, IEnumerable<ContainerSnapshot> containers, Vec3 from)
         {

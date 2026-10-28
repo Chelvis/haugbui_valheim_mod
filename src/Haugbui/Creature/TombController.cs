@@ -64,6 +64,44 @@ namespace Haugbui.Creature
         internal ServantSlot Slot { get; private set; }
         internal string ServantName => Slot != null && !string.IsNullOrEmpty(Slot.Name) ? Slot.Name : ServantSlots.DefaultName(0);
 
+        /// <summary>HB-139: the name lives on the servant slot, so the next tomb bound to it inherits the name.</summary>
+        internal bool Rename(string input)
+        {
+            if (Slot == null || State == null || State.SlotIndex < 0) return false;
+            string name = ServantSlots.NormalizeName(input, State.SlotIndex);
+            ServantSlot stored = ServantRegistry.Read(State.OwnerId, State.SlotIndex);
+            if (stored == null) return false;
+            stored.Name = name;
+            ServantRegistry.Write(State.OwnerId, stored);
+            Slot.Name = name;
+            return true;
+        }
+
+        /// <summary>
+        /// Moves overflow into the player's inventory, then into tomb storage. What fits in neither stays in overflow.
+        /// Each stack is placed in a destination before the overflow blob shrinks. Returns the amount left behind.
+        /// </summary>
+        internal int RetrieveOverflow(Player player)
+        {
+            if (player == null || Overflow == null || Overflow.Count == 0) return 0;
+            if (_overflowSlot != null && !_overflowSlot.CanWrite) return Overflow.Sum(s => s.Amount);
+
+            Inventory playerInventory = player.GetInventory();
+            Inventory storage = GetComponent<Container>()?.GetInventory();
+            var left = new List<ItemStack>();
+            foreach (ItemStack stack in Overflow)
+            {
+                if (stack == null || stack.Amount <= 0) continue;
+                ItemBridge.RefreshShared(stack);
+                int remain = stack.Amount - ItemBridge.AddTo(playerInventory, stack);
+                if (remain > 0 && storage != null) remain -= ItemBridge.AddTo(storage, stack.Copy(remain));
+                if (remain > 0) left.Add(stack.Copy(remain));
+            }
+            Overflow = left;
+            _overflowSlot?.TrySave(Overflow);
+            return left.Sum(s => s.Amount);
+        }
+
         /// <summary>Why it stays inside during its work window (HB-167/168); null when it may work.</summary>
         internal ShiftDecision? Waiting { get; private set; }
         internal int ShiftCost => HaugbuiPlugin.Instance.Settings.TributeTable.CostFor(_tomb.Progress.Level);

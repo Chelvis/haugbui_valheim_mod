@@ -93,6 +93,7 @@ namespace Haugbui.Structures
                 {
                     zdo.Set(ZdoKeys.TombGuid, tomb.Guid);
                     if (Kind == StructureKind.Longsword) CombatWarning.Show();
+                    else if (Kind == StructureKind.Altar) AltarNotice.Show();
                 }
                 else
                 {
@@ -128,8 +129,9 @@ namespace Haugbui.Structures
 
         public string GetHoverText()
         {
-            string text = $"{Definition?.NameToken}\n{LevelLine()}";
-            return Localization.instance.Localize(text);
+            HaugbuiStructure tomb = Kind == StructureKind.Tomb ? this : StructureRegistry.FindTomb(BoundTombGuid);
+            string body = tomb == null ? "$haugbui_hover_unbound" : "$haugbui_hover_bound";
+            return Localization.instance.Localize($"{Definition?.NameToken}\n{body}");
         }
 
         public string GetHoverName() => Definition?.NameToken ?? string.Empty;

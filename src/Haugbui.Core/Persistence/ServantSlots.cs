@@ -48,6 +48,27 @@ namespace Haugbui.Core.Persistence
         public static string DefaultName(int index) => index == 0 ? "Haugbui" : $"Haugbui #{index + 1}";
 
         /// <summary>
+        /// Same cap as the character screen (<c>m_csNewCharacterName</c>, 15). The creation screen only enforces a
+        /// minimum of 3 in code; the field itself stops at 15.
+        /// </summary>
+        public const int MaxNameLength = 15;
+
+        /// <summary>
+        /// Trimmed, control characters removed, capped. Empty or whitespace restores <see cref="DefaultName"/>.
+        /// </summary>
+        public static string NormalizeName(string input, int index)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return DefaultName(index);
+            var sb = new StringBuilder(input.Length);
+            foreach (char c in input.Trim())
+                if (!char.IsControl(c)) sb.Append(c);
+            string clean = sb.ToString().Trim();
+            if (clean.Length == 0) return DefaultName(index);
+            if (clean.Length > MaxNameLength) clean = clean.Substring(0, MaxNameLength).TrimEnd();
+            return clean.Length == 0 ? DefaultName(index) : clean;
+        }
+
+        /// <summary>
         /// HB-138: the lowest slot below <paramref name="max"/> whose tomb no longer exists. A slot naming a tomb that is
         /// gone (e.g. removed while the mod was missing) counts as vacant. Returns -1 when every slot is bound.
         /// </summary>

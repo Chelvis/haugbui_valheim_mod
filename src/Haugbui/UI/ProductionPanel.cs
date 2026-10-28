@@ -10,7 +10,6 @@ using Haugbui.Diagnostics;
 using Haugbui.Integration.StationAdapters;
 using Jotunn.Managers;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Haugbui.UI
@@ -56,7 +55,7 @@ namespace Haugbui.UI
             if (!_root.activeSelf)
             {
                 _root.SetActive(true);
-                GUIManager.BlockInput(true);
+                PanelInput.Acquired();
             }
         }
 
@@ -64,7 +63,7 @@ namespace Haugbui.UI
         {
             if (!IsOpen) return;
             _root.SetActive(false);
-            GUIManager.BlockInput(false);
+            PanelInput.Released();
             _station = null;
         }
 
@@ -72,8 +71,7 @@ namespace Haugbui.UI
         public static void Update()
         {
             if (!IsOpen) return;
-            if (_station == null || Player.m_localPlayer == null || Input.GetKeyDown(KeyCode.Escape)
-                || (Time.time - _openedAt > 0.2f && !Typing() && Input.GetKeyDown(KeyCode.E)))
+            if (_station == null || Player.m_localPlayer == null || PanelInput.ShouldClose(_openedAt))
             {
                 Close();
                 return;
@@ -97,13 +95,6 @@ namespace Haugbui.UI
             if (saved) Log.Debug($"Station {StationAdapterRegistry.IdOf(_station)}: job {(enabled ? "on" : "off")} {recipe.Key} {mode} {target}");
             Refresh();
             return saved;
-        }
-
-        private static bool Typing()
-        {
-            GameObject selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
-            InputField field = selected != null ? selected.GetComponent<InputField>() : null;
-            return field != null && field.isFocused;
         }
 
         private static void Build()
@@ -352,12 +343,9 @@ namespace Haugbui.UI
         internal static string HoverLine(MonoBehaviour station)
         {
             StationJobState job = StationJobs.Read(station);
-            string line = "\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_job_open";
-            if (job != null && job.Enabled)
-            {
-                string progress = job.Mode == JobMode.Finite ? $" {job.Produced}/{job.Target}" : "";
-                line += "\n$haugbui_job_hover" + progress + ": " + ProductionPanel.StatusText(station, job);
-            }
+            string progress = job != null && job.Enabled && job.Mode == JobMode.Finite ? $" {job.Produced}/{job.Target}" : "";
+            string line = "\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_job_open" +
+                          "\n$haugbui_job_hover" + progress + ": " + ProductionPanel.StatusText(station, job);
             return Localization.instance.Localize(line);
         }
     }

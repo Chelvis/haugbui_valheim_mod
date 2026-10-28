@@ -79,6 +79,7 @@ namespace Haugbui.Structures
                 upgrade.Zdo.Set(ZdoKeys.TombGuid, change.Value);
                 Log.Info($"{upgrade.Definition?.PieceId} rebound to tomb {change.Value}");
                 if (upgrade.Kind == StructureKind.Longsword) CombatWarning.Show();
+                else if (upgrade.Kind == StructureKind.Altar) AltarNotice.Show();
             }
         }
 
