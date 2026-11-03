@@ -17,7 +17,9 @@ namespace Haugbui.UI
     internal static class TombPanel
     {
         private const float Width = 480f;
-        private const float Height = 680f;
+        private const float Height = 740f;
+        private const float Inset = 24f;
+        private const float ContentWidth = Width - Inset * 2f;
         private const int OfferRows = 3;
 
         private static readonly (TombToggles Toggle, string Label)[] Toggles =
@@ -33,9 +35,11 @@ namespace Haugbui.UI
         private static Text _title;
         private static InputField _name;
         private static Text _status;
+        private static Text _statusSide;
         private static Text _carried;
         private static Text _tribute;
         private static Button _retrieve;
+        private static Button _dismiss;
         private static string _builtFor;
         private static readonly List<(string Prefab, Button Button)> Offers = new List<(string, Button)>();
         private static readonly Dictionary<TombToggles, Toggle> ToggleControls = new Dictionary<TombToggles, Toggle>();
@@ -48,9 +52,19 @@ namespace Haugbui.UI
         internal static TombController Current => IsOpen ? _tomb : null;
         internal static IReadOnlyList<(string Prefab, Button Button)> OfferButtons => Offers;
         internal static string TributeText => _tribute != null ? _tribute.text : string.Empty;
-        internal static string StatusText => _status != null ? _status.text : string.Empty;
+        internal static string StatusText
+        {
+            get
+            {
+                string left = _status != null ? _status.text : string.Empty;
+                string right = _statusSide != null ? _statusSide.text : string.Empty;
+                if (right.Length == 0) return left;
+                return left.Length == 0 ? right : left + "\n" + right;
+            }
+        }
         internal static string CarriedText => _carried != null ? _carried.text : string.Empty;
         internal static string TitleText => _title != null ? _title.text : string.Empty;
+        internal static Button Dismiss => _dismiss;
 
         public static void Open(TombController tomb)
         {
@@ -109,67 +123,98 @@ namespace Haugbui.UI
             GUIManager gui = GUIManager.Instance;
             _root = gui.CreateWoodpanel(GUIManager.CustomGUIFront.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Width, Height, draggable: false);
-            _title = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0, -32f), gui.AveriaSerifBold, 24, gui.ValheimOrange, true, Color.black, Width - 40f, 36f, false).GetComponent<Text>();
-            _name = gui.CreateInputField(_root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -72f),
-                InputField.ContentType.Standard, Localization.instance.Localize("$haugbui_panel_rename"), 18, 300f, 32f).GetComponent<InputField>();
+            _title = PanelChrome.TopLeft(gui, _root.transform, "", Inset, 20f, ContentWidth - 56f, 34f, 24);
+            _title.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _title.verticalOverflow = VerticalWrapMode.Truncate;
+            const float nameTop = 62f;
+            const float nameHeight = 32f;
+            _name = gui.CreateInputField(_root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(Inset + ContentWidth / 2f, -(nameTop + nameHeight / 2f)),
+                InputField.ContentType.Standard, Localization.instance.Localize("$haugbui_panel_rename"), 18, ContentWidth, nameHeight).GetComponent<InputField>();
+            var nameRect = (RectTransform)_name.transform;
+            nameRect.pivot = new Vector2(0.5f, 0.5f);
+            nameRect.anchoredPosition = new Vector2(Inset + ContentWidth / 2f, -(nameTop + nameHeight / 2f));
             _name.characterLimit = ServantSlots.MaxNameLength;
             _name.onEndEdit.AddListener(text => CommitName(text));
+            if (_name.textComponent != null) _name.textComponent.alignment = TextAnchor.MiddleLeft;
+            if (_name.placeholder is Text nameHint) nameHint.alignment = TextAnchor.MiddleLeft;
 
-            _status = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -150f),
-                gui.AveriaSerifBold, 16, Color.white, true, Color.black, Width - 50f, 120f, false).GetComponent<Text>();
-            _carried = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -230f),
-                gui.AveriaSerifBold, 16, Color.white, true, Color.black, Width - 50f, 48f, false).GetComponent<Text>();
+            float column = (ContentWidth - 16f) / 2f;
+            _status = Block(gui, Inset, 108f, column, 112f);
+            _statusSide = Block(gui, Inset + column + 16f, 108f, column, 112f);
+            _carried = Block(gui, Inset, 232f, ContentWidth, 88f);
 
+            const float toggleTop = 336f;
+            const float toggleStep = 34f;
             for (int i = 0; i < Toggles.Length; i++)
             {
                 (TombToggles flag, string label) = Toggles[i];
+                float y = -(toggleTop + i * toggleStep);
                 GameObject go = gui.CreateToggle(_root.transform, 26f, 26f);
                 RectTransform rect = (RectTransform)go.transform;
                 rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
-                rect.anchoredPosition = new Vector2(40f, -275f - i * 32f);
+                rect.pivot = new Vector2(0f, 0.5f);
+                rect.anchoredPosition = new Vector2(Inset, y);
                 Toggle toggle = go.GetComponent<Toggle>();
                 toggle.onValueChanged.AddListener(on => OnToggle(flag, on));
                 ToggleControls[flag] = toggle;
 
                 Text text = gui.CreateText(Localization.instance.Localize(label), _root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                    new Vector2(70f + (Width - 110f) / 2f, -275f - i * 32f), gui.AveriaSerifBold, 16, Color.white, true, Color.black,
-                    Width - 110f, 28f, false).GetComponent<Text>();
+                    Vector2.zero, gui.AveriaSerifBold, 16, Color.white, true, Color.black, ContentWidth - 36f, 28f, false).GetComponent<Text>();
+                var labelRect = (RectTransform)text.transform;
+                labelRect.pivot = new Vector2(0f, 0.5f);
+                labelRect.anchoredPosition = new Vector2(Inset + 36f, y);
+                text.alignment = TextAnchor.MiddleLeft;
                 ToggleLabels[flag] = text;
             }
 
-            _tribute = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -470f),
-                gui.AveriaSerifBold, 16, Color.white, true, Color.black, Width - 50f, 48f, false).GetComponent<Text>();
+            _tribute = Block(gui, Inset, 500f, ContentWidth, 44f);
             Offers.Clear();
             IReadOnlyList<KeyValuePair<string, int>> valuables = HaugbuiPlugin.Instance.Settings.TributeTable.Values;
             int columns = (valuables.Count + OfferRows - 1) / OfferRows;
             if (columns < 1) columns = 1;
-            float buttonWidth = (Width - 36f) / columns - 12f;
-            if (buttonWidth > 210f) buttonWidth = 210f;
-            float stepX = buttonWidth + 12f;
+            const float offerGap = 12f;
+            float buttonWidth = (ContentWidth - offerGap * (columns - 1)) / columns;
+            const float offerTop = 560f;
             for (int i = 0; i < valuables.Count; i++)
             {
                 string prefab = valuables[i].Key;
-                int column = i % columns;
+                int columnIndex = i % columns;
                 int row = i / columns;
-                float x = (column - (columns - 1) / 2f) * stepX;
-                float y = -520f - row * 40f;
-                GameObject button = gui.CreateButton(OfferLabel(prefab, valuables[i].Value), _root.transform, new Vector2(0.5f, 1f),
-                    new Vector2(0.5f, 1f), new Vector2(x, y), buttonWidth, 34f);
+                float x = Inset + buttonWidth / 2f + columnIndex * (buttonWidth + offerGap);
+                float y = -(offerTop + row * 40f);
+                GameObject button = gui.CreateButton(OfferLabel(prefab, valuables[i].Value), _root.transform, new Vector2(0f, 1f),
+                    new Vector2(0f, 1f), new Vector2(x, y), buttonWidth, 34f);
                 button.GetComponent<Button>().onClick.AddListener(() => Offer(prefab));
                 Offers.Add((prefab, button.GetComponent<Button>()));
             }
 
-            _retrieve = BottomButton(gui, "$haugbui_panel_retrieve", -155f, Retrieve).GetComponent<Button>();
-            BottomButton(gui, "$haugbui_panel_open_storage", 0f, OpenStorage);
-            BottomButton(gui, "$haugbui_panel_close", 155f, Close);
+            float half = (ContentWidth - 12f) / 2f;
+            _retrieve = BottomButton(gui, "$haugbui_panel_retrieve", Inset, half, Retrieve).GetComponent<Button>();
+            BottomButton(gui, "$haugbui_panel_open_storage", Inset + half + 12f, half, OpenStorage);
+            _dismiss = PanelChrome.CornerDismiss(gui, _root.transform, Close);
             _root.SetActive(false);
         }
 
-        private static GameObject BottomButton(GUIManager gui, string label, float x, UnityEngine.Events.UnityAction action)
+        private static Text Block(GUIManager gui, float left, float top, float width, float height)
+        {
+            GameObject go = gui.CreateText("", _root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                Vector2.zero, gui.AveriaSerifBold, 16, Color.white, true, Color.black, width, height, false);
+            var rect = (RectTransform)go.transform;
+            rect.pivot = new Vector2(0f, 1f);
+            rect.sizeDelta = new Vector2(width, height);
+            rect.anchoredPosition = new Vector2(left, -top);
+            Text text = go.GetComponent<Text>();
+            text.alignment = TextAnchor.UpperLeft;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            return text;
+        }
+
+        private static GameObject BottomButton(GUIManager gui, string label, float left, float width, UnityEngine.Events.UnityAction action)
         {
             GameObject button = gui.CreateButton(Localization.instance.Localize(label), _root.transform,
-                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(x, 28f), 145f, 36f);
+                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(left + width / 2f, 32f), width, 36f);
             button.GetComponent<Button>().onClick.AddListener(action);
             return button;
         }
@@ -190,27 +235,32 @@ namespace Haugbui.UI
             _title.text = _tomb.ServantName;
             if (_name != null && !_name.isFocused) _name.text = _tomb.ServantName;
             _tribute.text = TributeLine(_tomb);
-            _carried.text = CarriedGrid(_tomb);
             if (_retrieve != null) _retrieve.interactable = _tomb.Overflow.Count > 0;
             Inventory inventory = Player.m_localPlayer != null ? Player.m_localPlayer.GetInventory() : null;
             foreach ((string prefab, Button button) in Offers)
-                button.interactable = inventory != null && inventory.GetAllItems().Exists(i => ItemBridge.PrefabName(i) == prefab);
+                button.interactable = Held(inventory, prefab) >= OfferCount(prefab);
 
-            _status.text = string.Join("\n", new[]
+            var left = new List<string>
             {
                 structure.LevelLine(),
                 Localization.instance.Localize("$haugbui_panel_health") + $" {Mathf.CeilToInt(health)}/{attributes.MaxHealth:0}",
                 Localization.instance.Localize("$haugbui_panel_state") + " " + Localization.instance.Localize(_tomb.StatusLine()),
                 Localization.instance.Localize("$haugbui_panel_carried") + $" {_tomb.Carried.Weight:0.#}/{attributes.CarryCapacity:0}"
                     + (_tomb.Overflow.Count > 0 ? "  " + Localization.instance.Localize("$haugbui_panel_overflow") : ""),
+            };
+            _status.text = string.Join("\n", left);
+            string coverage = _tomb.Worker.PartiallyLoaded
+                ? "<color=#e0b050>" + Localization.instance.Localize("$haugbui_panel_partially_loaded",
+                    Mathf.FloorToInt(_tomb.Worker.Coverage * 100f).ToString()) + "</color>\n"
+                : "";
+            _carried.text = coverage + CarriedGrid(_tomb);
+            _statusSide.text = string.Join("\n", new[]
+            {
                 Localization.instance.Localize("$haugbui_panel_speed", attributes.MaxSpeed.ToString("0.#")),
                 Localization.instance.Localize("$haugbui_panel_radius", attributes.Radius.ToString("0")),
                 Localization.instance.Localize("$haugbui_panel_cooldown", cooldown),
                 Localization.instance.Localize("$haugbui_panel_activity") + " " + Localization.instance.Localize(_tomb.Worker.Activity ?? "$haugbui_activity_none"),
-            }) + (_tomb.Worker.PartiallyLoaded
-                    ? "\n<color=#e0b050>" + Localization.instance.Localize("$haugbui_panel_partially_loaded",
-                        Mathf.FloorToInt(_tomb.Worker.Coverage * 100f).ToString()) + "</color>"
-                    : "");
+            });
 
             foreach ((TombToggles flag, string label) in Toggles)
             {
@@ -258,13 +308,26 @@ namespace Haugbui.UI
 
         private static string OfferLabel(string prefab, int value)
         {
+            if (prefab == TombController.CoinPrefab) return Localization.instance.Localize("$haugbui_offer_coins");
             return ItemName(prefab) + " +" + value;
+        }
+
+        private static int OfferCount(string prefab) => prefab == TombController.CoinPrefab ? TombController.CoinBundle : 1;
+
+        private static int Held(Inventory inventory, string prefab)
+        {
+            if (inventory == null) return 0;
+            int held = 0;
+            foreach (ItemDrop.ItemData item in inventory.GetAllItems())
+                if (ItemBridge.PrefabName(item) == prefab) held += item.m_stack;
+            return held;
         }
 
         private static void Offer(string prefab)
         {
             if (_tomb == null) return;
-            if (!_tomb.Offer(prefab, Player.m_localPlayer)) Player.m_localPlayer?.Message(MessageHud.MessageType.Center, "$haugbui_msg_offer_failed");
+            if (!_tomb.Offer(prefab, Player.m_localPlayer, OfferCount(prefab)))
+                Player.m_localPlayer?.Message(MessageHud.MessageType.Center, "$haugbui_msg_offer_failed");
             Refresh();
         }
 

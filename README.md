@@ -15,17 +15,9 @@ harvest your fields and keep your smelters running — while you go adventuring.
 
 </div>
 
-> [!WARNING]
-> **Pre-alpha — not playable yet.** Version 0.0.10 contains the project foundation, the tomb and its five upgrades,
-> the Haugbui itself (emerges at night, returns at dawn, dies and returns at a later dusk,
-> tomb panel with toggles), its jobs — sorting its tomb storage and Collection Chests into chests that already
-> hold the same item, bringing requested items to Delivery Chests, picking up ground items, harvesting ripe crops,
-> beehives and birds' nests, running simple production stations (smelters, kilns, windmill, spinning wheel, eitr
-> refinery, fermenter, ovens and cooking stations, fuel for hot tubs and shield generators) and working while the
-> player sleeps — the tribute it asks for each shift, permanent servant slots per player with territories, opt-in
-> combat with the Longsword (it defends its radius, or flees to the tomb when combat is off), a world marker that
-> warns when tombs disappear, an opt-in world-folder backup (off by default), and an in-game
-> self-test. The gameplay described below is the planned design, not shipped features.
+> [!NOTE]
+> Version **0.0.10** is the last tagged build. The work toward 0.0.11 is in the tree and is not tagged yet.
+> Leia em português: [README.pt-BR.md](README.pt-BR.md).
 
 ---
 
@@ -51,7 +43,7 @@ works. At dawn he returns to his mound — unless you give him reason to walk in
 | 🌾 | **Ground items & harvest** | Picks up loose items, harvests ripe crops, empties beehives and birds' nests. |
 | 🔥 | **Production** | Feeds smelters, kilns, the windmill, spinning wheel, eitr refinery, fermenters and cooking stations — with finite ("make 100 iron") or endless jobs. |
 | ⚔️ | **Defence** *(opt-in)* | Given his king's sword, he defends his burial place. |
-| 🌙 | **Sleep & away** | Works through the night you skip by sleeping, and keeps your base logistics running while you are far away. |
+| 🌙 | **Sleep** | Works through the night you skip by sleeping. Work while you are far from the base is not in this version. |
 
 He is not free: each shift is paid with a **tribute** of coins, amber or gems offered at his tomb — only
 when there is work to do.
@@ -75,12 +67,43 @@ order** — raise its level and strengthen the servant:
 Each level raises carry weight, speed, work radius, inventory slots and health. Production unlocks at level 2.
 All costs and numbers are configurable.
 
+## Install
+
+1. Install [BepInExPack Valheim](https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/) 5.4.2351 and
+   [Jötunn](https://thunderstore.io/c/valheim/p/ValheimModding/Jotunn/) 2.30.2 with r2modman (or another BepInEx manager).
+2. Install Haugbui the same way, or copy the Release `Haugbui` folder into `BepInEx\plugins`.
+3. Start the game. The hammer gains a **Haugbui** tab.
+
+Normal play needs no config edits. The optional in-game editor is
+[Configuration Manager](https://thunderstore.io/c/valheim/p/shudnal/ConfigurationManager/) (F1). It is not included.
+
 ## Safe for your world
 
-Removing a mod should not cost you your base. Haugbui is designed so that a world opened without it keeps
-everything: its structures are saved as ordinary vanilla objects (the mod only changes how they look), it adds no
-custom items, and the servant itself is never saved — his state lives in the tomb. A warning appears on load if
-anything Haugbui-related is missing.
+Structures are saved as ordinary vanilla pieces. The mod changes how they look and stores its own data in extra
+keys on those pieces. It adds no custom items. The servant is not saved as a creature; his state lives on the tomb.
+Opening the world without the DLL keeps the pieces, their containers and the items inside them. The servant, the
+custom look and the automation are absent until the DLL is back. A warning appears on load when tombs that the
+world recorded are missing.
+
+Quitting, removing the DLL, loading, saving and putting the DLL back has **not** been done on disk yet. Until that
+round trip is observed, treat a backup as the restore path. The opt-in world-folder backup is off by default
+(`BackupWorldOnLoad`).
+
+| Kept without the DLL | Lost without the DLL |
+|---|---|
+| The vanilla piece, its container and items | The servant, the custom look, the automation |
+| Haugbui keys on that piece (level, toggles, requests, jobs, carried items) | Those keys, if you deconstruct the piece while the mod is missing |
+
+## How far he can work
+
+He only touches objects that are loaded near you. At the default simulation distance that is about 128 m. At the
+lowest setting it is about 64 m. A larger work radius does not reach unloaded chests; the tomb panel says when the
+radius is only partly loaded. He does not keep working in a base you have left. That is a later version.
+
+## Other logistics mods
+
+Do not let another mod move the same items. AzuAutoStore, MultiUserChest and Automatics can take a stack in the
+same moment and duplicate or lose it. Give those mods a different set of chests, or leave them off.
 
 ## Roadmap
 

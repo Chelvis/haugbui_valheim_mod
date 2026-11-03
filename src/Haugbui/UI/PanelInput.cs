@@ -23,6 +23,12 @@ namespace Haugbui.UI
             if (--_held == 0) Jotunn.Managers.GUIManager.BlockInput(false);
         }
 
+        public static void ClearSelection()
+        {
+            if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
+                EventSystem.current.SetSelectedGameObject(null);
+        }
+
         public static bool Typing()
         {
             GameObject selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;

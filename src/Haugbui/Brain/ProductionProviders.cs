@@ -80,6 +80,7 @@ namespace Haugbui.Brain
             output.Add(new TaskCandidate
             {
                 Kind = TaskKinds.ProductionOperate,
+                Urgent = state.Urgent,
                 Priority = state.Urgent ? TaskKinds.ProductionUrgentPriority : TaskKinds.ProductionOperatePriority,
                 Distance = Vec3.Distance(context.From, work.Position),
                 Keys = new[] { "station:" + work.Id },
@@ -129,6 +130,7 @@ namespace Haugbui.Brain
 
             var carry = new CarriedInventory(context.Carried.Slots, context.Carried.Capacity);
             carry.Restore(context.Carried.Stacks.Select(s => s.Copy(s.Amount)));
+            IReadOnlyList<GroundItem> ground = context.GroundItems ? SupplyDrops.Of(context) : null;
 
             // HB-117: another input in the queue is the player's; only fuel goes in, so it finishes and the job resumes.
             bool manual = state.QueuedInputs.Any(i => i != work.Recipe.Input);
@@ -140,7 +142,7 @@ namespace Haugbui.Brain
             {
                 wanted = StationFill.Inputs(state.Queued, state.MaxQueue, ProductionJob.InputsWanted(job, yield));
                 inputs = SupplyPlanner.Pick(work.Recipe.Input, wanted, state.RequiredCheated, carry, context.Sources, context.From,
-                    context.Reserved(work.Recipe.Input));
+                    context.Reserved(work.Recipe.Input), ground);
             }
 
             SupplyPick fuel = new SupplyPick();
@@ -151,7 +153,7 @@ namespace Haugbui.Brain
                 // Fuel is consumed without a flag (RPC_AddFuel), so cheated fuel would come back clean (HB-061).
                 foreach (string prefab in state.FuelPrefabs)
                 {
-                    fuel = SupplyPlanner.Pick(prefab, fuelWanted, false, carry, context.Sources, context.From, context.Reserved(prefab));
+                    fuel = SupplyPlanner.Pick(prefab, fuelWanted, false, carry, context.Sources, context.From, context.Reserved(prefab), ground);
                     fuelPrefab = prefab;
                     if (fuel.Total > 0) break;
                 }
@@ -170,8 +172,19 @@ namespace Haugbui.Brain
                 return;
             }
 
+            var dropIds = new HashSet<string>();
+            if (ground != null) foreach (GroundItem drop in ground) dropIds.Add(drop.Id);
             var steps = new List<TaskStep>();
-            steps.AddRange(inputs.Takes.Concat(fuel.Takes).Select(t => new TaskStep(StepKind.Take, t.Source, t.Item, t.Item.Amount)));
+            var keys = new List<string> { "station:" + work.Id };
+            foreach (PlannedTake take in inputs.Takes.Concat(fuel.Takes))
+            {
+                bool drop = dropIds.Contains(take.Source);
+                steps.Add(new TaskStep(drop ? StepKind.PickUp : StepKind.Take, take.Source, take.Item, take.Item.Amount));
+                if (!drop) continue;
+                context.ClaimedDrops.Add(take.Source);
+                keys.Add(GatherKeys.Drop(take.Source));
+                if (context.SupplyDropTargets.TryGetValue(take.Source, out ItemDrop item)) context.Targets[take.Source] = item;
+            }
             if (fuel.Total > 0)
                 steps.Add(new TaskStep(StepKind.Fuel, work.Id, new ItemStack { Prefab = fuelPrefab, Cheated = false }, fuel.Total));
             if (inputs.Total > 0)
@@ -180,14 +193,16 @@ namespace Haugbui.Brain
             if (!context.Probe) ProductionStatus.Set(work.Id, manual ? "$haugbui_job_manual_use" : "$haugbui_job_working");
 
             string first = steps[0].Target;
-            Vec3 firstPosition = first == work.Id ? work.Position : context.Sources.First(s => s.Id == first).Position;
+            Vec3 firstPosition = first == work.Id ? work.Position
+                : dropIds.Contains(first) ? ground.First(d => d.Id == first).Position
+                : context.Sources.First(s => s.Id == first).Position;
             string station = work.Id;
             output.Add(new TaskCandidate
             {
                 Kind = TaskKinds.ProductionFeed,
                 Priority = TaskKinds.ProductionFeedPriority,
                 Distance = Vec3.Distance(context.From, firstPosition),
-                Keys = new[] { "station:" + work.Id },
+                Keys = keys,
                 Build = () => new TaskPlan(TaskKinds.ProductionFeed, steps) { Tag = station },
             });
         }

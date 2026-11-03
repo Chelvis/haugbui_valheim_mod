@@ -13,6 +13,12 @@ namespace Haugbui.Core.Harvest
         public bool Transportable;
         public bool OwnedHere;
         public bool WardAllows;
+
+        /// <summary>A single egg the game can incubate, or one whose hatch has already started.</summary>
+        public bool HatchingEgg;
+
+        /// <summary>Food on the ground inside a tamed animal's own search range.</summary>
+        public bool AnimalFeed;
     }
 
     public enum GroundItemVerdict
@@ -23,7 +29,9 @@ namespace Haugbui.Core.Harvest
         Piece,
         NotTransportable,
         NotOwned,
-        Ward
+        Ward,
+        HatchingEgg,
+        AnimalFeed
     }
 
     /// <summary>HB-091/092: which ground items a Haugbui may pick up (the destination is checked by the planner).</summary>
@@ -35,6 +43,8 @@ namespace Haugbui.Core.Harvest
         public static GroundItemVerdict Check(GroundItemFacts facts)
         {
             if (facts.IsPiece) return GroundItemVerdict.Piece;
+            if (facts.HatchingEgg) return GroundItemVerdict.HatchingEgg;
+            if (facts.AnimalFeed) return GroundItemVerdict.AnimalFeed;
             if (!facts.Transportable) return GroundItemVerdict.NotTransportable;
             if (facts.AgeSeconds < MinAgeSeconds) return GroundItemVerdict.TooYoung;
             if (facts.NearestPlayerDistance < PlayerDistance) return GroundItemVerdict.PlayerNearby;
@@ -103,8 +113,9 @@ namespace Haugbui.Core.Harvest
     }
 
     /// <summary>
-    /// HB-T-054: one trip collects nearby drops: nearest first, then the nearest to the last one within
-    /// <see cref="MaxHop"/>, while the carried inventory can take them whole.
+    /// One trip collects nearby drops: nearest first, then the nearest to the last one within
+    /// <see cref="MaxHop"/>. A stack that does not fit is taken in part; a single unit heavier than
+    /// the free capacity is left where it is.
     /// </summary>
     public static class PickupRoute
     {
@@ -137,9 +148,11 @@ namespace Haugbui.Core.Harvest
                 if (route.Count > 0 && bestDistance > MaxHop) break;
                 GroundItem next = left[best];
                 left.RemoveAt(best);
-                if (simulated.CanAccept(next.Item) < next.Item.Amount) continue;
-                simulated.Add(next.Item.Copy(next.Item.Amount));
-                route.Add(next);
+                int room = simulated.CanAccept(next.Item);
+                if (room <= 0) continue;
+                ItemStack taken = next.Item.Copy(room);
+                simulated.Add(taken);
+                route.Add(new GroundItem { Id = next.Id, Position = next.Position, Item = taken });
                 at = next.Position;
             }
             return route;

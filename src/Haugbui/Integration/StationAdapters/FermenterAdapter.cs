@@ -115,7 +115,7 @@ namespace Haugbui.Integration.StationAdapters
     /// HB-T-068: cooking station, iron cooking station, stone oven, frost foundry. Raw items go into free slots through
     /// RPC_AddItem(name, cheated); RPC_RemoveDoneItem takes the first done or burnt slot off, spawning it with a push.
     /// An item burns at twice its cook time (CookingStation.UpdateCooking), so the provider loads only what it can take
-    /// off in time and treats done items as urgent.
+    /// off in time and treats a done item on these four as urgent.
     /// </summary>
     internal sealed class CookingStationAdapter : IStationAdapter
     {
@@ -169,7 +169,7 @@ namespace Haugbui.Integration.StationAdapters
                     continue;
                 }
                 state.ReadyActions++;
-                state.Urgent = true;
+                if (PullsImmediately(cooking)) state.Urgent = true;
                 if (state.NextReady == null) state.NextReady = item;
             }
             if (cooking.m_useFuel && cooking.m_fuelItem != null)
@@ -211,6 +211,18 @@ namespace Haugbui.Integration.StationAdapters
             int before = Occupied(cooking);
             cooking.m_nview.InvokeRPC("RPC_RemoveDoneItem", from, 1);
             return Occupied(cooking) == before - 1;
+        }
+
+        /// <summary>
+        /// Done food burns on these four. It is taken at once. Smelter-family outputs do not burn and wait for the carry cycle.
+        /// </summary>
+        private static bool PullsImmediately(CookingStation cooking)
+        {
+            string name = cooking.gameObject.name;
+            int clone = name.IndexOf('(');
+            if (clone >= 0) name = name.Substring(0, clone);
+            return name == "piece_oven" || name == "piece_cookingstation" || name == "piece_cookingstation_iron"
+                   || name == "piece_FrostFoundry";
         }
 
         private static int Occupied(CookingStation cooking)

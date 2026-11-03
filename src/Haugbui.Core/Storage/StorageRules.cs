@@ -17,12 +17,46 @@ namespace Haugbui.Core.Storage
         /// <summary>Prefab names this chest accepts. Empty keeps the existing-item rule (HB-062).</summary>
         public List<string> Filter { get; set; } = new List<string>();
 
+        /// <summary>How many stacks of a listed prefab the chest may hold. Missing or 0 means no cap.</summary>
+        public Dictionary<string, int> StackCaps { get; set; } = new Dictionary<string, int>();
+
+        /// <summary>
+        /// An ordinary storage chest. Taking from it leaves one of each prefab, unless the filter lists that prefab.
+        /// </summary>
+        public bool KeepSeed { get; set; }
+
         public int FreeSlots => Math.Max(0, Slots - Items.Count);
 
         public bool Contains(ItemStack item) => Items.Any(i => i.SameKind(item) && i.Amount > 0);
 
-        /// <summary>Room on the stacks the item may join (<see cref="StackingRules"/>) plus empty slots.</summary>
-        public int RoomFor(ItemStack item) => StackRoomFor(item) + FreeSlots * Math.Max(1, item.MaxStack);
+        /// <summary>
+        /// How much of <paramref name="prefab"/> a plan may take. One stays behind so the chest still holds that item,
+        /// unless a filter lists it and is itself the memory of what the chest should receive.
+        /// </summary>
+        public int Takeable(string prefab)
+        {
+            int total = 0;
+            if (Items != null)
+            {
+                for (int i = 0; i < Items.Count; i++)
+                    if (Items[i] != null && Items[i].Prefab == prefab && Items[i].Amount > 0) total += Items[i].Amount;
+            }
+            if (!KeepSeed || total == 0) return total;
+            if (ChestFilterRules.IsSet(Filter) && ChestFilterRules.Allows(Filter, prefab)) return total;
+            return total - 1;
+        }
+
+        /// <summary>Room on the stacks the item may join (<see cref="StackingRules"/>) plus empty slots, cut by a stack cap.</summary>
+        public int RoomFor(ItemStack item)
+        {
+            int maxStack = Math.Max(1, item.MaxStack);
+            int stackRoom = StackRoomFor(item);
+            int cap = 0;
+            bool capped = StackCaps != null && StackCaps.TryGetValue(item.Prefab ?? string.Empty, out cap) && cap > 0;
+            if (!capped) return stackRoom + FreeSlots * maxStack;
+            int stacks = Items.Count(i => i.Prefab == item.Prefab && i.Amount > 0);
+            return ChestFilterRules.CappedRoom(stacks, stackRoom, FreeSlots, maxStack, cap);
+        }
 
         public int StackRoomFor(ItemStack item)
         {
@@ -34,7 +68,9 @@ namespace Haugbui.Core.Storage
         {
             Id = Id, Position = Position, Slots = Slots,
             Items = Items.Select(i => i.Copy(i.Amount)).ToList(),
-            Filter = Filter != null ? new List<string>(Filter) : new List<string>()
+            Filter = Filter != null ? new List<string>(Filter) : new List<string>(),
+            StackCaps = StackCaps != null ? new Dictionary<string, int>(StackCaps) : new Dictionary<string, int>(),
+            KeepSeed = KeepSeed
         };
 
         /// <summary>Simulates adding up to <paramref name="amount"/> by the identical-stack rule; returns the amount accepted.</summary>

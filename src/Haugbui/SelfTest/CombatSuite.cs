@@ -57,6 +57,7 @@ namespace Haugbui.SelfTest
                 yield return ToggleConfirmation();
                 yield return TargetMatrix();
                 yield return Attack();
+                yield return Calibrate(2, "Greydwarf", "Greydwarf_Shaman", "Greydwarf_Elite");
                 yield return RaidMode();
                 yield return TwoHaugbuis();
                 yield return Interrupt();
@@ -143,14 +144,18 @@ namespace Haugbui.SelfTest
         private IEnumerator LevelOne()
         {
             float baseMultiplier = HaugbuiPlugin.Instance.Settings.CombatDamageMultiplier.Value;
-            _t.Check("level 1: hits ×1.0 (times the base multiplier), damage taken ÷1.0",
-                _a.Attributes.Level == 1 && Mathf.Approximately(_a.Creature.DealtFactor, baseMultiplier) && Mathf.Approximately(_a.Creature.TakenFactor, 1f),
+            float taken = 1f / _a.Attributes.DefenceMultiplier;
+            _t.Check("level 1: hits ×0.5 (times the base multiplier), damage taken ×2",
+                _a.Attributes.Level == 1
+                && Mathf.Approximately(_a.Creature.DealtFactor, _a.Attributes.OffenceMultiplier * baseMultiplier)
+                && Mathf.Approximately(_a.Creature.TakenFactor, taken),
                 $"level {_a.Attributes.Level}, dealt ×{_a.Creature.DealtFactor}, taken ×{_a.Creature.TakenFactor}, base {baseMultiplier}");
             float lost = 0f;
-            yield return MeasureTaken(_a, 10f, l => lost = l);
+            // Level 1 has 20 HP and takes double, so a hit of 10 kills it and the creature is gone before the ratio is read.
+            yield return MeasureTaken(_a, 8f, l => lost = l);
             _takenLevel1 = lost;
-            _t.Check("level 1: a hit of 10 is taken in full (scaling ÷1.0)",
-                Mathf.Approximately(_a.Creature.LastTakenScaled, _a.Creature.LastTakenIncoming) && lost > 0f,
+            _t.Check("level 1: a hit of 8 is doubled",
+                _a.Creature != null && Ratio(_a.Creature.LastTakenScaled, _a.Creature.LastTakenIncoming, taken) && lost > 0f,
                 $"incoming {_a.Creature.LastTakenIncoming:0.##}, after scaling {_a.Creature.LastTakenScaled:0.##}, health lost {lost:0.##}");
             yield return WaitCalm(_a);
         }
@@ -360,7 +365,7 @@ namespace Haugbui.SelfTest
             yield return SelfTestContext.WaitFor(() => Gone(near), FightTimeout);
             _t.Check("kills a greydwarf", Gone(near),
                 $"attacks {_a.Combat.AttacksStarted - attacks}, hits {_a.Creature.HitsDealt - hits}, greydwarf health {(near != null ? near.GetHealth() : 0):0}");
-            float expected = CombatMath.DealtFactor(_a.Attributes.CombatMultiplier, HaugbuiPlugin.Instance.Settings.CombatDamageMultiplier.Value);
+            float expected = CombatMath.DealtFactor(_a.Attributes.OffenceMultiplier, HaugbuiPlugin.Instance.Settings.CombatDamageMultiplier.Value);
             _t.Check("level 2: hit damage × its multiplier", _a.Creature.HitsDealt > hits && Ratio(_a.Creature.LastDealtScaled, _a.Creature.LastDealtBase, expected),
                 $"base {_a.Creature.LastDealtBase:0.##} → {_a.Creature.LastDealtScaled:0.##} (expected ×{expected:0.##})");
             _t.Check("weapon equipped (Wraith default weapon)", CombatGateway.Weapon(_a.Creature.Humanoid) != null,
@@ -394,11 +399,30 @@ namespace Haugbui.SelfTest
                 yield return null;
             }
             _t.Check("two Haugbuis attack the same enemy", both, $"{_a.Machine.State}/{_b.Machine.State}");
-            int hitsA = _a.Creature != null ? _a.Creature.HitsDealt : 0, hitsB = _b.Creature != null ? _b.Creature.HitsDealt : 0;
-            yield return SelfTestContext.WaitFor(() => Gone(enemy), FightTimeout + 15f);
-            _t.Check("the shared enemy dies, both back to Idle without conflicts", Gone(enemy),
-                $"hits {(_a.Creature != null ? _a.Creature.HitsDealt - hitsA : -1)}/{(_b.Creature != null ? _b.Creature.HitsDealt - hitsB : -1)}");
+            HaugbuiCreature bodyA = _a.Creature, bodyB = _b.Creature;
+            int dealtA = bodyA != null ? bodyA.HitsDealt : 0, takenA = bodyA != null ? bodyA.HitsTaken : 0;
+            int dealtB = bodyB != null ? bodyB.HitsDealt : 0, takenB = bodyB != null ? bodyB.HitsTaken : 0;
+            var blowA = new Blow();
+            var blowB = new Blow();
+            float sharedEnd = Time.time + FightTimeout + 15f;
+            while (Time.time < sharedEnd && !Gone(enemy) && (_a.Machine.State != HaugbuiState.Dead || _b.Machine.State != HaugbuiState.Dead))
+            {
+                blowA.Read(bodyA, dealtA, takenA);
+                blowB.Read(bodyB, dealtB, takenB);
+                yield return null;
+            }
+            blowA.Read(bodyA, dealtA, takenA);
+            blowB.Read(bodyB, dealtB, takenB);
+            float sharedLeft = Gone(enemy) ? 0f : enemy.GetHealth();
+            // Calibration owns the damage curve. A death here can destroy the body before the killing blow is sampled.
+            _t.Check("shared fight resolves without a conflict",
+                CloseEnough(Gone(enemy), sharedLeft, blowA, _a.Machine.State == HaugbuiState.Dead, blowB, _b.Machine.State == HaugbuiState.Dead, sampleDeath: false),
+                $"hits {blowA.Dealt}/{blowB.Dealt}, taken {blowA.Taken}/{blowB.Taken}, enemy {sharedLeft:0.#} left, " +
+                $"dealt {blowA.DealtScaled:0.#}/{blowA.DealtBase:0.#} and {blowB.DealtScaled:0.#}/{blowB.DealtBase:0.#}");
             Remove(enemy);
+            // The elite can kill a level-2 Haugbui. That result belongs to the calibration line, not to this check.
+            if (_a.Machine.State == HaugbuiState.Dead) yield return BringBack(_a);
+            if (_b.Machine.State == HaugbuiState.Dead) yield return BringBack(_b);
             yield return SelfTestContext.WaitFor(() => _a.Machine.State == HaugbuiState.Idle && _b.Machine.State == HaugbuiState.Idle, 8f);
             _t.Check("both idle after the shared fight", _a.Machine.State == HaugbuiState.Idle && _b.Machine.State == HaugbuiState.Idle,
                 $"{_a.Machine.State}/{_b.Machine.State}");
@@ -602,9 +626,13 @@ namespace Haugbui.SelfTest
             if (!_t.Check("all upgrades: level 6", _a.Attributes.Level == 6, _a.Attributes.Level.ToString())) yield break;
             yield return EnsureOut(_a);
             float baseMultiplier = HaugbuiPlugin.Instance.Settings.CombatDamageMultiplier.Value;
-            _t.Check("level 6: hits ×2.0, damage taken ÷2.0",
-                Mathf.Approximately(_a.Creature.DealtFactor, 2f * baseMultiplier) && Mathf.Approximately(_a.Creature.TakenFactor, 0.5f),
+            _t.Check("level 6: hits and damage taken follow the two rows",
+                Mathf.Approximately(_a.Creature.DealtFactor, _a.Attributes.OffenceMultiplier * baseMultiplier)
+                && Mathf.Approximately(_a.Creature.TakenFactor, 1f / _a.Attributes.DefenceMultiplier),
                 $"dealt ×{_a.Creature.DealtFactor}, taken ×{_a.Creature.TakenFactor}");
+            _t.Check("the Altar adds no resistance",
+                Mathf.Approximately(_a.Creature.TakenFactor, 1f / _a.Attributes.DefenceMultiplier),
+                $"taken ×{_a.Creature.TakenFactor}");
 
             Heal(_a);
             SetCombat(_a, true);
@@ -619,13 +647,72 @@ namespace Haugbui.SelfTest
 
             SetCombat(_a, false);
             float lost = 0f;
-            yield return MeasureTaken(_a, 10f, l => lost = l);
-            _t.Check("level 6: a hit of 10 is halved",
+            yield return MeasureTaken(_a, 8f, l => lost = l);
+            _t.Check("level 6: a hit of 8 is halved",
                 Ratio(_a.Creature.LastTakenScaled, _a.Creature.LastTakenIncoming, 0.5f),
                 $"incoming {_a.Creature.LastTakenIncoming:0.##}, after scaling {_a.Creature.LastTakenScaled:0.##}, health lost {lost:0.##}");
-            if (float.IsNaN(_takenLevel1) || _takenLevel1 <= 0f) _t.Skip("taken damage level 1 / level 6 = 2", "no level 1 measurement");
-            else _t.Check("taken damage level 1 / level 6 = 2", Ratio(_takenLevel1, lost, 2f), $"{_takenLevel1:0.##} / {lost:0.##}");
+            if (float.IsNaN(_takenLevel1) || _takenLevel1 <= 0f) _t.Skip("taken damage level 1 / level 6 = 4", "no level 1 measurement");
+            else _t.Check("taken damage level 1 / level 6 = 4", Ratio(_takenLevel1, lost, 4f), $"{_takenLevel1:0.##} / {lost:0.##}");
             yield return WaitCalm(_a);
+            yield return Calibrate(6, "Fenring_Cultist", "Fenring", "Troll");
+        }
+
+        /// <summary>
+        /// A win passes when the landed hits match the level multipliers. A loss passes when the enemy is within
+        /// two of those hits and the same per-hit check holds, so a close fight does not fail on who lands the last one.
+        /// </summary>
+        private IEnumerator Calibrate(int level, params string[] prefabs)
+        {
+            foreach (string prefab in prefabs)
+            {
+                if (_a.Machine.State == HaugbuiState.Dead) yield return BringBack(_a);
+                if (_a.Creature == null)
+                {
+                    _t.Skip($"calibration level {level} {prefab}", "Haugbui is not out");
+                    continue;
+                }
+                Heal(_a);
+                SetCombat(_a, true);
+                HaugbuiCreature body = _a.Creature;
+                int dealt0 = body.HitsDealt;
+                int taken0 = body.HitsTaken;
+                Character enemy = Spawn(prefab, body.transform.position - _arena + new Vector3(6, 0, -4));
+                if (enemy == null)
+                {
+                    _t.Skip($"calibration level {level} {prefab}", "prefab was not spawned");
+                    continue;
+                }
+                var blow = new Blow();
+                float enemyMax = enemy.GetMaxHealth();
+                float max = body.Character.GetMaxHealth();
+                float lowest = max;
+                float start = Time.realtimeSinceStartup;
+                float end = Time.time + 40f;
+                while (Time.time < end && !Gone(enemy))
+                {
+                    blow.Read(body, dealt0, taken0);
+                    if (body == null || _a.Machine.State == HaugbuiState.Dead) break;
+                    lowest = Mathf.Min(lowest, body.Character.GetHealth());
+                    Provoke(enemy, body.Character);
+                    yield return null;
+                }
+                blow.Read(body, dealt0, taken0);
+                bool killed = Gone(enemy);
+                bool died = body == null || _a.Creature == null || _a.Machine.State == HaugbuiState.Dead;
+                float left = died || body == null ? 0f : body.Character.GetHealth();
+                float enemyLeft = killed ? 0f : enemy.GetHealth();
+                float dealtExpected = CombatMath.DealtFactor(_a.Attributes.OffenceMultiplier, HaugbuiPlugin.Instance.Settings.CombatDamageMultiplier.Value);
+                float takenExpected = CombatMath.TakenFactor(_a.Attributes.DefenceMultiplier);
+                _t.Check($"calibration level {level} {prefab}",
+                    CloseEnough(killed, enemyLeft, blow, died, null, false),
+                    $"hits dealt {blow.Dealt}, hits taken {blow.Taken}, {Time.realtimeSinceStartup - start:0.0}s, killed {killed}, " +
+                    $"haugbui {left:0.#}/{max:0.#} left (lowest {lowest:0.#}), enemy {enemyLeft:0.#}/{enemyMax:0.#}, " +
+                    $"dealt {blow.DealtScaled:0.#}/{blow.DealtBase:0.#} (×{dealtExpected:0.##}), " +
+                    $"taken {blow.TakenScaled:0.#}/{blow.TakenIncoming:0.#} (×{takenExpected:0.##})");
+                Remove(enemy);
+                if (_a.Creature != null) yield return WaitCalm(_a);
+            }
+            if (_a.Machine.State == HaugbuiState.Dead) yield return BringBack(_a);
         }
 
         private IEnumerator Settle()
@@ -784,19 +871,78 @@ namespace Haugbui.SelfTest
         {
             if (tomb.Creature != null && tomb.Machine.IsOut) yield break;
             if (tomb.Machine.State == HaugbuiState.Dead)
-            {
                 _t.Fail("Haugbui alive before the next check", (tomb == _a ? "A" : "B") + " died in the previous check; brought back");
+            yield return BringBack(tomb);
+        }
+
+        private IEnumerator BringBack(TombController tomb)
+        {
+            if (tomb.Creature != null && tomb.Machine.IsOut) yield break;
+            if (tomb.Machine.State == HaugbuiState.Dead)
+            {
                 _time.Offset += TombController.CooldownSeconds + 5;
                 _time.ToNextDusk();
             }
             yield return SetTime(FakeTime.Night);
-            yield return SelfTestContext.WaitFor(() => tomb.Machine.State == HaugbuiState.Idle, 6f);
+            yield return SelfTestContext.WaitFor(() => tomb.Machine.State == HaugbuiState.Idle, 8f);
             Heal(tomb);
         }
 
         private static void DismissWarnings()
         {
             for (int i = 0; i < 5 && UnifiedPopup.IsVisible() && CombatWarning.Pending == null; i++) UnifiedPopup.Pop();
+        }
+
+        private const float CloseFightHits = 2f;
+
+        /// <summary>Last landed hit of one fighter, copied before a death drops the creature.</summary>
+        private sealed class Blow
+        {
+            public int Dealt;
+            public int Taken;
+            public float DealtBase;
+            public float DealtScaled;
+            public float TakenIncoming;
+            public float TakenScaled;
+
+            public void Read(HaugbuiCreature body, int dealt0, int taken0)
+            {
+                if (body == null) return;
+                int dealt = body.HitsDealt - dealt0;
+                int taken = body.HitsTaken - taken0;
+                if (dealt > 0 && body.LastDealtBase > 0f)
+                {
+                    Dealt = dealt;
+                    DealtBase = body.LastDealtBase;
+                    DealtScaled = body.LastDealtScaled;
+                }
+                if (taken > 0 && body.LastTakenIncoming > 0f)
+                {
+                    Taken = taken;
+                    TakenIncoming = body.LastTakenIncoming;
+                    TakenScaled = body.LastTakenScaled;
+                }
+            }
+        }
+
+        private bool CloseEnough(bool enemyDead, float enemyLeft, Blow blow, bool died, Blow other, bool otherDied, bool sampleDeath = true)
+        {
+            float dealtExpected = CombatMath.DealtFactor(_a.Attributes.OffenceMultiplier, HaugbuiPlugin.Instance.Settings.CombatDamageMultiplier.Value);
+            float takenExpected = CombatMath.TakenFactor(_a.Attributes.DefenceMultiplier);
+            if (!HitMatches(blow, dealtExpected, takenExpected, sampleDeath && died, requiredToHit: true)) return false;
+            if (other != null && !HitMatches(other, dealtExpected, takenExpected, sampleDeath && otherDied, requiredToHit: false)) return false;
+            if (enemyDead) return true;
+            if (!died && !otherDied) return false;
+            float hit = Math.Max(blow.DealtScaled, other != null ? other.DealtScaled : 0f);
+            return hit > 0f && enemyLeft <= hit * CloseFightHits;
+        }
+
+        private static bool HitMatches(Blow blow, float dealtExpected, float takenExpected, bool died, bool requiredToHit)
+        {
+            if (blow.Dealt > 0 && !Ratio(blow.DealtScaled, blow.DealtBase, dealtExpected)) return false;
+            if (blow.Taken > 0 && !Ratio(blow.TakenScaled, blow.TakenIncoming, takenExpected)) return false;
+            if (requiredToHit && blow.Dealt <= 0) return false;
+            return !died || blow.Taken > 0;
         }
 
         private static bool Ratio(float value, float reference, float expected) =>

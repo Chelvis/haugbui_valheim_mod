@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Brain;
+using Haugbui.Core.Coordination;
 using Haugbui.Core.Creature;
 using Haugbui.Core.Persistence;
 using Haugbui.Core.Production;
@@ -14,6 +15,7 @@ using Haugbui.Integration.StationAdapters;
 using Haugbui.Structures;
 using Haugbui.UI;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Haugbui.SelfTest
 {
@@ -55,6 +57,7 @@ namespace Haugbui.SelfTest
                 yield return Ownership();
                 yield return ToggleOff();
                 yield return SpinningWheelAndWindmill();
+                yield return GroundSupply();
                 yield return SetTime(FakeTime.Noon);
                 yield return SelfTestContext.WaitFor(() => _tomb.Machine.State == HaugbuiState.Dormant, 30f);
             }
@@ -179,8 +182,10 @@ namespace Haugbui.SelfTest
                 ProductionPanel.StatusText(_smelter, job) == Localization.instance.Localize("$haugbui_job_needs_level", "2"),
                 ProductionPanel.StatusText(_smelter, job));
             _t.Check("production panel blocks movement", ProductionPanel.IsOpen && !Player.m_localPlayer.TakeInput());
-            ProductionPanel.Close();
-            _t.Check("closing the production panel leaves the player able to move", !ProductionPanel.IsOpen && Player.m_localPlayer.TakeInput());
+            ProductionPanel.Dismiss.onClick.Invoke();
+            yield return null;
+            _t.Check("production corner X closes and movement works", !ProductionPanel.IsOpen && Player.m_localPlayer.TakeInput(),
+                $"open {ProductionPanel.IsOpen}, input {Player.m_localPlayer.TakeInput()}, inventory {InventoryGui.IsVisible()}");
 
             yield return SetTime(FakeTime.Night);
             _t.Check("emerges at night", _tomb.Creature != null, _tomb.Machine.State.ToString());
@@ -292,10 +297,11 @@ namespace Haugbui.SelfTest
             delivery.Edit(l => l.Request(Ore, all) == RequestEditResult.Ok);
             int supplied = Job().Supplied;
             SetJob(true, JobMode.Infinite, 0);
-            yield return SelfTestContext.WaitFor(() => delivery.Ledger.Remaining(Ore) == 0 && _tomb.Worker.Plan == null, 45f);
+            // The ordinary chest keeps one ore, so the line stays open on that last item and the smelter never sees it.
+            yield return SelfTestContext.WaitFor(() => delivery.Ledger.Remaining(Ore) <= 1 && _tomb.Worker.Plan == null && _tomb.Carried.IsEmpty, 45f);
             yield return new WaitForSeconds(3f);
             _t.Check("ore requested by a Delivery Chest is delivered, not smelted",
-                delivery.Ledger.Remaining(Ore) == 0 && Job().Supplied == supplied,
+                delivery.Ledger.Remaining(Ore) == 1 && Job().Supplied == supplied,
                 $"remaining {delivery.Ledger.Remaining(Ore)}, smelted {Job().Supplied - supplied}");
             SetJob(false, JobMode.Infinite, 0);
         }
@@ -343,6 +349,78 @@ namespace Haugbui.SelfTest
             _t.Check("products of a disabled job are still collected", Queued() == 0 && !Loose(Bar) && Job().Produced == Job().Supplied,
                 $"queue {Queued()}, loose bars {Loose(Bar)}, supplied {Job().Supplied}, produced {Job().Produced}");
         }
+
+        private IEnumerator GroundSupply()
+        {
+            SetJob(false, JobMode.Finite, 0);
+            GameObject kilnGo = _t.PlaceVanilla("charcoal_kiln", Ground(new Vector3(6, 0, -6)), Quaternion.identity);
+            Smelter kiln = kilnGo != null ? kilnGo.GetComponentInChildren<Smelter>() : null;
+            StationRecipe wood = kiln != null ? new SmelterAdapter().Recipes(kiln).FirstOrDefault(r => r.Input == "Wood") : null;
+            if (kiln == null || wood == null)
+            {
+                _t.Skip("ground supply", kiln == null ? "charcoal kiln was not placed" : "the kiln has no wood recipe");
+                yield break;
+            }
+            StationJobs.Edit(kiln, job =>
+            {
+                ProductionJob.Edit(job, true, wood.Input, wood.Output, JobMode.Finite, 2);
+                return true;
+            });
+            ItemDrop pile = Drop("Wood", 4, new Vector3(5, 0, -5));
+            if (!_t.Check("wood for the kiln is on the ground", pile != null)) yield break;
+            _tomb.SetToggle(TombToggles.GroundItems, false, out _);
+            yield return new WaitForSeconds(8f);
+            int queuedOff = new SmelterAdapter().Read(kiln).Queued;
+            _t.Check("toggle off: wood only on the ground is not loaded", Live(pile) && queuedOff == 0, $"queue {queuedOff}");
+
+            Container woodChest = Chest(new Vector3(7, 0, -4));
+            Add(woodChest, "Wood", 4);
+            int chestBefore = Count(woodChest, "Wood");
+            _tomb.SetToggle(TombToggles.GroundItems, true, out _);
+            bool dropFirst = false;
+            float end = Time.time + 90f;
+            while (Time.time < end && Live(pile))
+            {
+                TaskPlan plan = _tomb.Worker.Plan;
+                if (plan != null && plan.Kind == TaskKinds.ProductionFeed)
+                {
+                    string id = DropEndpoint.IdOf(pile);
+                    int pick = -1, take = -1;
+                    for (int i = 0; i < plan.Steps.Count; i++)
+                    {
+                        if (pick < 0 && plan.Steps[i].Kind == StepKind.PickUp && plan.Steps[i].Target == id) pick = i;
+                        if (take < 0 && plan.Steps[i].Kind == StepKind.Take) take = i;
+                    }
+                    if (pick >= 0 && (take < 0 || pick < take)) dropFirst = true;
+                }
+                yield return null;
+            }
+            _t.Check("toggle on: the ground wood is taken", !Live(pile), "the drop is still there");
+            _t.Check("the drop is used before the chest", !Live(pile) && Count(woodChest, "Wood") == chestBefore,
+                $"drop first {dropFirst}, chest {Count(woodChest, "Wood")}/{chestBefore}");
+            StationJobs.Edit(kiln, job =>
+            {
+                job.Enabled = false;
+                return true;
+            });
+            _tomb.SetToggle(TombToggles.GroundItems, false, out _);
+        }
+
+        private ItemDrop Drop(string prefab, int amount, Vector3 offset)
+        {
+            GameObject item = ObjectDB.instance.GetItemPrefab(prefab);
+            if (item == null) return null;
+            ItemDrop.ItemData data = item.GetComponent<ItemDrop>().m_itemData.Clone();
+            data.m_dropPrefab = item;
+            data.m_worldLevel = (byte)Game.m_worldLevel;
+            ItemDrop drop = ItemDrop.DropItem(data, amount, Ground(offset) + Vector3.up, Quaternion.identity);
+            drop.m_nview.GetZDO().Set(ZDOVars.s_spawnTime, ZNet.instance.GetTime().AddSeconds(-60).Ticks);
+            _t.Track(drop.gameObject);
+            return drop;
+        }
+
+        private static bool Live(Component component) =>
+            component != null && component.GetComponent<ZNetView>() != null && component.GetComponent<ZNetView>().IsValid();
 
         private IEnumerator SpinningWheelAndWindmill()
         {

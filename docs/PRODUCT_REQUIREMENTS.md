@@ -70,7 +70,9 @@ Upgrades can be built **in any order**. Level and abilities are two independent 
   [Decision 2026-10-13, product owner: order is irrelevant; any-order is not harder to build than sequential.]
 - **HB-011** Each upgrade kind counts once per tomb. One upgrade binds to exactly one tomb (nearest at placement).
 - **HB-012** Workbench-like feedback: a faint spectral beam connects each upgrade to its tomb (like workbench
-  extensions); the hover text and the tomb panel show the current level only ("Level n") [Decision 2026-10-19].
+  extensions). The beam shows only while the player is using that tomb (its panel or its storage), not while merely
+  standing nearby. The hover text and the tomb panel show the current level only ("Level n") [Decision 2026-10-19,
+  beam timing 2026-11-02].
 - **HB-013** Level and abilities are recomputed when upgrades are placed/destroyed and on load. Attribute changes apply
   immediately (HP max raises current HP proportionally). Losing the Longsword or Altar removes that ability at once
   (combat stops; a daytime Haugbui returns to its tomb).
@@ -108,7 +110,7 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
 - Ghost-themed extras (withered bone, ectoplasm) keep the undead flavour without adding new farming.
 
 - **HB-025** Upgrades have no gameplay interaction other than hover info; they can be deconstructed (refund = recipe).
-- **HB-026 Combat warning.** When the Longsword binds to a tomb, a modal popup explains: the Haugbui will defend its
+- **HB-026 Combat warning.** When the player places the Longsword and it binds to a tomb, a modal popup explains: the Haugbui will defend its
   burial place at all costs and may damage your buildings during combat. Combat stays **OFF** until the player enables
   it in the tomb panel; the first enable requires confirming the same warning (stored as `combat_ack`).
 
@@ -123,9 +125,10 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
 | Operational radius (m) | 50 | 60 | 70 | 80 | 90 | 100 |
 | Inventory slots | 2 | 3 | 4 | 5 | 6 | 6 |
 | HP | 20 | 40 | 60 | 80 | 100 | 120 |
-| Combat multiplier (attack damage ×, incoming damage ÷) | 1.0 | 1.2 | 1.4 | 1.6 | 1.8 | 2.0 |
+| Offence multiplier (attack damage ×) | 0.5 | 0.8 | 1.1 | 1.4 | 1.7 | 2.0 |
+| Defence multiplier (incoming damage ÷) | 0.5 | 0.8 | 1.1 | 1.4 | 1.7 | 2.0 |
 
-- **HB-031** Carry capacity uses vanilla item weight (`m_weight × stack`). Weight and slots limit how many units of a stack fit. A stack that does not fit whole is taken in part; the rest stays and is collected on later trips. A single unit heavier than the capacity is never taken.
+- **HB-031** Carry capacity uses vanilla item weight (`m_weight × stack`). Weight and slots limit how many units of a stack fit. A stack that does not fit whole is taken in part; the rest stays and is collected on later trips. A single unit heavier than the capacity is never taken. The Haugbui works in cycles [Decision 2026-11-03]: it keeps picking up while its bag is under 80% of its weight and something else still fits. An item that does not fit at all is skipped. At 80%, or when nothing else fits or nothing is left to collect, it feeds production stations from the bag and then stores the rest. A Delivery Chest is the exception: that trip stays in front and loads every open line that fits before it walks. Done food is the other exception, on the stone oven, the cooking station, the iron cooking station and the frost foundry: it is taken off as soon as it is ready.
 - **HB-032** Movement speed is a maximum; the Haugbui accelerates/decelerates smoothly and hovers slowly when idle.
 - **HB-033** Operational radius is centred on the tomb. **Limitation:** only objects in loaded zones exist; at the
   lowest simulation-distance setting the effective radius may be smaller (UI shows "partially loaded" hint). When the
@@ -139,6 +142,8 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
   (starts returning when the day fraction is within a configurable lead, default ~1 real minute before 0.25).
   During the day it stays dormant inside the tomb.
 - **HB-041** With the Altar of Darkness bound it may operate at any time; it does not return at sunrise.
+  Placing the altar explains that daylight work is a second paid shift. An altar that reattaches to a rebuilt tomb
+  does not show that explanation again.
 - **HB-042** Weather has no effect (never use `IsDaylight`, which is false during "always dark" weather).
 - **HB-043** If dawn arrives while it is far away, it flies back (no teleport); it stops starting new tasks once the
   return lead begins, but completes the current atomic step.
@@ -194,7 +199,12 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
   quality and world level. Empty chests never receive items. The item tops up only identical stacks (HB-061); a
   matching chest with no identical stack takes it into an empty slot. **Chest filter** [Decision 2026-10-19]: a chest
   may store a list of prefabs. Empty list keeps this rule. A non-empty list accepts only those prefabs, even while the
-  chest is empty, and refuses everything else. First UI: typeahead multi-select and clear-all; icons later.
+  chest is empty, and refuses everything else. Each listed prefab may also store how many stacks of it the chest may
+  hold. An empty cap means the chest's own room is the only limit. A chest already over that cap is not emptied and
+  receives nothing more, including no top-up; a chest sitting on the cap can still fill the open stacks. The hover
+  shows how many items are in the filter, not their names. Suggestion lists show only items the character has picked
+  up. First UI: typeahead multi-select and clear-all; icons later. Copy Filters and Paste Filters keep one list in
+  memory until the game closes. Paste replaces that chest's whole list, including stack caps, and saves immediately.
 - **HB-063** Destination choice among matching containers: (1) can accept the whole carried stack, (2) fewest
   free-slot fragmentation (prefer topping identical stacks), (3) nearest to the Haugbui. Never exceed capacity.
 - **HB-064** In its sorting role it never removes items from ordinary storage containers. Removal from storage
@@ -220,11 +230,17 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
   GreydwarfEye ×10; Workbench.
 - **HB-081** `E` opens the chest normally; `Shift+E` (alt-interact) opens the request editor.
 - **HB-082** A request line = {item, requested quantity}. Up to 10 lines [Decision]. Item picker lists transportable
-  items the player has discovered.
+  items the player has discovered. Copy Request and Paste Request keep one list in memory until the game closes.
+  Paste replaces that chest's whole request list and writes it immediately, keeping what was already delivered the
+  same way Save does. The panel stays open. Copy stays off while a requested amount is empty. An empty copy is a
+  real copy, and pasting it clears the other chest.
 - **HB-083** The ledger tracks `delivered` per line. Remaining = requested − delivered. The Haugbui never fetches
-  more than remaining, never removes more from a source than it delivers.
+  more than remaining, never removes more from a source than it delivers. One trip to a Delivery Chest loads every
+  open line that still fits in the bag, then puts them all in.
 - **HB-084** Sources: storage containers and Collection Chests in radius (never other Delivery Chests or tomb
-  storage). Insufficient stock → deliver what exists and keep the line open.
+  storage). Insufficient stock → deliver what exists and keep the line open. An ordinary storage chest keeps one of
+  each prefab, so it still accepts that item later. A filter that lists the prefab may be emptied of it. Collection
+  Chests and tomb storage are still emptied. The same leave-one rule applies when a production job takes from storage.
 - **HB-085** Lines can be edited (requested < delivered → line completes) or cancelled; completed lines show as done
   until cleared.
 - **HB-086** Multiple Delivery Chests are independent; requests are stored on each chest.
@@ -236,7 +252,10 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
 - **HB-090** Toggle per tomb, default ON.
 - **HB-091** Collects transportable items lying within the radius that have a valid destination.
 - **HB-092** Skips: items younger than 10 s, items within 3 m of a player, items currently owned/being picked up by
-  someone else, items reserved by another Haugbui, item-stand/piece items.
+  someone else, items reserved by another Haugbui, item-stand/piece items. A single egg that the game can incubate
+  stays, including while it is still cold; a stack of eggs is still collected, because a stack does not hatch. Food
+  on the ground stays when a tamed animal that eats that item is inside that animal's own search range. The same
+  item farther away is still collected. Chests are unchanged.
 - **HB-093** Production outputs and harvest drops are collected as part of those tasks even if this toggle is OFF.
 
 ## 12. Harvesting
@@ -267,7 +286,9 @@ All stations below unlock at `ProductionUnlockLevel` (default **2**).
 
 - **HB-121** Cooking stations: the Haugbui loads a slot only if it can come back before the item burns (it will
   still be outside, or it has the Altar). Before entering the tomb it removes every done item; items still cooking
-  when it leaves may burn, as for a player — the panel warns about this.
+  when it leaves may burn, as for a player — the panel warns about this. The stone oven, the cooking station,
+  the iron cooking station and the frost foundry pull a done item immediately, ahead of the carry cycle. Smelters
+  and the other machines do not burn a finished product, so their outputs wait for the cycle.
 - **HB-122** v1 automates only simple production machines (a station that converts or consumes items placed in it:
   the Smelter, CookingStation and Fermenter families). It never crafts **recipes** at any `CraftingStation`;
   recipe crafting is a V2 candidate. [Decision 2026-10-13, product owner]
@@ -283,7 +304,8 @@ All stations below unlock at `ProductionUnlockLevel` (default **2**).
   keeps the station topped up without exceeding capacity, and collects outputs from the station's output point into
   storage (§8.1; retained if no destination). **Ground** [Decision 2026-10-19]: only while the ground-items toggle is
   on. Then the order is carried items, then eligible ground drops, then storage chests. Toggle off ignores everything
-  on the ground, including job inputs and fuel.
+  on the ground, including job inputs and fuel. Material piles (HB-176) are a later source and are not in this order yet.
+- **HB-176** **Material piles** [Decision 2026-11-02]. A later milestone, not M11. While the tomb toggle is on (default **off**), the Haugbui may dismantle a player-built pile whose recipe is a single stack of one transportable material (wood, stone, marble, metal and the like) and take that refund for a delivery or a production job. Furniture, chests and other buildings are not piles. A pile in a ward the owner cannot use is left alone. The refund is received before the piece is removed (HB-045); what does not fit the carry limit stays as a ground drop and is collected in parts (HB-031). Per tomb, piles are used either before chests or only after chests fall short. Carried items stay first. Ground items stay as in HB-113 and are not reordered by this toggle.
 - **HB-114** Infinite mode runs while resources exist and until disabled; never creates items.
 - **HB-115** Missing input/fuel → job shows "waiting for X" and resumes automatically.
 - **HB-116** Only recipes in the station's conversion list whose input and output materials the owner has discovered
@@ -368,11 +390,12 @@ Whenever its tomb is destroyed, it returns as soon as a new tomb is built.
   level 6) multiplies its attack damage and divides the damage it takes (level 6 takes half damage). The multiplier is
   level-based only; the Altar grants no extra resistance (HB-053). No new fight starts once the return lead (or Rest)
   sent it home; a fight in progress ends and it flies home. Level 1 never fights: the Longsword is itself an upgrade,
-  so a Haugbui with combat is at least level 2. Offence and defence become two configurable rows. Until they are
-  calibrated, the shared 1.0×–2.0× row stays. Defence target: level 1 handles Meadows animals and struggles against
+  so a Haugbui with combat is at least level 2. Offence and defence are two configurable rows (§5). Offence is
+  0.5, 0.8, 1.1, 1.4, 1.7, 2.0. Defence uses the same row, so level 1 takes double damage and level 6 still takes half.
+  The Altar grants no extra resistance (HB-053). Defence target: level 1 handles Meadows animals and struggles against
   Black Forest monsters other than greylings, up to level 6 surviving the offence target. Offence target: level 2
   kills greydwarfs and shamans and has some chance against one greydwarf brute; level 6 kills three cultists, or two
-  fenrings, or one troll, in a row; levels 3–5 are even steps between those ends [Decision 2026-10-19].
+  fenrings, in a row. A troll is not a target. Levels 3–5 are even steps between those ends [Decision 2026-11-02].
 - **HB-143** Collateral damage to player structures is possible by design (weapon hits pieces near the enemy).
 - **HB-144** Toggle OFF: never initiates attacks. When it **takes damage** (being targeted alone does not count), it
   flees to its tomb and waits there **without entering** (entering would end the shift and charge tribute again,
@@ -517,7 +540,7 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-19 | Chest filter (extends HB-062, HB-T-112) | A chest with a filter accepts only the listed prefabs, even while empty, and refuses everything else. An empty filter keeps HB-062. First UI: typeahead multi-select and a clear-all; icons later |
 | 2026-10-19 | Production inputs on the ground | Only while the ground-items toggle is on. Toggle off: the Haugbui ignores everything on the ground, including job inputs and fuel. When on, a job takes carried items, then ground drops, then storage chests |
 | 2026-10-19 | Combat ladder (HB-142, §5) — **to confirm** the numbers | Defence stays its own per-level parameter (not the same row as offence). Defence target: the 2026-10-19 biome ladder from level 1 (meadows animals easy, Black Forest hard except greylings) up to level 6. Offence target, from the first level that can fight (2, the Longsword): greydwarfs and shamans, and some chance against one greydwarf brute, up to level 6 killing three cultists, or two fenrings, or one troll, in a row. Calibrate from measured fights; do not ship the current 1.0–2.0 Wraith row as that ladder |
-| 2026-10-19 | HP regen (HB-035, confirmed) | Resting in the tomb: full in 600 world seconds (about 10 real minutes; a sleep skip completes it). Outside: 1% of max HP every 10 real seconds (about 16.7 minutes from empty to full); a sleep skip does not heal it. No regen while dead. Both rates are config. The rest default is applied; outdoor regen is HB-T-116 |
+| 2026-10-19 | HP regen (HB-035, confirmed) | Resting in the tomb: full in 600 world seconds (about 10 real minutes; a sleep skip completes it). Outside: 1% of max HP every 10 real seconds (about 16.7 minutes from empty to full); a sleep skip does not heal it. No regen while dead. Both rates are config (`RestFullHealSeconds`, `OutdoorRegenPercent`, `OutdoorRegenSeconds`) |
 | 2026-10-19 | Movement speed (HB-030) | Max speed per level is 1, 2, 3, 4, 5, 6 m/s |
 | 2026-10-19 | Level display (HB-012) | Tomb panel and hover show the current level only ("Level 2"), not "2/6" |
 | 2026-10-19 | World guard scan (HB-173) — **to confirm** | The count is tomb ZDOs in `ZDOMan.m_objectsByID`. `LoadChunks` loads every chunk, so a tomb in an unloaded zone is still counted and does not raise the warning. A shortfall keeps the remembered count, so putting the ZDO back clears the warning. A tomb removed while the mod is loaded updates the count in the same call that deletes its ZDO, so a save cannot remember a tomb that is already gone. An unreadable count is rewritten from the scan without a popup. A marker schema newer than 1 is not overwritten |
@@ -552,5 +575,27 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-10-27 | Tomb veins, v1 (to confirm) | Skull stains stay as they are. The purple mask is one 128×128 emission texture on one material copy, replaced in place each try, not stacked. Another growth fills more of the remaining black tips and stays off the skull texels. The earlier backup is kept |
 | 2026-10-26 | Tomb skull stain test (to confirm) | The tomb stays the original Grausten chest, 20% larger. Colour, relief and metal stay the vanilla maps. The purple mask is painted onto the chest's own glow and is not blurred, so it does not smear onto the skull faces |
 | 2026-10-26 | Tomb vein glow, next try (to confirm) | The backed-up branch mask is kept. The live mask grows only onto front and lid texels the skulls do not use, so the purple can fill more of the grain without lighting the skull faces |
+| 2026-10-28 | Filter and delivery panels (HB-062, HB-081, confirmed) | One typeahead above the list. Typing filters the suggestions; clicking one adds it and hides the suggestions until the field is focused again; the typed text stays. Filter rows are accept-only, one item per line, with an X that removes it. No Add and no Remove. Clear all, plus a corner X that closes every Haugbui panel. Scroll when the list is taller than the panel. Delivery uses the same search. An empty list says there is nothing to deliver. A new line shows how many of that item are already in the chest and an empty requested field. Clear all is available when the list is not empty. Save is disabled only while a requested field is empty. Shift+E stays. The vanilla chest UI has Edit filters; the delivery chest UI has Edit requests |
+| 2026-10-28 | Look textures in the Thunderstore package (HB-T-088) — **to confirm** | Do not commit `art/reference/`. Those PNGs are edited vanilla textures. The package is built on the machine that has them and must contain `textures/graustenchest_veins.png`, `Runetable_d.png`, `collection.png` and `delivery.png`. The pack script stops if any of the four is missing. A clone without the files still builds and falls back to the vanilla maps |
+| 2026-10-28 | Delivery editor is a draft until Save (HB-081, confirmed) | Clear all empties the list on screen and does not write until Save. Closing without Save keeps the stored requests. An empty list can be saved, which clears them. A new row's requested field starts empty; a line already stored shows its amount. Saving keeps what was already delivered. Save is disabled only while a requested field is empty; a filled field that is not a valid amount is refused when Save is pressed |
+| 2026-10-28 | Offence and defence rows (HB-142, confirmed) | `OffenceMultiplier` and `DefenceMultiplier` replace the shared `CombatMultiplier` row. Both stay at 1.0, 1.2, 1.4, 1.6, 1.8, 2.0 until logged fights at level 2 and level 6 are accepted. Nothing is guessed ahead of those fights. The Altar adds no resistance |
+| 2026-11-02 | Offence curve (HB-142) — **to confirm** the step and level 1 | The troll is no longer an offence target. Level 6 offence stays 2.0, the measured troll fight. Level 2 offence is 0.8. The step used is 0.30, so the row is 0.5, 0.8, 1.1, 1.4, 1.7, 2.0. A step of 0.24 from 0.8 ends at 1.76 and would change level 6. Level 1 is 0.5, one step below level 2; level 1 never fights. Defence stays 1.0, 1.2, 1.4, 1.6, 1.8, 2.0 |
+| 2026-11-02 | Defence curve (HB-142, confirmed) | Defence uses the same row as offence: 0.5, 0.8, 1.1, 1.4, 1.7, 2.0. Level 6 still takes half damage. Level 2 divides incoming damage by 0.8. The Altar adds no resistance |
+| 2026-11-02 | Close-fight margin (HB-142) — **to confirm** the two hits | A calibration fight passes on a win when the last hit dealt and the last hit taken match that level's multipliers. A loss passes when the enemy has at most two of the Haugbui's hits left and the same per-hit check holds. Who lands the last blow does not fail the fight |
+| 2026-10-29 | Filter stack cap, hover count, Save closes (HB-062, HB-081, confirmed) | Save on the delivery editor and the production panel closes the panel when the write succeeds. A refused save stays open. Turning production on does not close it. The filter still saves immediately and has no Save button. Each filter row has a stack cap: how many inventory stacks of that prefab the chest may hold. Empty, or 0, means no cap beyond the chest. The Haugbui does not remove stacks already over the cap and adds nothing more once over it. At the cap, an open stack can still be filled. Headers are Item and Stacks (pt-BR: Item and Pilhas). The chest hover shows "1 item in the filter" or "N items in the filter" instead of the names. Suggestion lists stay limited to items the character has picked up |
+| 2026-11-02 | Material piles (HB-176, confirmed) | After M11, not in 0.0.11. Tomb toggle, default off. A pile is a player-built piece whose recipe is one stack of one transportable material. The Haugbui dismantles it for a delivery or a production job and receives the refund before the piece is removed. What does not fit is a ground drop, then collected in parts. Per tomb: piles before chests, or chests first and piles only when the chests are short. Carried items stay first. Ground order is unchanged. Furniture, chests and buildings are not piles. A ward the owner cannot use blocks the pile |
+| 2026-11-02 | Upgrade beams (HB-012, confirmed) | The connection line shows only while that tomb's panel is open or its storage window is open. Standing nearby does not show it |
+| 2026-11-02 | Coin offer button (confirmed) | The Coins button spends 5 coins and adds 5 credits (5 times the coin value, which is 1). Fewer than 5 does nothing. The label is "5 Coins +5" / "5 Moedas +5". The other valuables still offer one at a time |
+| 2026-11-02 | Servant name on the creature (HB-139, confirmed) | Renaming writes the live creature's name immediately. It no longer waits for the next spawn |
+| 2026-11-02 | Delivery amount colour (HB-081) — **to confirm** an empty amount | The number already in the chest is yellow while it is below the requested amount and green when it is equal or greater. An empty or invalid requested field leaves that number white |
+| 2026-11-02 | Interaction swing (confirmed) | The pickup gesture still plays the attack clip, and that clip's hit is ignored. A real fight still uses StartAttack and still deals damage. The training dummy is never a target, including during a raid |
+| 2026-11-02 | Resting status (confirmed) | While the tomb is set to rest, the status is "{name} is resting in peace." / "{name} descansa em paz." |
+| 2026-11-02 | Leave one item (HB-084) — **to confirm** which chests | An ordinary storage chest keeps one of each prefab when a delivery or a production job takes from it, so the chest still remembers that item. A filter that lists the prefab may be emptied of it. A filter that does not list it still keeps one. Collection Chests and tomb storage are still emptied. This uses the snapshot already built for planning |
+| 2026-11-02 | Edit filters placement — **to confirm** the spot | The button hangs just under the chest panel's bottom-right, so a tall chest's last row stays clear |
+| 2026-11-03 | Carry cycle (HB-031, confirmed) | The bag unloads at 80% of its weight, or when nothing else fits, or when nothing is left to pick up. An item that does not fit is skipped; a part that fits is taken. Unloading feeds machines from the bag, then stores the rest. A Delivery Chest stays in front and one trip loads every open line that fits. Done food is pulled at once from the stone oven, the cooking station, the iron cooking station and the frost foundry |
+| 2026-11-03 | Frost foundry (HB-121, confirmed) | The frost foundry burns a finished item the same way as the cooking stations. A done item there is pulled immediately |
+| 2026-11-03 | Hatching eggs and livestock food (HB-092) — **to confirm** | A single egg with the hatch component is left on the ground, even while it is still cold. A stack of eggs is still collected. Food is left only while a tamed animal that eats it is within that animal's own search range. The same item farther away, and anything in a chest, is still collected. This also applies to ground items taken for a job |
+| 2026-11-03 | Copy and paste lists (HB-062, HB-082) — **to confirm** | One filter list and one request list, remembered until the game closes. Paste replaces the whole list. A filter paste saves immediately. A request paste writes immediately, keeps what was already delivered, and leaves the panel open. Copying an empty list is allowed, and pasting it clears the other chest. Copy Request stays off while a requested field is empty |
+| 2026-11-03 | Placement notices (HB-026, HB-041) — **to confirm** | The altar explanation and the Longsword warning show when the player places that piece. They do not show again when the piece reattaches to a rebuilt tomb |
 
 Open: every row marked **to confirm**.

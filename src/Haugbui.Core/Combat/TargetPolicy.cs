@@ -8,6 +8,9 @@ namespace Haugbui.Core.Combat
         public bool Tamed;
         public bool IsHaugbui;
 
+        /// <summary>Valheim's training dummy (T.W.I.G.). It is an enemy of tamed creatures, and it is never a target.</summary>
+        public bool IsTrainingDummy;
+
         /// <summary>
         /// It is about to attack or attacking a player, a Haugbui or a player-built piece, and not fleeing: monster AI
         /// with such a target, or it hurt a Haugbui recently. Creatures without monster AI never attack.
@@ -30,6 +33,7 @@ namespace Haugbui.Core.Combat
         Player,
         Tamed,
         Haugbui,
+        TrainingDummy,
         NotEnemy,
         NotLoaded,
         OutOfRadius,
@@ -39,7 +43,7 @@ namespace Haugbui.Core.Combat
     /// <summary>
     /// HB-141 (decision 2026-10-16): outside a raid only creatures attacking a player, a Haugbui or the base are
     /// targets; during a raid that reaches the operational radius every creature that is not tamed is. Bosses follow the
-    /// same rule (no exclusion).
+    /// same rule (no exclusion). The training dummy is never a target.
     /// </summary>
     public static class TargetPolicy
     {
@@ -49,6 +53,7 @@ namespace Haugbui.Core.Combat
             if (facts.IsPlayer) return TargetVerdict.Player;
             if (facts.IsHaugbui) return TargetVerdict.Haugbui;
             if (facts.Tamed) return TargetVerdict.Tamed;
+            if (facts.IsTrainingDummy) return TargetVerdict.TrainingDummy;
             if (!facts.EnemyOfTamed) return TargetVerdict.NotEnemy;
             if (!facts.Loaded) return TargetVerdict.NotLoaded;
             if (!(facts.DistanceToTomb <= radius)) return TargetVerdict.OutOfRadius;

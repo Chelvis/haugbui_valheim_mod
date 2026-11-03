@@ -10,6 +10,7 @@ using Haugbui.Creature;
 using Haugbui.Integration;
 using Haugbui.Integration.StationAdapters;
 using Haugbui.Structures;
+using Haugbui.UI;
 using UnityEngine;
 
 namespace Haugbui.SelfTest
@@ -71,9 +72,20 @@ namespace Haugbui.SelfTest
             _bed = bedObject.GetComponent<Bed>();
             yield return null;
 
-            _bed.SetOwner(12345L, "someone else");
-            ExpectRule("tomb refused near another player's bed", StructureKind.Tomb, _arena, PlacementResult.NeedOwnBed);
             _bed.SetOwner(player.GetPlayerID(), player.GetPlayerName());
+            if (ownBedNearLonely) _t.Skip("tomb refused near another player's bed", "an own bed is within range of the empty spot");
+            else
+            {
+                GameObject strangerObject = _t.SpawnVanilla(BedPrefab, lonely, Quaternion.identity);
+                Bed stranger = strangerObject != null ? strangerObject.GetComponent<Bed>() : null;
+                if (stranger == null) _t.Fail("spawn stranger bed", $"prefab '{BedPrefab}' not found");
+                else
+                {
+                    stranger.SetOwner(12345L, "someone else");
+                    yield return null;
+                    ExpectRule("tomb refused near another player's bed", StructureKind.Tomb, lonely, PlacementResult.NeedOwnBed);
+                }
+            }
             ExpectRule("tomb allowed near own bed", StructureKind.Tomb, _arena, PlacementResult.Ok);
             ExpectRule("upgrade refused without tomb", StructureKind.Offering, _arena, PlacementResult.NeedTomb);
 
@@ -113,12 +125,12 @@ namespace Haugbui.SelfTest
                 if (order[i] == StructureKind.Altar)
                 {
                     _t.Check("altar explains daylight work", UnifiedPopup.IsVisible());
-                    if (UnifiedPopup.IsVisible()) UnifiedPopup.Pop();
+                    SelfTestContext.DismissPopups();
                 }
                 if (order[i] == StructureKind.Longsword)
                 {
                     _t.Check("combat warning shown for the Longsword", UnifiedPopup.IsVisible());
-                    if (UnifiedPopup.IsVisible()) UnifiedPopup.Pop();
+                    SelfTestContext.DismissPopups();
                 }
             }
 
@@ -127,10 +139,23 @@ namespace Haugbui.SelfTest
             ExpectRule("duplicate upgrade refused", StructureKind.Offering, _arena + new Vector3(0, 0, -2), PlacementResult.UpgradeExists);
             _t.Check("tomb level cache saved", _tomb.TombState != null && _tomb.TombState.LevelCache == 6);
             yield return new WaitForSeconds(1f);
-            List<HaugbuiStructure> near = _upgrades.Where(u => Vector3.Distance(u.transform.position, _t.Player.transform.position) <= 10f).ToList();
-            if (near.Count == 0) _t.Skip("beams shown near the player", "test spot is more than 10 m from the player");
-            else _t.Check("beams shown near the player", near.All(u => u.GetComponent<UpgradeBeam>()?.IsShown == true),
-                $"{near.Count(u => u.GetComponent<UpgradeBeam>()?.IsShown == true)}/{near.Count}");
+            List<HaugbuiStructure> linked = _upgrades.Where(u => u != null).ToList();
+            bool Shown(HaugbuiStructure upgrade) => upgrade.GetComponent<UpgradeBeam>()?.IsShown == true;
+            _t.Check("beams hidden until the tomb is used", linked.Count > 0 && linked.All(u => !Shown(u)),
+                $"{linked.Count(Shown)}/{linked.Count}");
+            TombController controller = _tomb.GetComponent<TombController>();
+            TombPanel.Open(controller);
+            if (!TombPanel.IsOpen) _t.Skip("beams follow the tomb panel", "no GUI");
+            else
+            {
+                yield return new WaitForSeconds(1f);
+                _t.Check("beams shown while the tomb panel is open", linked.All(Shown),
+                    $"{linked.Count(Shown)}/{linked.Count}");
+                TombPanel.Close();
+                yield return new WaitForSeconds(1f);
+                _t.Check("beams hide when the tomb panel closes", linked.All(u => !Shown(u)),
+                    $"{linked.Count(Shown)}/{linked.Count}");
+            }
         }
 
         private IEnumerator Storage()
@@ -153,7 +178,8 @@ namespace Haugbui.SelfTest
                 Mathf.Approximately(VeinPulse.Level(0f), 0f) && Mathf.Approximately(VeinPulse.Level(0.3f), 1f)
                 && Mathf.Approximately(VeinPulse.Level(0.5f), 1f) && Mathf.Approximately(VeinPulse.Level(0.7f), 1f)
                 && Mathf.Approximately(VeinPulse.Level(1f), 0f));
-            _t.Check("tomb vein pulse is on the chest", _tomb.GetComponentInChildren<VeinPulse>(true) != null);
+            VeinPulse pulse = _tomb.GetComponentInChildren<VeinPulse>(true);
+            _t.Check("tomb vein pulse is on the chest", pulse != null && pulse.HasMaterials && pulse.gameObject.activeInHierarchy);
             foreach (KeyValuePair<string, string> tint in StructureVisuals.MaterialDiagnostics)
                 _t.Check($"glow recoloured: {tint.Key}", true, tint.Value);
             if (StructureVisuals.MaterialDiagnostics.Count == 0)
@@ -304,7 +330,7 @@ namespace Haugbui.SelfTest
             byte[] jobNow = again != null ? again.GetByteArray(ZdoKeys.Job.GetStableHashCode()) : null;
             _t.Check("without a special host: station job kept across reload", jobNow != null && jobNow.SequenceEqual(jobBytes),
                 jobNow == null ? "missing" : jobNow.Length + " bytes");
-            if (UnifiedPopup.IsVisible()) UnifiedPopup.Pop();
+            SelfTestContext.DismissPopups();
         }
 
         private IEnumerator RoundTrip(GameObject go, string label, StructureKind kind, string guid, byte[] extra, string extraName)
@@ -355,8 +381,13 @@ namespace Haugbui.SelfTest
         {
             if (_tomb == null) yield break;
             string oldGuid = _tomb.Guid;
-            ZNetScene.instance.Destroy(_tomb.gameObject);
-            yield return SelfTestContext.WaitFrames(3);
+            // Destroy only deletes the world record when this client owns the piece. After the missing-mod
+            // reload the tomb often is not owned, so the record stays and ZNet rebuilds it. Upgrades then
+            // stay on that ghost and it keeps working for the rest of the run.
+            yield return DestroyTomb(oldGuid);
+            if (!_t.Check("destroyed tomb left the world",
+                    !StructureRegistry.TombExistsInWorld(oldGuid) && StructureRegistry.FindTomb(oldGuid) == null))
+                yield break;
 
             _tomb = Place(StructureKind.Tomb, _arena);
             if (!_t.Check("rebuilt tomb placed", _tomb != null)) yield break;
@@ -364,6 +395,36 @@ namespace Haugbui.SelfTest
             _t.Check("rebuilt tomb has a new guid", _tomb.Guid != oldGuid);
             _t.Check("upgrades rebound to the rebuilt tomb", _upgrades.Where(u => u != null).All(u => u.BoundTombGuid == _tomb.Guid));
             _t.Check("rebuilt tomb level 5", _tomb.Progress.Level == 5, $"level {_tomb.Progress.Level}");
+            SelfTestContext.DismissPopups();
+        }
+
+        private static IEnumerator DestroyTomb(string guid)
+        {
+            float end = Time.time + 2f;
+            while (Time.time < end && (StructureRegistry.TombExistsInWorld(guid) || StructureRegistry.FindTomb(guid) != null))
+            {
+                HaugbuiStructure tomb = StructureRegistry.FindTomb(guid);
+                if (tomb != null)
+                {
+                    ZNetView view = tomb.GetComponent<ZNetView>();
+                    if (view != null && view.IsValid() && !view.IsOwner()) view.ClaimOwnership();
+                    ZNetScene.instance.Destroy(tomb.gameObject);
+                }
+                foreach (HaugbuiCreature creature in HaugbuiCreature.All.ToList())
+                {
+                    if (creature == null || creature.TombGuid != guid) continue;
+                    ZNetView view = creature.View;
+                    if (view != null && view.IsValid() && !view.IsOwner()) view.ClaimOwnership();
+                    if (view != null && view.IsValid()) ZNetScene.instance.Destroy(creature.gameObject);
+                }
+                // The record is removed a frame after Destroy, and only if this client owns it. A record
+                // with no object left still counts as the tomb and the upgrades will not follow the new one.
+                ZDO leftover = ZDOMan.instance.m_objectsByID.Values.FirstOrDefault(zdo =>
+                    zdo.GetInt(ZdoKeys.Kind) == (int)StructureKind.Tomb && zdo.GetString(ZdoKeys.Guid) == guid);
+                if (leftover != null && !leftover.IsOwner()) leftover.SetOwner(ZDOMan.GetSessionID());
+                if (leftover != null) ZDOMan.instance.DestroyZDO(leftover);
+                yield return null;
+            }
         }
 
         private HaugbuiStructure Place(StructureKind kind, Vector3 position)

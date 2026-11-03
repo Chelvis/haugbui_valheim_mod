@@ -21,6 +21,7 @@ namespace Haugbui.Integration
                 IsPlayer = character.IsPlayer(),
                 Tamed = character.IsTamed(),
                 IsHaugbui = character.GetComponent<HaugbuiCreature>() != null,
+                IsTrainingDummy = character.GetFaction() == Character.Faction.TrainingDummy,
                 Aggressor = hurtHaugbui || Attacking(character.GetComponent<MonsterAI>()),
                 Boss = character.IsBoss(),
                 EnemyOfTamed = haugbui != null && BaseAI.IsEnemy(haugbui, character),

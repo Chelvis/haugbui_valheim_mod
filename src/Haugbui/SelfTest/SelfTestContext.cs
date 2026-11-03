@@ -5,6 +5,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Haugbui.Core.Progression;
+using Haugbui.Core.Structures;
+using Haugbui.Creature;
+using Haugbui.Diagnostics;
+using Haugbui.Integration;
+using Haugbui.Structures;
 using UnityEngine;
 
 namespace Haugbui.SelfTest
@@ -38,6 +44,7 @@ namespace Haugbui.SelfTest
         public string Suite { get; set; } = "";
         public List<TestResult> Results { get; } = new List<TestResult>();
         public int MonstersCleared { get; set; }
+        public bool PresenceClear { get; private set; }
         public Player Player => Player.m_localPlayer;
 
         public bool Check(string name, bool condition, string detail = "")
@@ -74,14 +81,146 @@ namespace Haugbui.SelfTest
             _created.Clear();
         }
 
+        /// <summary>
+        /// Drops every Haugbui piece the character's loaded area still holds, so a previous run cannot sit inside the next one.
+        /// </summary>
+        public IEnumerator ClearPresence()
+        {
+            Suite = "setup";
+            int removed = 0;
+            float end = Time.time + 3f;
+            while (Time.time < end)
+            {
+                int batch = SweepPresence();
+                removed += batch;
+                if (batch == 0) break;
+                yield return null;
+            }
+            yield return null;
+            int left = CountPresence();
+            PresenceClear = Check("Haugbui structures cleared around the player", left == 0,
+                left == 0 ? $"{removed} removed" : $"{removed} removed, {left} left");
+            if (removed > 0) Log.Info($"Self-test: removed {removed} Haugbui piece(s) around the player, {left} left.");
+        }
+
+        private static int SweepPresence()
+        {
+            int removed = 0;
+            foreach (HaugbuiCreature creature in HaugbuiCreature.All.ToList())
+            {
+                if (creature == null || !InPresence(creature.transform.position)) continue;
+                DestroyOwned(creature.gameObject);
+                removed++;
+            }
+            foreach (HaugbuiStructure structure in StructureRegistry.Loaded.ToList())
+            {
+                if (structure == null || !InPresence(structure.transform.position)) continue;
+                DestroyOwned(structure.gameObject);
+                removed++;
+            }
+            if (ZDOMan.instance == null) return removed;
+            List<ZDO> records = ZDOMan.instance.m_objectsByID.Values
+                .Where(zdo => zdo.GetInt(ZdoKeys.Kind) != (int)StructureKind.None && InPresence(zdo.GetPosition()))
+                .ToList();
+            foreach (ZDO zdo in records)
+            {
+                if (!zdo.IsOwner()) zdo.SetOwner(ZDOMan.GetSessionID());
+                ZDOMan.instance.DestroyZDO(zdo);
+                removed++;
+            }
+            return removed;
+        }
+
+        private static int CountPresence()
+        {
+            int left = HaugbuiCreature.All.Count(c => c != null && InPresence(c.transform.position));
+            left += StructureRegistry.Loaded.Count(s => s != null && InPresence(s.transform.position));
+            if (ZDOMan.instance == null) return left;
+            left += ZDOMan.instance.m_objectsByID.Values.Count(zdo =>
+                zdo.GetInt(ZdoKeys.Kind) != (int)StructureKind.None && InPresence(zdo.GetPosition()));
+            return left;
+        }
+
+        private static bool InPresence(Vector3 point)
+        {
+            Player player = Player.m_localPlayer;
+            return player != null && ZNet.instance != null && ZNetScene.InActiveArea(point, player.transform.position);
+        }
+
+        private static void DestroyOwned(GameObject go)
+        {
+            if (go == null || ZNetScene.instance == null) return;
+            ZNetView view = go.GetComponent<ZNetView>();
+            if (view != null && view.IsValid() && !view.IsOwner()) view.ClaimOwnership();
+            ZNetScene.instance.Destroy(go);
+        }
+
         public static Vector3 OnGround(Vector3 position)
         {
             position.y = ZoneSystem.instance.GetGroundHeight(position);
             return position;
         }
 
-        /// <summary>A dry, fairly flat spot near the preferred one, so pictures are not taken under water.</summary>
+        /// <summary>Room left around an arena so a chest or a drop placed beside it stays outside the same rules.</summary>
+        internal const float FixtureMargin = 48f;
+
+        /// <summary>
+        /// A dry, flat, loaded spot far enough from the player that his bed and any Haugbui already working
+        /// stay outside the placement rules. He stands still; the fixtures move.
+        /// </summary>
         public static Vector3 FindDryArena(Vector3 preferred, float radius = 6f)
+        {
+            Player player = Player.m_localPlayer;
+            if (player == null) return NearestDry(preferred, radius);
+
+            Vector3 origin = player.transform.position;
+            Vector3 away = preferred - origin;
+            away.y = 0f;
+            if (away.sqrMagnitude < 1f) away = player.transform.forward;
+            away.y = 0f;
+            away.Normalize();
+
+            float beds = Clearance(PlacementCheck.BedDistance);
+            float reach = Clearance(ProgressionTable.DefaultRadius[ProgressionTable.DefaultRadius.Length - 1]);
+            Vector3 pastTheBed = preferred;
+            float pastTheBedDistance = 0f;
+            bool haveBed = false;
+            for (float dist = beds; dist <= reach + 32f; dist += 8f)
+            {
+                if (!TryFindDry(origin + away * dist, radius, out Vector3 spot)) continue;
+                float distance = Vector3.Distance(origin, spot);
+                if (ClearOfPlayer(spot, beds) && distance > pastTheBedDistance)
+                {
+                    pastTheBed = spot;
+                    pastTheBedDistance = distance;
+                    haveBed = true;
+                }
+                if (ClearOfPlayer(spot, reach)) return spot;
+            }
+            return haveBed ? pastTheBed : NearestDry(preferred, radius);
+        }
+
+        private static float Clearance(float rule) => rule + FixtureMargin;
+
+        /// <summary>True when the spot, and the fixtures placed around it, sit outside the player's bed and tombs.</summary>
+        private static bool ClearOfPlayer(Vector3 spot, float reach)
+        {
+            Player player = Player.m_localPlayer;
+            if (player != null && Vector3.Distance(player.transform.position, spot) < reach) return false;
+            float beds = Clearance(PlacementCheck.BedDistance);
+            if (UnityEngine.Object.FindObjectsByType<Bed>(FindObjectsSortMode.None)
+                .Any(b => b != null && Vector3.Distance(b.transform.position, spot) < beds)) return false;
+            float tombs = Clearance(Mathf.Max(PlacementCheck.TombSpacing, PlacementCheck.SameOwnerSpacing));
+            tombs = Mathf.Max(tombs, reach);
+            return StructureRegistry.Tombs.All(t => t == null || Vector3.Distance(t.transform.position, spot) >= tombs);
+        }
+
+        private static Vector3 NearestDry(Vector3 preferred, float radius)
+        {
+            return TryFindDry(preferred, radius, out Vector3 spot) ? spot : OnGround(preferred);
+        }
+
+        private static bool TryFindDry(Vector3 preferred, float radius, out Vector3 spot)
         {
             float water = ZoneSystem.instance.m_waterLevel + 0.5f;
             for (float ring = 0; ring <= 60f; ring += 6f)
@@ -90,10 +229,13 @@ namespace Haugbui.SelfTest
                 {
                     float angle = step * Mathf.PI / 6f;
                     Vector3 candidate = OnGround(preferred + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * ring);
-                    if (IsDryAndFlat(candidate, radius, water)) return candidate;
+                    if (!LoadedArea.IsLoaded(candidate) || !IsDryAndFlat(candidate, radius, water)) continue;
+                    spot = candidate;
+                    return true;
                 }
             }
-            return OnGround(preferred);
+            spot = default;
+            return false;
         }
 
         private static bool IsDryAndFlat(Vector3 center, float radius, float water)
@@ -203,6 +345,12 @@ namespace Haugbui.SelfTest
         public static IEnumerator WaitFrames(int frames)
         {
             for (int i = 0; i < frames; i++) yield return null;
+        }
+
+        /// <summary>A popup left open blocks movement for every later check. Drain the whole stack.</summary>
+        public static void DismissPopups()
+        {
+            for (int i = 0; i < 5 && UnifiedPopup.IsVisible(); i++) UnifiedPopup.Pop();
         }
 
         public void WriteReport(TimeSpan duration)

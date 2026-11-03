@@ -87,6 +87,9 @@ namespace Haugbui.Core.Coordination
 
         public IReadOnlyList<string> Keys { get; set; } = Array.Empty<string>();
 
+        /// <summary>A done item that burns if left. The carry cycle never postpones it.</summary>
+        public bool Urgent { get; set; }
+
         /// <summary>Builds the steps once the keys are reserved; null or empty means "nothing to do after all".</summary>
         public Func<TaskPlan> Build { get; set; }
     }
@@ -104,12 +107,15 @@ namespace Haugbui.Core.Coordination
     {
         private readonly ReservationTable _reservations;
         private readonly List<ITaskProvider<TContext>> _providers;
+        private readonly Action<List<TaskCandidate>> _adjust;
         private readonly List<TaskCandidate> _candidates = new List<TaskCandidate>();
 
-        public TaskPlanner(ReservationTable reservations, IEnumerable<ITaskProvider<TContext>> providers)
+        public TaskPlanner(ReservationTable reservations, IEnumerable<ITaskProvider<TContext>> providers,
+            Action<List<TaskCandidate>> adjust = null)
         {
             _reservations = reservations;
             _providers = providers.ToList();
+            _adjust = adjust;
         }
 
         /// <summary>Candidates seen by the last <see cref="Next"/> call (diagnostics).</summary>
@@ -120,6 +126,7 @@ namespace Haugbui.Core.Coordination
             _candidates.Clear();
             foreach (ITaskProvider<TContext> provider in _providers)
                 if (provider.IsEnabled(context)) provider.Collect(context, _candidates);
+            _adjust?.Invoke(_candidates);
 
             foreach (TaskCandidate candidate in _candidates.OrderByDescending(c => c.Priority).ThenBy(c => c.Distance))
             {

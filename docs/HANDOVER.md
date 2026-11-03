@@ -35,6 +35,7 @@ Remaining milestones (tickets in `docs/IMPLEMENTATION_BACKLOG.json`):
 |---|---|---|
 | **M11 Optimization + release** (next) | HB-T-084..089 | Performance budget (HB-201), multi-Haugbui validation, config review, README, Thunderstore package, regression checklist. Custom 3D models (HB-T-107) stay optional. |
 | M12 Away mode | HB-T-094..097 | Remote logistics on world data while the player is far away; spike HB-T-090 already passed. Charges tribute shifts. |
+| M13 Material piles | HB-T-118 | After M11 and M12. Off by default. Dismantle a one-material pile for a delivery or a job. Chests first or piles first, per tomb. |
 
 ## 3. Known gaps carried forward
 

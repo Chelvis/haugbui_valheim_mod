@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Core.Creature;
 using Haugbui.Core.Geometry;
+using Haugbui.Core.Harvest;
 using Haugbui.Core.Persistence;
 using Haugbui.Core.Storage;
 
@@ -143,34 +144,55 @@ namespace Haugbui.Core.Production
         public int Total => FromCarried + Takes.Sum(t => t.Item.Amount);
     }
 
-    /// <summary>HB-113/087: inputs come from storage minus what Delivery Chests still wait for; carried items first.</summary>
+    /// <summary>
+    /// Inputs come from what it already carries, then eligible ground drops, then storage minus what Delivery Chests
+    /// still wait for. Pass no drops and the ground is ignored. Reservations apply to chests only.
+    /// </summary>
     public static class SupplyPlanner
     {
         /// <param name="cheated">Flag the station needs (HB-061); null lets the planner choose, clean first.</param>
         /// <param name="carry">Simulated carried inventory; takes are added to it.</param>
+        /// <param name="ground">Eligible drops. Null ignores the ground.</param>
         public static SupplyPick Pick(string prefab, int wanted, bool? cheated, CarriedInventory carry,
-            IReadOnlyCollection<ContainerSnapshot> sources, Vec3 from, int reserved)
+            IReadOnlyCollection<ContainerSnapshot> sources, Vec3 from, int reserved, IEnumerable<GroundItem> ground = null)
         {
             var pick = new SupplyPick();
             if (wanted <= 0 || string.IsNullOrEmpty(prefab)) return pick;
+            var drops = ground?.Where(d => d?.Item != null && d.Item.Prefab == prefab).ToList() ?? new List<GroundItem>();
             int carriedClean = Carried(carry, prefab, false);
             int carriedCheated = Carried(carry, prefab, true);
             int stockClean = Stock(sources, prefab, false);
             int stockCheated = Stock(sources, prefab, true);
-            bool flag = cheated ?? (carriedClean + stockClean <= 0 && carriedCheated + stockCheated > 0);
+            int groundClean = drops.Where(d => !d.Item.Cheated).Sum(d => d.Item.Amount);
+            int groundCheated = drops.Where(d => d.Item.Cheated).Sum(d => d.Item.Amount);
+            bool flag = cheated ?? (carriedClean + stockClean + groundClean <= 0 && carriedCheated + stockCheated + groundCheated > 0);
             pick.Cheated = flag;
 
             pick.FromCarried = Math.Min(wanted, flag ? carriedCheated : carriedClean);
+            int left = wanted - pick.FromCarried;
+            foreach (GroundItem drop in drops.Where(d => d.Item.Cheated == flag)
+                         .OrderBy(d => Vec3.Distance(from, d.Position)).ThenBy(d => d.Id, StringComparer.Ordinal))
+            {
+                if (left <= 0) break;
+                int n = carry.Add(drop.Item.Copy(Math.Min(left, drop.Item.Amount)));
+                if (n <= 0) continue;
+                pick.Takes.Add(new PlannedTake(drop.Id, drop.Item.Copy(n)));
+                left -= n;
+            }
+
             int free = Math.Max(0, stockClean + stockCheated - Math.Max(0, reserved));
-            int left = Math.Min(wanted - pick.FromCarried, Math.Min(free, flag ? stockCheated : stockClean));
+            left = Math.Min(left, Math.Min(free, flag ? stockCheated : stockClean));
             foreach (ContainerSnapshot source in sources.OrderBy(s => Vec3.Distance(from, s.Position)).ThenBy(s => s.Id, StringComparer.Ordinal))
             {
+                int budget = source.Takeable(prefab);
                 foreach (ItemStack stack in DepositPlanner.Merge(source.Items.Where(i => i.Prefab == prefab && i.Cheated == flag), Enumerable.Empty<ItemStack>()))
                 {
                     if (left <= 0) return pick;
-                    int n = carry.Add(stack.Copy(Math.Min(left, stack.Amount)));
+                    if (budget <= 0) break;
+                    int n = carry.Add(stack.Copy(Math.Min(left, Math.Min(stack.Amount, budget))));
                     if (n <= 0) continue;
                     pick.Takes.Add(new PlannedTake(source.Id, stack.Copy(n)));
+                    budget -= n;
                     left -= n;
                 }
             }

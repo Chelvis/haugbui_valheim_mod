@@ -19,14 +19,16 @@ namespace Haugbui.Brain
         public const string ProductionFeed = "production_feed";
         public const string ProductionOperate = "production_operate";
 
-        // ARCHITECTURE §5.1: deposit → production outputs → production feeding → delivery → harvest → collection chest → ground items.
-        // A done cooking item burns if left, so taking it off beats even the deposit.
+        // Fill the bag first. Unload (feed, then deposit) waits until it is at least 80% full or nothing else fits.
+        // Done food on an oven, cooking station or frost foundry burns if left, so taking it off beats everything else.
         public const int ProductionUrgentPriority = 105;
+        // A delivery loads as much as fits and beats ordinary unloading.
+        public const int DeliverPriority = 102;
+        // Feeding uses what is already in the bag before the rest is stored.
+        public const int ProductionFeedPriority = 101;
         public const int DepositPriority = 100;
         public const int ProductionOperatePriority = 85;
         public const int ProductionOutputsPriority = 80;
-        public const int ProductionFeedPriority = 75;
-        public const int DeliverPriority = 70;
         public const int HarvestPriority = 60;
         public const int SortTombStoragePriority = 50;
         public const int CollectPriority = 45;
@@ -154,8 +156,8 @@ namespace Haugbui.Brain
     }
 
     /// <summary>
-    /// HB-T-053: one trip per open request line: take the remaining amount from storage and Collection Chests, put it
-    /// into the Delivery Chest; the worker counts what went in. The line key keeps two Haugbuis off the same line.
+    /// HB-T-053: one trip per Delivery Chest. It loads every open line that still fits, then puts them all in.
+    /// Each line key keeps two Haugbuis off that line.
     /// </summary>
     internal sealed class DeliveryProvider : ITaskProvider<WorkContext>
     {
@@ -165,27 +167,35 @@ namespace Haugbui.Brain
         {
             foreach ((ContainerSnapshot snapshot, Structures.DeliveryChest chest) in context.DeliveryChests)
             {
+                var lines = new List<(string Prefab, int Remaining)>();
                 foreach (Core.Persistence.DeliveryRequest line in chest.Ledger.OpenLines.ToList())
                 {
-                    var probe = new ItemStack { Prefab = line.ItemPrefab };
-                    if (!Creature.ItemBridge.IsTransportable(probe)) continue;
-                    DeliveryTrip trip = DeliveryPlanner.Plan(line.ItemPrefab, line.Remaining, snapshot, context.Carried,
-                        context.Sources.Where(s => s.Id != snapshot.Id), context.From);
-                    if (trip.Total <= 0) continue;
-                    var steps = trip.Takes.Select(t => new TaskStep(StepKind.Take, t.Source, t.Item, t.Item.Amount))
-                        .Concat(trip.Puts.Select(p => new TaskStep(StepKind.Put, snapshot.Id, p, p.Amount)))
-                        .ToList();
-                    string firstTarget = steps[0].Target;
-                    ContainerSnapshot first = firstTarget == snapshot.Id ? snapshot : context.Sources.First(s => s.Id == firstTarget);
-                    output.Add(new TaskCandidate
-                    {
-                        Kind = TaskKinds.Deliver,
-                        Priority = TaskKinds.DeliverPriority,
-                        Distance = Vec3.Distance(context.From, first.Position),
-                        Keys = new[] { $"deliver:{snapshot.Id}:{line.ItemPrefab}" },
-                        Build = () => new TaskPlan(TaskKinds.Deliver, steps),
-                    });
+                    if (!Creature.ItemBridge.IsTransportable(new ItemStack { Prefab = line.ItemPrefab })) continue;
+                    lines.Add((line.ItemPrefab, line.Remaining));
                 }
+                if (lines.Count == 0) continue;
+                DeliveryTrip trip = DeliveryPlanner.Combine(lines, snapshot, context.Carried,
+                    context.Sources.Where(s => s.Id != snapshot.Id), context.From);
+                if (trip.Total <= 0) continue;
+                var steps = trip.Takes.Select(t => new TaskStep(StepKind.Take, t.Source, t.Item, t.Item.Amount))
+                    .Concat(trip.Puts.Select(p => new TaskStep(StepKind.Put, snapshot.Id, p, p.Amount)))
+                    .ToList();
+                string firstTarget = steps[0].Target;
+                ContainerSnapshot first = firstTarget == snapshot.Id ? snapshot : context.Sources.First(s => s.Id == firstTarget);
+                var keys = new List<string>();
+                foreach (ItemStack put in trip.Puts)
+                {
+                    string key = $"deliver:{snapshot.Id}:{put.Prefab}";
+                    if (!keys.Contains(key)) keys.Add(key);
+                }
+                output.Add(new TaskCandidate
+                {
+                    Kind = TaskKinds.Deliver,
+                    Priority = TaskKinds.DeliverPriority,
+                    Distance = Vec3.Distance(context.From, first.Position),
+                    Keys = keys,
+                    Build = () => new TaskPlan(TaskKinds.Deliver, steps),
+                });
             }
         }
     }

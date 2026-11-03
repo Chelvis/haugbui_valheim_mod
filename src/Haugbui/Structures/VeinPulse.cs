@@ -18,8 +18,17 @@ namespace Haugbui.Structures
 
         public static void Attach(GameObject holder)
         {
+            if (holder == null) return;
+            VeinPulse pulse = holder.GetComponent<VeinPulse>();
+            if (pulse == null) pulse = holder.AddComponent<VeinPulse>();
+            pulse.Rebind();
+        }
+
+        /// <summary>The material list is not saved with the component, so a placed copy has to collect it again.</summary>
+        internal void Rebind()
+        {
             var materials = new List<Material>();
-            foreach (Renderer renderer in holder.GetComponentsInChildren<Renderer>(true))
+            foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
             {
                 foreach (Material material in renderer.sharedMaterials)
                 {
@@ -27,9 +36,10 @@ namespace Haugbui.Structures
                         materials.Add(material);
                 }
             }
-            if (materials.Count == 0) return;
-            holder.AddComponent<VeinPulse>()._materials = materials.ToArray();
+            _materials = materials.ToArray();
         }
+
+        internal bool HasMaterials => _materials != null && _materials.Length > 0 && _materials[0] != null;
 
         /// <summary>0 at the ends of the loop, 1 from 30% through 70%.</summary>
         public static float Level(float u)
@@ -41,6 +51,7 @@ namespace Haugbui.Structures
 
         private void Update()
         {
+            if (_materials == null || _materials.Length == 0) return;
             float level = Level(Mathf.Repeat(Time.time, Period) / Period);
             Color color = Full * level;
             for (int i = 0; i < _materials.Length; i++)

@@ -28,4 +28,15 @@ namespace Haugbui.Creature
             if (haugbui != null) haugbui.ScaleTaken(hit);
         }
     }
+
+    /// <summary>The interaction gesture uses the attack clip. Its Hit event must not deal damage.</summary>
+    [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.OnAttackTrigger))]
+    internal static class GestureHitGuard
+    {
+        private static bool Prefix(Humanoid __instance)
+        {
+            CreatureVisuals visuals = __instance.GetComponent<CreatureVisuals>();
+            return visuals == null || !visuals.GestureBlocksHit;
+        }
+    }
 }

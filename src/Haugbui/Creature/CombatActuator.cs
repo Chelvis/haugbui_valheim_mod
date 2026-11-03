@@ -33,7 +33,11 @@ namespace Haugbui.Creature
             bool inReach = Vector3.Distance(at, me) - radius < reach;
             bool aimed = creature.AngleTo(at) < Mathf.Max(MinAimAngle, weapon.m_shared.m_aiAttackMaxAngle);
             bool ready = Time.time - weapon.m_lastAttackTime > weapon.m_shared.m_aiAttackInterval;
-            if (inReach && aimed && ready && humanoid.StartAttack(target, false)) AttacksStarted++;
+            if (inReach && aimed && ready && humanoid.StartAttack(target, false))
+            {
+                creature.Visuals?.ClearGesture();
+                AttacksStarted++;
+            }
         }
     }
 }

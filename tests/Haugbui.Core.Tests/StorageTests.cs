@@ -69,6 +69,77 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void A_stack_cap_limits_new_slots_and_still_tops_up()
+        {
+            ContainerSnapshot chest = Items.Chest("capped", 1, 10, Items.Make("Wood", 30));
+            chest.Filter = new List<string> { "Wood" };
+            chest.StackCaps["Wood"] = 1;
+            Assert.That(chest.RoomFor(Items.Make("Wood", 1)), Is.EqualTo(20));
+            chest.StackCaps["Wood"] = 2;
+            Assert.That(chest.RoomFor(Items.Make("Wood", 1)), Is.EqualTo(70));
+            ContainerSnapshot copy = chest.Clone();
+            copy.StackCaps["Wood"] = 9;
+            Assert.That(chest.StackCaps["Wood"], Is.EqualTo(2));
+        }
+
+        [Test]
+        public void A_chest_already_over_the_stack_cap_accepts_nothing()
+        {
+            ContainerSnapshot chest = Items.Chest("over", 1, 10,
+                Items.Make("Wood", 50), Items.Make("Wood", 50), Items.Make("Wood", 10));
+            chest.Filter = new List<string> { "Wood" };
+            chest.StackCaps["Wood"] = 2;
+            Assert.That(StorageSelector.Plan(Items.Make("Wood", 40), 40, new[] { chest }, Origin), Is.Empty);
+        }
+
+        [Test]
+        public void An_empty_stack_cap_is_only_the_chest()
+        {
+            ContainerSnapshot chest = Items.Chest("open", 1, 2);
+            chest.Filter = new List<string> { "Wood" };
+            Assert.That(chest.RoomFor(Items.Make("Wood", 1)), Is.EqualTo(100));
+        }
+
+        [Test]
+        public void Stack_caps_drop_blanks_duplicates_and_clamp()
+        {
+            var lines = new List<ChestFilterLine>
+            {
+                new ChestFilterLine(" Wood ", 1000),
+                new ChestFilterLine("", 1),
+                new ChestFilterLine("Wood", 2),
+                new ChestFilterLine("Stone", 0),
+            };
+            List<ChestFilterLine> normalized = ChestFilterRules.Normalize(lines);
+            Assert.That(normalized[0].Prefab, Is.EqualTo("Wood"));
+            Assert.That(normalized[0].MaxStacks, Is.EqualTo(ChestFilterRules.MaxStackLimit));
+            Assert.That(normalized[1].Prefab, Is.EqualTo("Stone"));
+            Assert.That(normalized[1].MaxStacks, Is.EqualTo(0));
+            Assert.That(normalized, Has.Count.EqualTo(2));
+        }
+
+        [Test]
+        public void Version_1_filter_blobs_load_as_unlimited()
+        {
+            var writer = new BlobWriter(1);
+            writer.Write(2).Write("Wood").Write("Stone");
+            Assert.That(ChestFilterSerializer.Instance.TryDeserialize(writer.ToArray(), out List<ChestFilterLine> read), Is.EqualTo(BlobReadStatus.Ok));
+            Assert.That(read.Select(line => line.Prefab), Is.EqualTo(new[] { "Wood", "Stone" }));
+            Assert.That(read.All(line => line.MaxStacks == 0));
+        }
+
+        [Test]
+        public void Filter_blobs_round_trip_the_stack_cap()
+        {
+            var lines = new List<ChestFilterLine> { new ChestFilterLine("Wood", 3), new ChestFilterLine("Stone", 0) };
+            byte[] data = ChestFilterSerializer.Instance.Serialize(lines);
+            Assert.That(ChestFilterSerializer.Instance.TryDeserialize(data, out List<ChestFilterLine> read), Is.EqualTo(BlobReadStatus.Ok));
+            Assert.That(read[0].Prefab, Is.EqualTo("Wood"));
+            Assert.That(read[0].MaxStacks, Is.EqualTo(3));
+            Assert.That(read[1].MaxStacks, Is.EqualTo(0));
+        }
+
+        [Test]
         public void Wood_never_goes_to_a_stone_only_chest()
         {
             ContainerSnapshot stone = Items.Chest("stone", 1, 10, Items.Make("Stone", 5));

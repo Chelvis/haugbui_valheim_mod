@@ -49,6 +49,17 @@ namespace Haugbui.Core.Tests
             facts.WardAllows = false;
             Assert.That(GroundItemRules.Check(facts), Is.EqualTo(GroundItemVerdict.Ward));
         }
+
+        [Test]
+        public void A_hatching_egg_and_animal_feed_stay_on_the_ground()
+        {
+            GroundItemFacts egg = Eligible();
+            egg.HatchingEgg = true;
+            Assert.That(GroundItemRules.Check(egg), Is.EqualTo(GroundItemVerdict.HatchingEgg));
+            GroundItemFacts feed = Eligible();
+            feed.AnimalFeed = true;
+            Assert.That(GroundItemRules.Check(feed), Is.EqualTo(GroundItemVerdict.AnimalFeed));
+        }
     }
 
     public class HarvestRulesTests
@@ -133,11 +144,39 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
-        public void Skips_drops_that_do_not_fit_whole()
+        public void Takes_part_of_an_overweight_stack_and_leaves_a_single_heavy_unit()
         {
-            var carried = new CarriedInventory(1, 10);
-            var route = PickupRoute.Plan(new[] { Drop("heavy", 1, 20), Drop("light", 2, 5) }, Vec3.Zero, carried);
-            Assert.That(route.Select(d => d.Id), Is.EqualTo(new[] { "light" }));
+            var carried = new CarriedInventory(2, 10);
+            GroundItem unit = Drop("boulder", 3, 1);
+            unit.Item.UnitWeight = 20;
+            GroundItem stack = Drop("stack", 1, 20);
+            var route = PickupRoute.Plan(new[] { unit, stack }, Vec3.Zero, carried);
+            Assert.That(route.Select(d => d.Id), Is.EqualTo(new[] { "stack" }));
+            Assert.That(route[0].Item.Amount, Is.EqualTo(10));
+            Assert.That(stack.Item.Amount, Is.EqualTo(20));
+        }
+
+        [Test]
+        public void Second_plan_takes_the_rest_of_a_wood_stack()
+        {
+            var stack = new GroundItem
+            {
+                Id = "wood",
+                Position = new Vec3(2, 0, 0),
+                Item = new ItemStack { Prefab = "Wood", Amount = 50, UnitWeight = 2, MaxStack = 50 },
+            };
+            var first = PickupRoute.Plan(new[] { stack }, Vec3.Zero, new CarriedInventory(2, 50));
+            Assert.That(first.Count, Is.EqualTo(1));
+            Assert.That(first[0].Item.Amount, Is.EqualTo(25));
+
+            var rest = new GroundItem
+            {
+                Id = stack.Id,
+                Position = stack.Position,
+                Item = stack.Item.Copy(stack.Item.Amount - first[0].Item.Amount),
+            };
+            var second = PickupRoute.Plan(new[] { rest }, Vec3.Zero, new CarriedInventory(2, 50));
+            Assert.That(second.Select(d => d.Item.Amount), Is.EqualTo(new[] { 25 }));
         }
 
         [Test]

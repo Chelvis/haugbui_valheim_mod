@@ -93,7 +93,7 @@ namespace Haugbui.Brain
                 Vector3 position = drop.transform.position;
                 if ((position - context.Center).sqrMagnitude > radiusSq || !context.Mine(position)) continue;
                 string id = DropEndpoint.IdOf(drop);
-                if (context.OwnDrops.ContainsKey(id) || !context.IsFree(GatherKeys.Drop(id))) continue;
+                if (context.OwnDrops.ContainsKey(id) || context.ClaimedDrops.Contains(id) || !context.IsFree(GatherKeys.Drop(id))) continue;
                 if (GroundItemRules.Check(Facts(drop, context)) != GroundItemVerdict.Eligible) continue;
                 ItemStack stack = DropEndpoint.Read(drop);
                 if (!GatherDestinations.Has(context, stack)) continue;
@@ -103,7 +103,7 @@ namespace Haugbui.Brain
             GatherKeys.AddRoute(context, output, _candidates, _drops, TaskKinds.Gather, TaskKinds.GatherPriority, StepKind.PickUp);
         }
 
-        private static GroundItemFacts Facts(ItemDrop drop, WorkContext context)
+        internal static GroundItemFacts Facts(ItemDrop drop, WorkContext context)
         {
             Vector3 position = drop.transform.position;
             float nearest = float.MaxValue;
@@ -117,7 +117,33 @@ namespace Haugbui.Brain
                 Transportable = ItemBridge.IsTransportable(drop.m_itemData),
                 OwnedHere = drop.m_nview.IsOwner(),
                 WardAllows = context.Policy.WardsAllow(position, context.OwnerId),
+                HatchingEgg = Livestock.HatchingEgg(drop),
+                AnimalFeed = Livestock.FeedInReach(drop),
             };
+        }
+    }
+
+    /// <summary>Ground drops a job may take. Same age, distance, transportable, ward and territory checks, and no chest is required.</summary>
+    internal static class SupplyDrops
+    {
+        public static IReadOnlyList<GroundItem> Of(WorkContext context)
+        {
+            if (context.SupplyDropsReady) return context.SupplyDrops;
+            context.SupplyDropsReady = true;
+            if (!context.GroundItems) return context.SupplyDrops;
+            float radiusSq = context.Radius * context.Radius;
+            foreach (ItemDrop drop in WorldRegistry.ItemDrops)
+            {
+                if (!DropEndpoint.IsLive(drop)) continue;
+                Vector3 position = drop.transform.position;
+                if ((position - context.Center).sqrMagnitude > radiusSq || !context.Mine(position)) continue;
+                string id = DropEndpoint.IdOf(drop);
+                if (context.OwnDrops.ContainsKey(id) || !context.IsFree(GatherKeys.Drop(id))) continue;
+                if (GroundItemRules.Check(GroundItemProvider.Facts(drop, context)) != GroundItemVerdict.Eligible) continue;
+                context.SupplyDrops.Add(new GroundItem { Id = id, Position = WorldRegistry.ToVec3(position), Item = DropEndpoint.Read(drop) });
+                context.SupplyDropTargets[id] = drop;
+            }
+            return context.SupplyDrops;
         }
     }
 
@@ -168,6 +194,7 @@ namespace Haugbui.Brain
             {
                 ItemDrop drop = own.Value;
                 if (!DropEndpoint.IsLive(drop) || !context.IsFree(GatherKeys.Drop(own.Key))) continue;
+                if (Livestock.HatchingEgg(drop) || Livestock.FeedInReach(drop)) continue;
                 ItemStack stack = DropEndpoint.Read(drop);
                 if (!ItemBridge.IsTransportable(stack)) continue;
                 _candidates.Add(new GroundItem { Id = own.Key, Position = WorldRegistry.ToVec3(drop.transform.position), Item = stack });

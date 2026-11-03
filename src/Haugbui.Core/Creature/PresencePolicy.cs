@@ -144,6 +144,17 @@ namespace Haugbui.Core.Creature
             return (float)Math.Min(max, healed);
         }
 
+        /// <summary>
+        /// Outside: <paramref name="percent"/> of max HP per <paramref name="intervalSeconds"/> of real time.
+        /// World time is not an input, so a sleep skip adds nothing. Zero health stays dead.
+        /// </summary>
+        public static float RegenerateOutdoor(float current, float max, double realSeconds, double intervalSeconds, double percent)
+        {
+            if (current <= 0 || realSeconds <= 0 || intervalSeconds <= 0 || percent <= 0) return Math.Min(Math.Max(current, 0), max);
+            double healed = current + max * (percent / 100d) * (realSeconds / intervalSeconds);
+            return (float)Math.Min(max, healed);
+        }
+
         /// <summary>Keeps the health fraction when max health changes with the level.</summary>
         public static float Rescale(float current, float oldMax, float newMax)
         {

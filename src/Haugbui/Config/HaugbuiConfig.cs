@@ -30,7 +30,8 @@ namespace Haugbui.Config
         private ConfigEntry<string> _radius;
         private ConfigEntry<string> _slots;
         private ConfigEntry<string> _maxHealth;
-        private ConfigEntry<string> _combatMultiplier;
+        private ConfigEntry<string> _offenceMultiplier;
+        private ConfigEntry<string> _defenceMultiplier;
 
         public HaugbuiConfig(ConfigFile file)
         {
@@ -53,6 +54,8 @@ namespace Haugbui.Config
 
         public ConfigEntry<float> CooldownDays { get; private set; }
         public ConfigEntry<float> RestFullHealSeconds { get; private set; }
+        public ConfigEntry<float> OutdoorRegenPercent { get; private set; }
+        public ConfigEntry<float> OutdoorRegenSeconds { get; private set; }
 
         public ConfigEntry<int> ProductionUnlockLevel { get; private set; }
         public ConfigEntry<float> JobTakeoverMinutes { get; private set; }
@@ -117,8 +120,10 @@ namespace Haugbui.Config
                 "Carried inventory slots per level 1..6 (whole numbers).");
             _maxHealth = BindLevels("MaxHealth", ProgressionTable.ToCsv(ProgressionTable.DefaultMaxHealth),
                 "Health per level 1..6.");
-            _combatMultiplier = BindLevels("CombatMultiplier", ProgressionTable.ToCsv(ProgressionTable.DefaultCombatMultiplier),
-                "Combat multiplier per level 1..6: the damage of its hits is multiplied by it and the damage it takes is divided by it.");
+            _offenceMultiplier = BindLevels("OffenceMultiplier", ProgressionTable.ToCsv(ProgressionTable.DefaultOffenceMultiplier),
+                "Hit-damage multiplier per level 1..6. Level 2 is 0.8 and level 6 is 2.");
+            _defenceMultiplier = BindLevels("DefenceMultiplier", ProgressionTable.ToCsv(ProgressionTable.DefaultDefenceMultiplier),
+                "Incoming damage is divided by this, per level 1..6. Level 2 is 0.8 and level 6 is 2. The Altar adds nothing.");
 
             DawnReturnLeadSeconds = BindAdmin(Timing, "DawnReturnLeadSeconds", 60f,
                 "Real seconds before dawn when the Haugbui starts returning to its tomb.", 0f, 600f);
@@ -131,6 +136,10 @@ namespace Haugbui.Config
                 "In-game days before a dead Haugbui may return. Without the Altar it then waits for the next nightfall.", 0f, 30f);
             RestFullHealSeconds = BindAdmin(Death, "RestFullHealSeconds", 600f,
                 "World-time seconds for a resting Haugbui to heal from zero to full (about 10 real minutes).", 1f, 86400f);
+            OutdoorRegenPercent = BindAdmin(Death, "OutdoorRegenPercent", 1f,
+                "Percent of max health regained, while outside and alive, each OutdoorRegenSeconds of real time. A sleep skip does not add it.", 0f, 100f);
+            OutdoorRegenSeconds = BindAdmin(Death, "OutdoorRegenSeconds", 10f,
+                "Real seconds between outdoor heals of OutdoorRegenPercent. A sleep skip does not add them.", 0.1f, 600f);
 
             ProductionUnlockLevel = BindAdmin(Production, "ProductionUnlockLevel", 2,
                 "Tomb level that unlocks production automation.", ProgressionTable.MinLevel, ProgressionTable.MaxLevel);
@@ -158,7 +167,7 @@ namespace Haugbui.Config
 
             CombatDamageMultiplier = BindAdmin(Combat, "DamageMultiplier", 1f,
                 "Base multiplier for the damage of the Haugbui's hits (the Wraith's own attack), applied together with the " +
-                "CombatMultiplier of its level.", 0.1f, 10f);
+                "OffenceMultiplier of its level.", 0.1f, 10f);
 
             HarvestWildPickables = BindAdmin(Harvest, "WildPickables", false,
                 "Also pick wild plants (berries, mushrooms, thistle...), not only cultivated crops.");
@@ -182,8 +191,9 @@ namespace Haugbui.Config
                 "How often a dormant Haugbui looks for work (or tribute) during its shift.", 2f, 120f);
 
             AwayModeEnabled = BindAdmin(AwayMode, "Enabled", true,
-                "Tombs keep sorting, delivering and refilling smelters while the player is far away.");
-            RemoteTickSeconds = BindAdmin(AwayMode, "TickSeconds", 10f, "Interval of away-mode work.", 2f, 120f);
+                "Reserved. Nothing reads this yet: a tomb does not keep working while you are away.");
+            RemoteTickSeconds = BindAdmin(AwayMode, "TickSeconds", 10f,
+                "Reserved interval for away-mode work. Nothing reads this yet.", 2f, 120f);
 
             PlanningIntervalSeconds = BindAdmin(Advanced, "PlanningIntervalSeconds", 1f,
                 "How often each Haugbui plans its next task.", 0.25f, 10f);
@@ -212,7 +222,8 @@ namespace Haugbui.Config
         private ProgressionTable BuildProgressionTable()
         {
             ProgressionTable table = ProgressionTable.FromCsv(
-                _carryCapacity.Value, _maxSpeed.Value, _radius.Value, _slots.Value, _maxHealth.Value, _combatMultiplier.Value,
+                _carryCapacity.Value, _maxSpeed.Value, _radius.Value, _slots.Value, _maxHealth.Value,
+                _offenceMultiplier.Value, _defenceMultiplier.Value,
                 out IReadOnlyList<string> warnings);
             foreach (string warning in warnings)
                 Log.Warning("Config " + Progression + ": " + warning);

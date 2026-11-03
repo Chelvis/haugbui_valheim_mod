@@ -33,6 +33,8 @@ namespace Haugbui.Structures
 
         private void Awake()
         {
+            if (gameObject.scene.IsValid() && Definition != null)
+                StructureVisuals.BindPlaced(gameObject, Definition);
             View = GetComponent<ZNetView>();
             if (Zdo == null) return; // placement ghost
 

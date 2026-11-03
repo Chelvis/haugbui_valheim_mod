@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Linq;
 using Haugbui.Core.Creature;
+using Haugbui;
 using Haugbui.Core.Persistence;
 using Haugbui.Core.Structures;
 using Haugbui.Creature;
@@ -40,6 +41,7 @@ namespace Haugbui.SelfTest
                 yield return ReloadWhileOut();
                 yield return Deposit();
                 yield return Rest();
+                yield return OutdoorRegen();
                 yield return Death();
                 yield return Altar();
                 yield return Toggles();
@@ -243,6 +245,34 @@ namespace Haugbui.SelfTest
             _t.Check("Rest off: emerges again", _tomb.Creature != null);
         }
 
+        private IEnumerator OutdoorRegen()
+        {
+            if (_tomb.Creature == null) yield return Emerge();
+            if (_tomb.Creature == null) yield break;
+            Character character = _tomb.Creature.Character;
+            float max = character.GetMaxHealth();
+            character.SetHealth(max * 0.5f);
+            float before = character.GetHealth();
+            _time.Offset += 600;
+            yield return new WaitForSecondsRealtime(10f);
+            float after = _tomb.Creature != null ? _tomb.Creature.Character.GetHealth() : before;
+            _time.Offset -= 600;
+            float gained = after - before;
+            _t.Check("outside, about 1% returns in 10 real seconds", gained > max * 0.005f && gained < max * 0.025f,
+                $"{before:0.00} -> {after:0.00} (max {max:0})");
+            _t.Check("a world-time skip does not add the rest heal", after < max * 0.6f, $"{after:0.00}/{max:0}");
+
+            if (_tomb.Creature != null) _tomb.Creature.Character.SetHealth(max * 0.5f);
+            _tomb.SetToggle(TombToggles.Resting, true, out _);
+            yield return WaitFor(() => _tomb.Machine.State == HaugbuiState.Dormant, 20f);
+            _time.Offset += HaugbuiPlugin.Instance.Settings.RestFullHealSeconds.Value;
+            _t.Check("resting still reaches full in RestFullHealSeconds", _tomb.Creature == null && _tomb.EffectiveHealth(max) >= max - 0.05f,
+                $"{_tomb.EffectiveHealth(max):0.00}/{max:0}");
+            _time.Offset -= HaugbuiPlugin.Instance.Settings.RestFullHealSeconds.Value;
+            _tomb.SetToggle(TombToggles.Resting, false, out _);
+            yield return SetTime(Night);
+        }
+
         private IEnumerator Death()
         {
             if (_tomb.Creature == null) yield return Emerge();
@@ -255,19 +285,30 @@ namespace Haugbui.SelfTest
             creature.Character.Damage(hit);
             yield return WaitFor(() => _tomb.Machine.State == HaugbuiState.Dead, 5f);
             _t.Check("dies", _tomb.Machine.State == HaugbuiState.Dead, _tomb.Machine.State.ToString());
+            yield return new WaitForSecondsRealtime(2f);
+            _t.Check("dead, it does not regen", _tomb.Machine.State == HaugbuiState.Dead && _tomb.State.Health <= 0f && _tomb.Creature == null,
+                $"health {_tomb.State.Health}");
             _t.Check("death items moved to tomb storage", _tomb.Carried.IsEmpty && Count("Resin") == before + 5);
             double cooldown = TombController.CooldownSeconds;
             _t.Check("cooldown running", _tomb.WaitRemaining > cooldown - 10, $"{_tomb.WaitRemaining:0}s");
+            // The label is hidden past 20 m. The tomb can be much farther than the spot we started from.
+            Vector3 returnTo = _t.Player.transform.position;
+            StandBeside(_tomb);
             yield return new WaitForSeconds(1.2f);
             CountdownLabel label = _tomb.GetComponent<CountdownLabel>();
-            _t.Check("countdown label shown", label != null && label.Shown.Length > 0, label?.Shown);
+            float distance = Vector3.Distance(_t.Player.transform.position, _tomb.transform.position);
+            _t.Check("countdown label shown", label != null && label.Shown.Length > 0,
+                label == null ? "missing" : $"'{label.Shown}' dist {distance:0.0} wait {_tomb.WaitRemaining:0}");
             _t.Check("countdown label has a font", label != null && label.HasFont);
             Camera camera = Utils.GetMainCamera();
             Transform text = label != null ? label.Label : null;
             if (camera != null && text != null)
                 _t.Check("countdown label reads the right way (not mirrored)",
-                    Vector3.Dot(text.forward, text.position - camera.transform.position) > 0f, $"forward {text.forward}");
+                    Vector3.Dot(text.forward, text.position - camera.transform.position) > 0f,
+                    $"forward {text.forward} active {text.gameObject.activeSelf} dist {distance:0.0}");
             else _t.Skip("countdown label reads the right way (not mirrored)", "no main camera");
+            // Left beside the tomb, the player picks up the drops when it is later destroyed.
+            StandAt(returnTo);
             _t.Check("death time saved", !double.IsNaN(_tomb.State.DeathTime));
 
             _tomb.TickNow();
@@ -286,6 +327,8 @@ namespace Haugbui.SelfTest
             HaugbuiStructure altar = Place(StructureKind.Altar, SelfTestContext.OnGround(_arena + new Vector3(3, 0, 0)));
             if (!_t.Check("Altar placed", altar != null)) yield break;
             yield return SelfTestContext.WaitFrames(3);
+            // The altar notice stays until dismissed, and a visible popup blocks player input for every later suite.
+            SelfTestContext.DismissPopups();
             yield return SetTime(Noon);
             yield return WaitFor(() => _tomb.Machine.State == HaugbuiState.Idle, 10f);
             yield return new WaitForSeconds(0.5f);
@@ -384,6 +427,31 @@ namespace Haugbui.SelfTest
         }
 
         private HaugbuiStructure Place(StructureKind kind, Vector3 position) => _t.PlaceStructure(kind, position);
+
+        /// <summary>The countdown hides past 20 m, so the check stands next to the tomb.</summary>
+        private void StandBeside(Component thing)
+        {
+            Player player = _t.Player;
+            Vector3 away = player.transform.position - thing.transform.position;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.01f) away = Vector3.back;
+            away.Normalize();
+            Vector3 stand = thing.transform.position + away * 1.5f;
+            stand.y = ZoneSystem.instance.GetGroundHeight(stand);
+            StandAt(stand);
+        }
+
+        private void StandAt(Vector3 stand)
+        {
+            Player player = _t.Player;
+            player.transform.position = stand;
+            Rigidbody body = player.GetComponent<Rigidbody>();
+            if (body != null)
+            {
+                body.position = stand;
+                body.linearVelocity = Vector3.zero;
+            }
+        }
     }
 }
 #endif

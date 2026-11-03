@@ -2822,7 +2822,7 @@
         {
           "id": "HB-T-112",
           "title": "Per-chest item filter",
-          "description": "Optional prefab list on a vanilla chest, stored in a haugbui_* ZDO blob (no custom item). Empty list keeps HB-062. A non-empty list accepts only those prefabs, even while the chest is empty, and refuses anything else. First UI: typeahead multi-select of discovered transportable items, plus clear-all. Icons later. Wards, privacy and StrictItemData unchanged.",
+          "description": "Optional prefab list on a vanilla chest, stored in a haugbui_* ZDO blob (no custom item). Empty list keeps HB-062. A non-empty list accepts only those prefabs, even while the chest is empty, and refuses anything else. Each line may cap how many stacks of that prefab the chest holds; empty means the chest's own room, and stacks already over the cap stay. Hover shows the count. Suggestions are items the character has picked up. First UI: typeahead multi-select of discovered transportable items, plus clear-all. Icons later. Wards, privacy and StrictItemData unchanged.",
           "priority": "P1",
           "dependencies": [
             "HB-T-046",
@@ -2832,7 +2832,8 @@
             "Empty filter behaves as HB-062",
             "Wood filter on an empty chest receives Wood and refuses Stone",
             "Clear-all restores HB-062",
-            "The list survives a reload"
+            "The list survives a reload",
+            "A stack cap of one accepts a single stack and does not remove items already over it"
           ],
           "components": [
             "UI",
@@ -2843,7 +2844,7 @@
               "Selector accepts only listed prefabs when the filter is set"
             ],
             "self_test": [
-              "Empty chest filtered to Wood receives Wood; Stone stays carried; clearing the list restores the existing-item rule; reload keeps the list"
+              "Empty chest filtered to Wood receives Wood; Stone stays carried; a stack cap of one accepts a single stack; clearing the list restores the existing-item rule; reload keeps the list and the cap"
             ],
             "manual": []
           },
@@ -3011,8 +3012,41 @@
     {
       "id": "M11",
       "name": "Optimization and release preparation",
-      "goal": "Measured performance, documentation and a Thunderstore package.",
+      "goal": "Panel polish Kelvin asked for after 0.0.10, then measured performance, documentation and a Thunderstore package.",
       "tickets": [
+        {
+          "id": "HB-T-117",
+          "title": "Filter and delivery panels, and chest edit buttons",
+          "description": "Replace the filter panel with one typeahead above the accept-only list: typing filters the suggestions, clicking a suggestion adds it and hides the list while keeping the typed text, an unfocused field shows no suggestions. Each accepted item is one row with an X on the right. No Add, no Remove, no second dropdown. Clear all and a corner X that closes every Haugbui panel (filter, delivery, tomb, production). Scroll when the list is taller than the panel. Delivery uses the same typeahead above its lines. Empty list says there is nothing to deliver. A chosen item shows how many are already in the chest and an empty requested field. Clear all is available when the list is not empty. Save enables only when every requested field is filled. Shift+E stays. The vanilla chest UI gains Edit filters; the delivery chest UI gains Edit requests.",
+          "priority": "P0",
+          "dependencies": [
+            "HB-T-112",
+            "HB-T-052",
+            "HB-T-080"
+          ],
+          "acceptance_criteria": [
+            "Clicking a suggestion adds it; the suggestion list hides until the field is focused again",
+            "An X on a row removes that item; Clear all removes every item",
+            "The corner X closes every Haugbui panel and does not leave input blocked",
+            "Save stays disabled until every delivery line has a requested amount",
+            "Edit filters and Edit requests open the same panels as Shift+E"
+          ],
+          "components": [
+            "UI"
+          ],
+          "testing": {
+            "automated": [],
+            "self_test": [
+              "Filter add, row remove, clear all, delivery Save gating, vanilla Edit filters and Edit requests buttons, corner X closes and movement returns"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-062",
+            "HB-081",
+            "HB-163"
+          ]
+        },
         {
           "id": "HB-T-084",
           "title": "Performance profiling and budgets",
@@ -3283,7 +3317,8 @@
             "HB-T-113",
             "HB-T-114",
             "HB-T-115",
-            "HB-T-116"
+            "HB-T-116",
+            "HB-T-117"
           ],
           "acceptance_criteria": [
             "All P0 checklist items pass"
@@ -3425,6 +3460,49 @@
           },
           "requirements": [
             "HB-128"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M13",
+      "name": "Material piles",
+      "goal": "After M11 and M12. The Haugbui can dismantle a one-material pile for a delivery or a production job, off by default.",
+      "tickets": [
+        {
+          "id": "HB-T-118",
+          "title": "Dismantle material piles as a job source",
+          "description": "Not part of M11 or M12. Tomb toggle, default off. A pile is a player-built piece whose recipe is one stack of one transportable material. Furniture, chests and other buildings are skipped. A pile in a ward the owner cannot use is skipped. Dismantle only to feed a delivery or a production job. The refund is received before the piece is removed. What does not fit the carry limit becomes a ground drop and is collected in parts (HB-T-113). Per tomb, piles come before chests or only after chests fall short. Carried items stay first. Ground order stays as in HB-113.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-061",
+            "HB-T-053",
+            "HB-T-113"
+          ],
+          "acceptance_criteria": [
+            "Toggle off leaves every pile standing",
+            "A wood pile is dismantled only when the job or the delivery needs wood",
+            "A piece that costs two different materials is left alone",
+            "The refund exists before the piece is gone",
+            "Chests-first waits for empty chests; piles-first spends the pile first"
+          ],
+          "components": [
+            "Brain",
+            "Structures"
+          ],
+          "testing": {
+            "automated": [
+              "Pile recognition and source order"
+            ],
+            "self_test": [
+              "Toggle off, then on; wood pile refund conserved; a forge piece is not dismantled; both priorities"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-176",
+            "HB-045",
+            "HB-031"
           ]
         }
       ]

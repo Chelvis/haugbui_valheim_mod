@@ -47,6 +47,14 @@ namespace Haugbui.Brain
 
         /// <summary>Every object a step of this tick's plans may target, by ZDO id.</summary>
         public readonly Dictionary<string, MonoBehaviour> Targets = new Dictionary<string, MonoBehaviour>();
+
+        /// <summary>Eligible ground drops a job may take. Filled once per refresh, and only while the ground toggle is on.</summary>
+        public readonly List<GroundItem> SupplyDrops = new List<GroundItem>();
+        public readonly Dictionary<string, ItemDrop> SupplyDropTargets = new Dictionary<string, ItemDrop>();
+        public bool SupplyDropsReady;
+
+        /// <summary>Drops a feed plan is taking, so the ground task leaves them alone this pass.</summary>
+        public readonly HashSet<string> ClaimedDrops = new HashSet<string>();
         public ContainerSnapshot TombStorage;
 
         public Vector3 Center;
@@ -119,6 +127,10 @@ namespace Haugbui.Brain
             CollectionChests.Clear();
             DeliveryChests.Clear();
             Targets.Clear();
+            SupplyDrops.Clear();
+            SupplyDropTargets.Clear();
+            SupplyDropsReady = false;
+            ClaimedDrops.Clear();
             Stations.Clear();
             _reserved = null;
             FindTerritories(tomb);
@@ -148,6 +160,7 @@ namespace Haugbui.Brain
                 if (!destination && !source && delivery == null) continue;
 
                 ContainerSnapshot snapshot = Snapshot(container);
+                snapshot.KeepSeed = source && !collection;
                 Targets[snapshot.Id] = container;
                 if (destination) Destinations.Add(snapshot);
                 if (source) Sources.Add(snapshot);
@@ -257,7 +270,14 @@ namespace Haugbui.Brain
             };
             foreach (ItemDrop.ItemData item in inventory.GetAllItems()) snapshot.Items.Add(ItemBridge.FromItemData(item));
             ZNetView view = container.m_nview;
-            snapshot.Filter = ChestFilterStore.Read(view != null && view.IsValid() ? view.GetZDO() : null);
+            List<ChestFilterLine> lines = ChestFilterStore.Read(view != null && view.IsValid() ? view.GetZDO() : null);
+            snapshot.Filter = new List<string>(lines.Count);
+            snapshot.StackCaps = new Dictionary<string, int>();
+            foreach (ChestFilterLine line in lines)
+            {
+                snapshot.Filter.Add(line.Prefab);
+                if (line.MaxStacks > 0) snapshot.StackCaps[line.Prefab] = line.MaxStacks;
+            }
             return snapshot;
         }
     }

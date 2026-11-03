@@ -22,3 +22,6 @@ art/reference/
 
 # Vanilla build-menu icons exported as references for the owner to redraw
 art/icon-sources/
+
+# Thunderstore zip produced locally
+artifacts/

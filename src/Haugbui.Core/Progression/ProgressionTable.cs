@@ -8,7 +8,7 @@ namespace Haugbui.Core.Progression
     public readonly struct HaugbuiAttributes
     {
         public HaugbuiAttributes(int level, float carryCapacity, float maxSpeed, float radius, int slots, float maxHealth,
-            float combatMultiplier)
+            float offenceMultiplier, float defenceMultiplier)
         {
             Level = level;
             CarryCapacity = carryCapacity;
@@ -16,7 +16,8 @@ namespace Haugbui.Core.Progression
             Radius = radius;
             Slots = slots;
             MaxHealth = maxHealth;
-            CombatMultiplier = combatMultiplier;
+            OffenceMultiplier = offenceMultiplier;
+            DefenceMultiplier = defenceMultiplier;
         }
 
         public int Level { get; }
@@ -26,8 +27,11 @@ namespace Haugbui.Core.Progression
         public int Slots { get; }
         public float MaxHealth { get; }
 
-        /// <summary>HB-142: multiplies the damage of its hits and divides the damage it takes.</summary>
-        public float CombatMultiplier { get; }
+        /// <summary>Multiplies the damage of its hits.</summary>
+        public float OffenceMultiplier { get; }
+
+        /// <summary>Incoming damage is divided by this.</summary>
+        public float DefenceMultiplier { get; }
     }
 
     public sealed class ProgressionTable
@@ -41,35 +45,42 @@ namespace Haugbui.Core.Progression
         public static readonly float[] DefaultRadius = { 50, 60, 70, 80, 90, 100 };
         public static readonly int[] DefaultSlots = { 2, 3, 4, 5, 6, 6 };
         public static readonly float[] DefaultMaxHealth = { 20, 40, 60, 80, 100, 120 };
-        public static readonly float[] DefaultCombatMultiplier = { 1.0f, 1.2f, 1.4f, 1.6f, 1.8f, 2.0f };
+        /// <summary>Level 2 is 0.8 and level 6 stays 2. Level 1 does not fight; it sits one step below so the row keeps rising.</summary>
+        public static readonly float[] DefaultOffenceMultiplier = { 0.5f, 0.8f, 1.1f, 1.4f, 1.7f, 2.0f };
+
+        /// <summary>Same steps as offence. Incoming damage is divided by this.</summary>
+        public static readonly float[] DefaultDefenceMultiplier = { 0.5f, 0.8f, 1.1f, 1.4f, 1.7f, 2.0f };
 
         private readonly float[] _carryCapacity;
         private readonly float[] _maxSpeed;
         private readonly float[] _radius;
         private readonly int[] _slots;
         private readonly float[] _maxHealth;
-        private readonly float[] _combatMultiplier;
+        private readonly float[] _offenceMultiplier;
+        private readonly float[] _defenceMultiplier;
 
         private ProgressionTable(float[] carryCapacity, float[] maxSpeed, float[] radius, int[] slots, float[] maxHealth,
-            float[] combatMultiplier)
+            float[] offenceMultiplier, float[] defenceMultiplier)
         {
             _carryCapacity = carryCapacity;
             _maxSpeed = maxSpeed;
             _radius = radius;
             _slots = slots;
             _maxHealth = maxHealth;
-            _combatMultiplier = combatMultiplier;
+            _offenceMultiplier = offenceMultiplier;
+            _defenceMultiplier = defenceMultiplier;
         }
 
         public static ProgressionTable Default { get; } = new ProgressionTable(
-            DefaultCarryCapacity, DefaultMaxSpeed, DefaultRadius, DefaultSlots, DefaultMaxHealth, DefaultCombatMultiplier);
+            DefaultCarryCapacity, DefaultMaxSpeed, DefaultRadius, DefaultSlots, DefaultMaxHealth,
+            DefaultOffenceMultiplier, DefaultDefenceMultiplier);
 
         public HaugbuiAttributes ForLevel(int level)
         {
             int clamped = Math.Max(MinLevel, Math.Min(MaxLevel, level));
             int i = clamped - MinLevel;
             return new HaugbuiAttributes(clamped, _carryCapacity[i], _maxSpeed[i], _radius[i], _slots[i], _maxHealth[i],
-                _combatMultiplier[i]);
+                _offenceMultiplier[i], _defenceMultiplier[i]);
         }
 
         /// <summary>
@@ -77,8 +88,8 @@ namespace Haugbui.Core.Progression
         /// so one bad config line never resets the others.
         /// </summary>
         public static ProgressionTable FromCsv(
-            string carryCapacity, string maxSpeed, string radius, string slots, string maxHealth, string combatMultiplier,
-            out IReadOnlyList<string> warnings)
+            string carryCapacity, string maxSpeed, string radius, string slots, string maxHealth,
+            string offenceMultiplier, string defenceMultiplier, out IReadOnlyList<string> warnings)
         {
             var problems = new List<string>();
             var table = new ProgressionTable(
@@ -88,7 +99,8 @@ namespace Haugbui.Core.Progression
                 ParseColumn("Slots", slots, DefaultSlots.Select(s => (float)s).ToArray(), problems, integer: true)
                     .Select(v => (int)v).ToArray(),
                 ParseColumn("MaxHealth", maxHealth, DefaultMaxHealth, problems),
-                ParseColumn("CombatMultiplier", combatMultiplier, DefaultCombatMultiplier, problems));
+                ParseColumn("OffenceMultiplier", offenceMultiplier, DefaultOffenceMultiplier, problems),
+                ParseColumn("DefenceMultiplier", defenceMultiplier, DefaultDefenceMultiplier, problems));
             warnings = problems;
             return table;
         }

@@ -14,6 +14,7 @@ using Haugbui.Registry;
 using Haugbui.Structures;
 using Haugbui.UI;
 using UnityEngine;
+using UnityEngine.UI;
 using Reservations = Haugbui.Coordination.Reservations;
 
 namespace Haugbui.SelfTest
@@ -344,6 +345,14 @@ namespace Haugbui.SelfTest
             int stonePlan = StorageSelector.Plan(Stack("Stone", 5), 5, new[] { snap }, from).Sum(a => a.Amount);
             _t.Check("wood filter accepts wood and refuses stone", woodPlan == 5 && stonePlan == 0, $"wood {woodPlan}, stone {stonePlan}");
 
+            ChestFilterStore.Write(empty.m_nview.GetZDO(), new[] { new ChestFilterLine("Wood", 1) });
+            snap = WorkContext.Snapshot(empty);
+            ItemStack lots = Stack("Wood", 200);
+            int oneStack = Math.Max(1, lots.MaxStack);
+            int capped = StorageSelector.Plan(lots, 200, new[] { snap }, from).Sum(a => a.Amount);
+            _t.Check("a stack cap of one accepts a single stack", capped == oneStack, $"{capped}/{oneStack}");
+            ChestFilterStore.Write(empty.m_nview.GetZDO(), new[] { "Wood" });
+
             ItemStack wood = Stack("Wood", 5);
             ItemBridge.RefreshShared(wood);
             int woodBefore = Count(empty, "Wood") + _tomb.Carried.CountPrefab("Wood");
@@ -370,30 +379,128 @@ namespace Haugbui.SelfTest
                 && TombPanel.StatusText.Contains(Localization.instance.Localize("$haugbui_panel_radius", _tomb.Attributes.Radius.ToString("0"))),
                 TombPanel.StatusText);
             _t.Check("tomb panel blocks movement", TombPanel.IsOpen && !_t.Player.TakeInput());
-            TombPanel.Close();
-            _t.Check("closing the tomb panel leaves the player able to move", !TombPanel.IsOpen && _t.Player.TakeInput());
+            TombPanel.Dismiss.onClick.Invoke();
+            _t.Check("tomb corner X closes and movement works", !TombPanel.IsOpen && _t.Player.TakeInput());
             _tomb.Carried.Remove(cheated, 2);
             _tomb.Carried.Remove(stone, 5);
 
             ChestFilterPanel.Open(empty);
             _t.Check("filter panel blocks movement", ChestFilterPanel.IsOpen && !_t.Player.TakeInput());
-            ChestFilterPanel.Clear();
+            _t.Check("filter suggestions are items the character has picked up",
+                ChestFilterPanel.Known.All(item => PickedUp(item.Prefab)),
+                string.Join(", ", ChestFilterPanel.Known.Where(item => !PickedUp(item.Prefab)).Select(item => item.Prefab)));
+            string hidden = FirstUnknown();
+            if (hidden != null)
+                _t.Check("an item the character has never picked up stays out of the list",
+                    ChestFilterPanel.Known.All(item => item.Prefab != hidden), hidden);
+            else _t.Skip("unknown item stays out of the list", "the character already knows every transportable item");
+            InputField stacks = ChestFilterPanel.StacksField("Wood");
+            Text placeholder = stacks != null ? stacks.placeholder as Text : null;
+            _t.Check("an empty stack cap shows infinity",
+                stacks != null && stacks.text == "" && placeholder != null && placeholder.text == "\u221E",
+                stacks != null ? "'" + stacks.text + "' / '" + (placeholder != null ? placeholder.text : "") + "'" : "missing");
+            int woodInChest = Count(empty, "Wood");
+            ChestFilterPanel.TypeSearch("st");
+            yield return null;
+            _t.Check("filter suggestions show while the search is focused", ChestFilterPanel.SuggestionsVisible, ChestFilterPanel.SearchText);
+            Button stoneSuggestion = ChestFilterPanel.Suggestion("Stone");
+            if (stoneSuggestion != null)
+            {
+                stoneSuggestion.onClick.Invoke();
+                Button stoneRow = ChestFilterPanel.RemoveButton("Stone");
+                // DestroyImmediate during the X click makes this reference compare equal to null.
+                bool hadRow = stoneRow != null;
+                bool added = ChestFilterPanel.Lines.Contains("Stone") && !ChestFilterPanel.SuggestionsVisible;
+                string typed = ChestFilterPanel.SearchText;
+                if (hadRow) stoneRow.onClick.Invoke();
+                _t.Check("clicking a suggestion adds the item and hides the suggestions", added,
+                    ChestFilterPanel.DescribeRows());
+                _t.Check("the typed filter text stays", typed == "st", typed);
+                _t.Check("the row X removes that item", hadRow && !ChestFilterPanel.Lines.Contains("Stone"),
+                    hadRow ? string.Join(",", ChestFilterPanel.Lines) : "no row button: " + ChestFilterPanel.DescribeRows());
+            }
+            else _t.Skip("filter suggestion click", "Stone is not in the suggestion list");
+            ChestFilterPanel.BlurSearch();
+            yield return null;
+            _t.Check("suggestions hide when the search loses focus", !ChestFilterPanel.SuggestionsVisible);
+            _t.Check("editing the filter does not move items", Count(empty, "Wood") == woodInChest, Count(empty, "Wood").ToString());
+            ChestFilterPanel.ClearButton.onClick.Invoke();
             snap = WorkContext.Snapshot(empty);
             _t.Check("clear-all restores the existing-item rule",
                 StorageSelector.Plan(Stack("Stone", 1), 1, new[] { snap }, from).Count == 0
                 && StorageSelector.Plan(Stack("Wood", 1), 1, new[] { snap }, from).Sum(a => a.Amount) > 0);
-            ChestFilterPanel.Close();
-            _t.Check("closing the filter panel leaves the player able to move", !ChestFilterPanel.IsOpen && _t.Player.TakeInput());
+            yield return FilterClipboard(empty);
+            ChestFilterPanel.Dismiss.onClick.Invoke();
+            _t.Check("filter corner X closes and movement works", !ChestFilterPanel.IsOpen && _t.Player.TakeInput());
 
-            ChestFilterStore.Write(empty.m_nview.GetZDO(), new[] { "Wood" });
+            ChestFilterStore.Write(empty.m_nview.GetZDO(), new[] { new ChestFilterLine("Wood", 3) });
             GameObject again = null;
             yield return _t.Reload(empty.gameObject, go => again = go);
             Container reloaded = again != null ? again.GetComponent<Container>() : null;
             _chests.Remove(empty);
             if (reloaded != null) _chests.Add(reloaded);
-            List<string> kept = ChestFilterStore.Read(reloaded != null ? reloaded.m_nview.GetZDO() : null);
-            _t.Check("the filter list survives a reload", reloaded != null && kept.Count == 1 && kept[0] == "Wood",
-                kept != null ? string.Join(",", kept) : "missing");
+            List<ChestFilterLine> kept = ChestFilterStore.Read(reloaded != null ? reloaded.m_nview.GetZDO() : null);
+            _t.Check("the filter list survives a reload",
+                reloaded != null && kept.Count == 1 && kept[0].Prefab == "Wood" && kept[0].MaxStacks == 3,
+                kept != null ? string.Join(",", kept.Select(line => line.Prefab + ":" + line.MaxStacks)) : "missing");
+        }
+
+        private IEnumerator FilterClipboard(Container source)
+        {
+            PanelClipboard.Reset();
+            Text copy = ChestFilterPanel.CopyButton != null ? ChestFilterPanel.CopyButton.GetComponentInChildren<Text>() : null;
+            Text paste = ChestFilterPanel.PasteButton != null ? ChestFilterPanel.PasteButton.GetComponentInChildren<Text>() : null;
+            _t.Check("paste filters waits for a copy", ChestFilterPanel.PasteButton != null && !ChestFilterPanel.PasteButton.interactable);
+            _t.Check("copy filters is available", ChestFilterPanel.CopyButton != null && ChestFilterPanel.CopyButton.interactable
+                && copy != null && copy.text == Localization.instance.Localize("$haugbui_filter_copy")
+                && paste != null && paste.text == Localization.instance.Localize("$haugbui_filter_paste"));
+            if (ChestFilterPanel.CopyButton == null)
+            {
+                PanelClipboard.Reset();
+                yield break;
+            }
+            ChestFilterPanel.TypeSearch("Wo");
+            yield return null;
+            Button wood = ChestFilterPanel.Suggestion("Wood");
+            if (wood == null)
+            {
+                _t.Skip("copy filters", "Wood is not in the suggestion list");
+                PanelClipboard.Reset();
+                yield break;
+            }
+            wood.onClick.Invoke();
+            InputField cap = ChestFilterPanel.StacksField("Wood");
+            if (cap != null) cap.text = "2";
+            ChestFilterPanel.CopyButton.onClick.Invoke();
+            Container other = Chest(new Vector3(6, 0, -7));
+            if (other == null)
+            {
+                _t.Skip("paste filters", "the other chest was not created");
+                PanelClipboard.Reset();
+                yield break;
+            }
+            ChestFilterStore.Write(other.m_nview.GetZDO(), new[] { new ChestFilterLine("Resin", 4) });
+            int woodInSource = Count(source, "Wood");
+            ChestFilterPanel.Open(other);
+            _t.Check("paste filters is available on the other chest", ChestFilterPanel.PasteButton.interactable);
+            ChestFilterPanel.PasteButton.onClick.Invoke();
+            string pasted = FilterText(other);
+            _t.Check("paste filters replaces the whole list", pasted == "Wood:2" && FilterText(source) == "Wood:2",
+                $"other {pasted}, source {FilterText(source)}");
+            _t.Check("paste filters does not move items", Count(source, "Wood") == woodInSource && Count(other, "Wood") == 0);
+            ChestFilterPanel.Open(source);
+            ChestFilterPanel.ClearButton.onClick.Invoke();
+            ChestFilterPanel.CopyButton.onClick.Invoke();
+            ChestFilterPanel.Open(other);
+            ChestFilterPanel.PasteButton.onClick.Invoke();
+            _t.Check("pasting an empty filter clears the other chest", FilterText(other) == "", FilterText(other));
+            PanelClipboard.Reset();
+        }
+
+        private static string FilterText(Container chest)
+        {
+            if (chest == null || chest.m_nview == null) return "missing";
+            return string.Join(",", ChestFilterStore.Read(chest.m_nview.GetZDO()).Select(line => line.Prefab + ":" + line.MaxStacks));
         }
 
         private IEnumerator TwoTombs()
@@ -598,6 +705,29 @@ namespace Haugbui.SelfTest
 
         private static int Count(Container container, string prefab) =>
             container == null ? 0 : ItemBridge.Count(container.GetInventory(), Stack(prefab, 0));
+
+        private static bool PickedUp(string prefab)
+        {
+            GameObject item = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
+            ItemDrop drop = item != null ? item.GetComponent<ItemDrop>() : null;
+            string shared = drop != null && drop.m_itemData != null && drop.m_itemData.m_shared != null
+                ? drop.m_itemData.m_shared.m_name : null;
+            return !string.IsNullOrEmpty(shared) && Player.m_localPlayer != null && Player.m_localPlayer.IsMaterialKnown(shared);
+        }
+
+        private static string FirstUnknown()
+        {
+            if (ObjectDB.instance == null || Player.m_localPlayer == null) return null;
+            foreach (GameObject prefab in ObjectDB.instance.m_items)
+            {
+                ItemDrop drop = prefab != null ? prefab.GetComponent<ItemDrop>() : null;
+                if (drop == null || drop.m_itemData == null || !ItemBridge.IsTransportable(drop.m_itemData)) continue;
+                string shared = drop.m_itemData.m_shared != null ? drop.m_itemData.m_shared.m_name : null;
+                if (string.IsNullOrEmpty(shared) || Player.m_localPlayer.IsMaterialKnown(shared)) continue;
+                return prefab.name;
+            }
+            return null;
+        }
 
         private static ItemStack Stack(string prefab, int amount)
         {

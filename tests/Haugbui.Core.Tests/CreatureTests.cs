@@ -444,6 +444,15 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void Outdoor_regen_follows_real_seconds_and_stops_when_dead_or_full()
+        {
+            Assert.That(HealthMath.RegenerateOutdoor(50, 100, 10, 10, 1), Is.EqualTo(51f));
+            Assert.That(HealthMath.RegenerateOutdoor(50, 100, 0, 10, 1), Is.EqualTo(50f), "no real time, no heal");
+            Assert.That(HealthMath.RegenerateOutdoor(0, 100, 600, 10, 1), Is.EqualTo(0f));
+            Assert.That(HealthMath.RegenerateOutdoor(99.5f, 100, 10, 10, 1), Is.EqualTo(100f));
+        }
+
+        [Test]
         public void Level_change_keeps_the_health_fraction()
         {
             Assert.That(HealthMath.Rescale(10, 20, 40), Is.EqualTo(20f));

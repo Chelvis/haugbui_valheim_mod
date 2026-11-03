@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Core.Coordination;
@@ -53,7 +54,7 @@ namespace Haugbui.Brain
                 new SortTombStorageProvider(),
                 new CollectionProvider(),
                 new GroundItemProvider(),
-            });
+            }, candidates => CarryCycle.HoldUnload(candidates, _tomb.Carried.Weight, _tomb.Carried.Capacity));
             _carried = new CarriedEndpoint("carried:" + tomb.Guid, tomb.Carried);
         }
 
@@ -165,6 +166,15 @@ namespace Haugbui.Brain
             if (step == null)
             {
                 Finish();
+                return false;
+            }
+            // The chest can vanish while the Haugbui is still walking to the tomb to pick the items up.
+            for (int i = Plan.CompletedSteps; i < Plan.Steps.Count; i++)
+            {
+                TaskStep pending = Plan.Steps[i];
+                if (IsOptional(pending)) continue;
+                if (Resolve(pending.Target) != null) continue;
+                Abort("target unloaded while travelling");
                 return false;
             }
 
@@ -311,7 +321,7 @@ namespace Haugbui.Brain
             switch (step.Kind)
             {
                 case StepKind.PickUp:
-                    int picked = PickUp((ItemDrop)target);
+                    int picked = PickUp((ItemDrop)target, step.Amount);
                     if (picked > 0 && Plan.Kind == TaskKinds.ProductionOutputs) CreditOutputs(picked);
                     return picked > 0;
                 case StepKind.Feed:
@@ -334,7 +344,7 @@ namespace Haugbui.Brain
             Harvests++;
             foreach (ItemDrop drop in drops)
             {
-                PickUp(drop);
+                PickUp(drop, int.MaxValue);
                 if (!DropEndpoint.IsLive(drop)) continue;
                 string id = DropEndpoint.IdOf(drop);
                 _ownDrops[id] = drop;
@@ -344,11 +354,13 @@ namespace Haugbui.Brain
             return true;
         }
 
-        private int PickUp(ItemDrop drop)
+        private int PickUp(ItemDrop drop, int limit)
         {
             if (!DropEndpoint.IsLive(drop)) return 0;
             ItemStack item = DropEndpoint.Read(drop);
-            TransferRecord record = Reservations.Transfers.Move(new DropEndpoint(drop), _carried, item, item.Amount);
+            int amount = Math.Min(item.Amount, Math.Max(0, limit));
+            if (amount <= 0) return 0;
+            TransferRecord record = Reservations.Transfers.Move(new DropEndpoint(drop), _carried, item, amount);
             if (record.Moved <= 0) return 0;
             PickUps++;
             _tomb.Creature?.Visuals?.Pulse();

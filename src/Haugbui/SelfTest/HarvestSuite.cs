@@ -120,8 +120,114 @@ namespace Haugbui.SelfTest
                 stacks.Where(i => i.m_cheated).Sum(i => i.m_stack) == 3 && stacks.Where(i => !i.m_cheated).Sum(i => i.m_stack) >= woodBefore + 5,
                 string.Join(", ", stacks.Select(i => $"{i.m_stack}{(i.m_cheated ? " cheated" : "")}")));
 
+            int beforePile = Count(_wood, "Wood");
+            ItemDrop pile = Drop("Wood", 50, new Vector3(5, 1, 5), old: true);
+            float pileWeight = pile != null ? pile.m_itemData.m_shared.m_weight * 50f : 0f;
+            if (pile == null || pileWeight <= _tomb.Attributes.CarryCapacity)
+                _t.Skip("partial pickup of 50 wood", pile == null ? "the drop was not created" : "the stack fits in one trip");
+            else
+            {
+                float partialEnd = Time.time + 120f;
+                while (Time.time < partialEnd && (Live(pile) || !_tomb.Carried.IsEmpty)) yield return null;
+                _t.Check("50 wood is taken in parts until the drop is gone", !Live(pile) && _tomb.Carried.IsEmpty,
+                    $"live {Live(pile)}, carried {_tomb.Carried.CountPrefab("Wood")}");
+                _t.Check("the wood chest received all 50", Count(_wood, "Wood") == beforePile + 50,
+                    $"{Count(_wood, "Wood") - beforePile} added");
+            }
+
+            yield return Livestock();
+
             _tomb.SetToggle(TombToggles.GroundItems, false, out _);
             foreach (ItemDrop drop in new[] { axe, atPlayer, noDestination }.Where(Live)) _t.Track(drop.gameObject);
+        }
+
+        private IEnumerator Livestock()
+        {
+            Vector3 away = _arena - _t.Player.transform.position;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.01f) away = Vector3.forward;
+            away.Normalize();
+
+            GameObject eggPrefab = null;
+            if (ObjectDB.instance != null)
+                foreach (GameObject prefab in ObjectDB.instance.m_items)
+                    if (prefab != null && prefab.GetComponent<EggGrow>() != null)
+                    {
+                        eggPrefab = prefab;
+                        break;
+                    }
+            if (eggPrefab == null) _t.Skip("hatching egg stays", "no egg item in the game");
+            else
+            {
+                Chest(away * 3f, eggPrefab.name);
+                ItemDrop single = DropAt(eggPrefab.name, 1, Ground(away * 6f) + Vector3.up, old: true);
+                ItemDrop stack = DropAt(eggPrefab.name, 2, Ground(away * 7f) + Vector3.up, old: true);
+                int before = Held(eggPrefab.name);
+                float end = Time.time + 45f;
+                while (Time.time < end && (Live(stack) || _tomb.Worker.Plan != null || !_tomb.Carried.IsEmpty)) yield return null;
+                _t.Check("a single egg set to hatch stays", Live(single), eggPrefab.name);
+                _t.Check("a stack of eggs is still collected", !Live(stack) && Held(eggPrefab.name) == before + 2,
+                    $"live {Live(stack)}, stored {Held(eggPrefab.name) - before}");
+                if (Live(single)) _t.Track(single.gameObject);
+            }
+
+            GameObject animalPrefab = null;
+            if (ZNetScene.instance != null)
+                foreach (GameObject prefab in ZNetScene.instance.m_prefabs)
+                    if (prefab != null && prefab.GetComponent<Tameable>() != null
+                        && prefab.GetComponent<MonsterAI>() is MonsterAI diet
+                        && diet.m_consumeItems != null && diet.m_consumeItems.Count > 0
+                        && prefab.name.IndexOf("Hen", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        animalPrefab = prefab;
+                        break;
+                    }
+            if (animalPrefab == null) animalPrefab = ZNetScene.instance != null ? ZNetScene.instance.GetPrefab("Boar") : null;
+            MonsterAI dietOnPrefab = animalPrefab != null ? animalPrefab.GetComponent<MonsterAI>() : null;
+            ItemDrop foodItem = dietOnPrefab != null && dietOnPrefab.m_consumeItems != null && dietOnPrefab.m_consumeItems.Count > 0
+                ? dietOnPrefab.m_consumeItems[0]
+                : null;
+            string food = null;
+            if (foodItem != null && foodItem.m_itemData != null && foodItem.m_itemData.m_dropPrefab != null)
+                food = foodItem.m_itemData.m_dropPrefab.name;
+            else if (foodItem != null)
+                food = Utils.GetPrefabName(foodItem.gameObject);
+            if (animalPrefab == null || string.IsNullOrEmpty(food) || dietOnPrefab.m_consumeSearchRange <= 0f)
+            {
+                _t.Skip("tamed animal food stays", animalPrefab == null ? "no livestock prefab" : "no consumable item");
+                yield break;
+            }
+
+            Character animal = _t.SpawnVanilla(animalPrefab.name, Ground(away * 24f), Quaternion.identity)?.GetComponent<Character>();
+            yield return SelfTestContext.WaitFrames(2);
+            if (animal == null)
+            {
+                _t.Skip("tamed animal food stays", "the animal did not spawn");
+                yield break;
+            }
+            animal.SetTamed(true);
+            MonsterAI ai = animal.GetComponent<MonsterAI>();
+            float range = ai != null ? ai.m_consumeSearchRange : dietOnPrefab.m_consumeSearchRange;
+            if (ai != null) ai.enabled = false;
+            if (Chest(away * 2f, food) == null)
+            {
+                _t.Skip("tamed animal food stays", "the food chest was not created");
+                yield break;
+            }
+            ItemDrop near = DropAt(food, 1, animal.transform.position + Vector3.up * 0.25f, old: true);
+            ItemDrop far = DropAt(food, 1, animal.transform.position + away * (range + 3f) + Vector3.up, old: true);
+            if (near == null || far == null)
+            {
+                _t.Skip("tamed animal food stays", "the food drop was not created");
+                yield break;
+            }
+            int feedBefore = Held(food);
+            float feedEnd = Time.time + 45f;
+            while (Time.time < feedEnd && (Live(far) || _tomb.Worker.Plan != null || !_tomb.Carried.IsEmpty)) yield return null;
+            _t.Check("food within a tamed animal's reach stays", Live(near), $"{animalPrefab.name} {food} range {range:0.#}");
+            _t.Check("the same food outside that range is collected", !Live(far) && Held(food) == feedBefore + 1,
+                $"live {Live(far)}, stored {Held(food) - feedBefore}");
+            if (Live(near)) _t.Track(near.gameObject);
         }
 
         private void TaskPlanSnapshot(ref bool sawGather, ref bool keysHeld)
@@ -254,6 +360,9 @@ namespace Haugbui.SelfTest
 
         private static int Count(Container container, string prefab) =>
             container == null ? 0 : ItemBridge.CountPrefab(container.GetInventory(), prefab);
+
+        private int Held(string prefab) =>
+            _chests.Where(c => c != null).Sum(c => Count(c, prefab)) + (_tomb != null ? _tomb.Carried.CountPrefab(prefab) : 0);
 
         private IEnumerator SetTime(float fraction)
         {

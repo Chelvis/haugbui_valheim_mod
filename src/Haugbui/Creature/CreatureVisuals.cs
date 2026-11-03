@@ -62,7 +62,16 @@ namespace Haugbui.Creature
 
         private static string _attackTrigger;
         private float _fastAnimationUntil;
+        private float _gestureUntil;
         private bool _skipWindUp;
+
+        /// <summary>
+        /// The gesture replays the attack clip, whose Hit event calls OnAttackTrigger. A finished swing leaves
+        /// m_currentAttack set, so that event would strike. True only for the gesture, never for StartAttack.
+        /// </summary>
+        internal bool GestureBlocksHit => Time.time < _gestureUntil;
+
+        internal void ClearGesture() => _gestureUntil = 0f;
 
         /// <summary>Interaction animations started (self-test).</summary>
         internal int InteractionAnimations { get; private set; }
@@ -78,8 +87,8 @@ namespace Haugbui.Creature
         }
 
         /// <summary>
-        /// Purely cosmetic: triggers the default weapon's attack animation without starting an attack (no hit, no delay of
-        /// the transfer). The animator keeps a changed speed only while in an attack-tagged state
+        /// The default weapon's attack clip, without StartAttack. The clip's Hit event is dropped while the gesture
+        /// flag is set. The animator keeps a changed speed only while in an attack-tagged state
         /// (CharacterAnimEvent.CustomFixedUpdate), so the speed-up ends with the swing.
         /// </summary>
         private void PlayInteraction()
@@ -90,6 +99,7 @@ namespace Haugbui.Creature
             if (string.IsNullOrEmpty(trigger)) return;
             humanoid.GetZAnim()?.SetTrigger(trigger);
             _fastAnimationUntil = Time.time + InteractionAnimationSeconds;
+            _gestureUntil = _fastAnimationUntil;
             _skipWindUp = true;
             InteractionAnimations++;
         }

@@ -268,6 +268,8 @@ namespace Haugbui.SelfTest
             HaugbuiStructure altar = _t.PlaceStructure(StructureKind.Altar, Ground(new Vector3(3, 0, 0)));
             if (!_t.Check("Altar placed", altar != null)) yield break;
             yield return SelfTestContext.WaitFrames(3);
+            // The altar notice stays until dismissed, and a visible popup blocks player input for every later suite.
+            SelfTestContext.DismissPopups();
             Give("Coins", _tomb.ShiftCost, false);
             for (int i = 0; i < _tomb.ShiftCost; i++) _tomb.Offer("Coins", _t.Player);
             int balance = _tomb.State.Balance;

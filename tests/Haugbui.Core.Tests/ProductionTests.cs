@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Core.Creature;
 using Haugbui.Core.Geometry;
+using Haugbui.Core.Harvest;
 using Haugbui.Core.Persistence;
 using Haugbui.Core.Production;
 using Haugbui.Core.Storage;
@@ -193,6 +194,16 @@ namespace Haugbui.Core.Tests
         private static CarriedInventory Carry() => new CarriedInventory(4, 300);
 
         [Test]
+        public void Ordinary_chest_keeps_one_of_the_input()
+        {
+            ContainerSnapshot chest = Chest("a", 1, Ore(5));
+            chest.KeepSeed = true;
+            Assert.That(SupplyPlanner.Pick("IronOre", 10, null, Carry(), new[] { chest }, Vec3.Zero, 0).Total, Is.EqualTo(4));
+            chest.Filter = new List<string> { "IronOre" };
+            Assert.That(SupplyPlanner.Pick("IronOre", 10, null, Carry(), new[] { chest }, Vec3.Zero, 0).Total, Is.EqualTo(5));
+        }
+
+        [Test]
         public void Takes_nearest_first_and_never_more_than_wanted()
         {
             var sources = new List<ContainerSnapshot> { Chest("far", 20, Ore(10)), Chest("near", 2, Ore(4)) };
@@ -237,6 +248,24 @@ namespace Haugbui.Core.Tests
             SupplyPick pick = SupplyPlanner.Pick("IronOre", 40, null, carry, sources, new Vec3(0, 0, 0), 0);
             Assert.That(pick.FromCarried, Is.EqualTo(5));
             Assert.That(pick.Takes.Sum(t => t.Item.Amount), Is.EqualTo(25));
+        }
+
+        [Test]
+        public void Ground_comes_after_carried_and_before_chests_and_reservations_do_not_cover_it()
+        {
+            CarriedInventory carry = Carry();
+            carry.Add(Ore(2));
+            var sources = new List<ContainerSnapshot> { Chest("chest", 1, Ore(10)) };
+            var ground = new[]
+            {
+                new GroundItem { Id = "drop", Position = new Vec3(8, 0, 0), Item = Ore(3) },
+            };
+            SupplyPick pick = SupplyPlanner.Pick("IronOre", 8, null, carry, sources, new Vec3(0, 0, 0), 10, ground);
+            Assert.That(pick.FromCarried, Is.EqualTo(2));
+            Assert.That(pick.Takes.Select(t => (t.Source, t.Item.Amount)), Is.EqualTo(new[] { ("drop", 3) }));
+
+            SupplyPick ignored = SupplyPlanner.Pick("IronOre", 8, null, Carry(), sources, new Vec3(0, 0, 0), 0, null);
+            Assert.That(ignored.Takes.Select(t => t.Source), Is.EqualTo(new[] { "chest" }));
         }
     }
 }

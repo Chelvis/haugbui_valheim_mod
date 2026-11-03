@@ -76,6 +76,43 @@ namespace Haugbui.Core.Storage
 
         public int ClearCompleted() => _lines.RemoveAll(IsComplete);
 
+        /// <summary>
+        /// Replaces the lines. An item that was already requested keeps what was delivered, and an amount at or
+        /// below that completes the line, same as <see cref="SetRequested"/>. A refused edit changes nothing.
+        /// </summary>
+        public RequestEditResult Replace(IEnumerable<(string Prefab, int Requested)> lines)
+        {
+            var desired = new List<(string Prefab, int Requested)>();
+            var seen = new HashSet<string>();
+            foreach ((string prefab, int requested) in lines ?? Enumerable.Empty<(string, int)>())
+            {
+                if (string.IsNullOrEmpty(prefab)) return RequestEditResult.InvalidItem;
+                if (requested <= 0 || requested > MaxRequested) return RequestEditResult.InvalidAmount;
+                if (!seen.Add(prefab)) return RequestEditResult.InvalidItem;
+                desired.Add((prefab, requested));
+            }
+            if (desired.Count > MaxLines) return RequestEditResult.TooManyLines;
+
+            var delivered = new Dictionary<string, int>();
+            foreach (DeliveryRequest existing in _lines)
+            {
+                if (!delivered.TryGetValue(existing.ItemPrefab, out int count) || existing.Delivered > count)
+                    delivered[existing.ItemPrefab] = existing.Delivered;
+            }
+            _lines.Clear();
+            foreach ((string prefab, int requested) in desired)
+            {
+                int already = delivered.TryGetValue(prefab, out int count) ? count : 0;
+                _lines.Add(new DeliveryRequest
+                {
+                    ItemPrefab = prefab,
+                    Requested = Math.Max(requested, already),
+                    Delivered = already,
+                });
+            }
+            return RequestEditResult.Ok;
+        }
+
         /// <summary>Counts a delivery against the open line; never above what remains. Returns the amount counted.</summary>
         public int RecordDelivered(string prefab, int amount)
         {
@@ -124,8 +161,9 @@ namespace Haugbui.Core.Storage
     }
 
     /// <summary>
-    /// HB-083/084/088: one trip for one request line. Never more than remaining, than the chest can hold, or than the
-    /// Haugbui can carry; everything taken is planned to go into the chest. Carried items of the item count first.
+    /// HB-083/084/088: one trip. Never more than remaining, than the chest can hold, or than the Haugbui can carry;
+    /// everything taken is planned to go into the chest. Carried items of the item count first.
+    /// <see cref="Combine"/> fills one trip with as many open lines as fit.
     /// </summary>
     public static class DeliveryPlanner
     {
@@ -150,20 +188,98 @@ namespace Haugbui.Core.Storage
             simulated.Restore(carried.Stacks.Select(s => s.Copy(s.Amount)));
             foreach (ContainerSnapshot source in sources.OrderBy(s => Vec3.Distance(from, s.Position)).ThenBy(s => s.Id, StringComparer.Ordinal))
             {
+                int budget = source.Takeable(prefab);
                 foreach (ItemStack stack in DepositPlanner.Merge(source.Items.Where(s => s.Prefab == prefab), Enumerable.Empty<ItemStack>()))
                 {
                     if (left <= 0) return trip;
+                    if (budget <= 0) break;
                     int n = Math.Min(Math.Min(left, stack.Amount), room.RoomFor(stack));
+                    n = Math.Min(n, budget);
                     if (n <= 0) continue;
                     n = simulated.Add(stack.Copy(n));
                     if (n <= 0) continue;
                     room.Accept(stack, n);
                     trip.Takes.Add(new PlannedTake(source.Id, stack.Copy(n)));
                     AddPut(trip, stack, n);
+                    budget -= n;
                     left -= n;
                 }
             }
             return trip;
+        }
+
+        /// <summary>One walk: takes for every line that still fits, then the puts into the same chest.</summary>
+        public static DeliveryTrip Combine(IEnumerable<(string Prefab, int Remaining)> lines, ContainerSnapshot chest,
+            CarriedInventory carried, IEnumerable<ContainerSnapshot> sources, Vec3 from)
+        {
+            var combined = new DeliveryTrip();
+            if (chest == null || lines == null) return combined;
+            ContainerSnapshot room = chest.Clone();
+            var stock = new List<ContainerSnapshot>();
+            if (sources != null)
+                foreach (ContainerSnapshot source in sources) stock.Add(source.Clone());
+            var sim = new CarriedInventory(carried.Slots, carried.Capacity);
+            sim.Restore(carried.Stacks.Select(s => s.Copy(s.Amount)));
+
+            foreach ((string prefab, int remaining) in lines)
+            {
+                if (remaining <= 0 || string.IsNullOrEmpty(prefab)) continue;
+                int inBag = sim.CountPrefab(prefab);
+                DeliveryTrip trip = Plan(prefab, remaining, room, sim, stock, from);
+                if (trip.Total <= 0) continue;
+                int fromBag = Math.Min(trip.Puts.Where(p => p.Prefab == prefab).Sum(p => p.Amount), inBag);
+                if (fromBag > 0) ReserveCommitted(sim, prefab, fromBag);
+                foreach (PlannedTake take in trip.Takes)
+                {
+                    combined.Takes.Add(take);
+                    Consume(stock, take);
+                    sim.Add(take.Item);
+                }
+                foreach (ItemStack put in trip.Puts)
+                {
+                    AddPut(combined, put, put.Amount);
+                    room.Accept(put, put.Amount);
+                }
+            }
+            return combined;
+        }
+
+        /// <summary>
+        /// Hides items this line will deliver so a later line does not deliver them again, and keeps their weight
+        /// and slot reserved: they stay in the real bag until every take of the trip is done.
+        /// </summary>
+        private static void ReserveCommitted(CarriedInventory sim, string prefab, int amount)
+        {
+            int left = amount;
+            float weight = 0f;
+            int stacksBefore = sim.Stacks.Count;
+            foreach (ItemStack stack in sim.Stacks.Where(s => s.Prefab == prefab && s.Amount > 0).ToList())
+            {
+                if (left <= 0) break;
+                int n = Math.Min(left, stack.Amount);
+                weight += n * stack.UnitWeight;
+                sim.Remove(stack, n);
+                left -= n;
+            }
+            int stacksFreed = Math.Max(0, stacksBefore - sim.Stacks.Count);
+            // Removing the stack dropped its weight. Capacity loses that weight a second time so the free room shrinks.
+            sim.Capacity = Math.Max(0f, sim.Capacity - 2f * weight);
+            sim.Slots = Math.Max(sim.Stacks.Count, sim.Slots - stacksFreed);
+        }
+
+        private static void Consume(List<ContainerSnapshot> stock, PlannedTake take)
+        {
+            ContainerSnapshot box = stock.FirstOrDefault(s => s.Id == take.Source);
+            if (box == null) return;
+            int left = take.Item.Amount;
+            foreach (ItemStack stack in box.Items.Where(i => i.StacksWith(take.Item)).ToList())
+            {
+                if (left <= 0) break;
+                int n = Math.Min(left, stack.Amount);
+                stack.Amount -= n;
+                left -= n;
+            }
+            box.Items.RemoveAll(i => i.Amount <= 0);
         }
 
         private static void AddPut(DeliveryTrip trip, ItemStack stack, int amount)

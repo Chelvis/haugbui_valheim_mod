@@ -81,15 +81,17 @@ monsters other than greylings. Level 6 survives long enough for the offence targ
 **Offence target** (shortened, because combat starts at level 2):
 
 - Level 2: kills greydwarfs and shamans, and has some chance against a single greydwarf brute.
-- Level 6: kills three cultists, or two fenrings, or one troll, in a row.
-- Levels 3–5: even steps between those two ends. Do not publish a guessed table.
+- Level 6: kills three cultists, or two fenrings, in a row. A troll is not a target.
+- Levels 3–5: even steps between those two ends.
 
-The current row (Wraith hit × 1.0..2.0, and the same numbers dividing damage taken) is too strong at level 2 and
-too flat to reach the level-6 offence target. Plan: split offence and defence into two CSVs, lower the hit base,
-keep HP at 20..120 unless measured fights show level 6 dying first, then set the rows from a logged fight
-(hits dealt, hits taken, time-to-kill) at level 2 and level 6. The Altar still adds no resistance (HB-053).
+Offence and defence are both 0.5, 0.8, 1.1, 1.4, 1.7, 2.0 (level 2 at 0.8, level 6 kept at 2.0).
+The Altar still adds no resistance (HB-053).
 Targets are only creatures attacking the base, the player or a Haugbui (decision 2026-10-17), so this ladder is
 about those fights.
+
+## 8. Material piles — confirmed 2026-11-02, milestone M13
+
+Not in M11. Ticket HB-T-118. Tomb toggle, default off. A pile is a player-built piece whose recipe is one stack of one transportable material. The Haugbui dismantles it for a delivery or a production job, receives the refund first, and leaves the overflow as a ground drop. Per tomb: piles before chests, or chests first. Carried items stay first. Ground order does not change. Furniture, chests, buildings and a forbidden ward are skipped.
 
 ## 7. HP regen — confirmed 2026-10-19
 

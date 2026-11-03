@@ -90,6 +90,7 @@ namespace Haugbui
             UI.DeliveryPanel.Update();
             UI.ProductionPanel.Update();
             UI.ChestFilterPanel.Update();
+            UI.ChestEditButtons.Sync();
         }
 
         private void OnDestroy()

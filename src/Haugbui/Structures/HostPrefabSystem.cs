@@ -5,6 +5,7 @@ using HarmonyLib;
 using Haugbui.Core.Creature;
 using Haugbui.Core.Progression;
 using Haugbui.Core.Recipes;
+using Haugbui.Core.Persistence;
 using Haugbui.Core.Structures;
 using Haugbui.Diagnostics;
 using Haugbui.Integration;
@@ -29,6 +30,9 @@ namespace Haugbui.Structures
         internal static bool SuppressAugmentation { get; set; }
 
         internal static bool IsRegistered(StructureKind kind) => Placeholders.ContainsKey(kind);
+
+        internal static Piece RegisteredPiece(StructureKind kind) =>
+            Placeholders.TryGetValue(kind, out GameObject prefab) && prefab != null ? prefab.GetComponent<Piece>() : null;
 
         public static void RegisterPieces()
         {
@@ -86,6 +90,7 @@ namespace Haugbui.Structures
             ConfigureContainer(prefab.GetComponent<Container>(), definition.Kind);
             StructureVisuals.Apply(prefab, definition);
             StructureVisuals.Present(prefab, definition);
+            StructureVisuals.BindPlaced(prefab, definition);
             if (definition.Kind == StructureKind.Longsword) WallOnly(prefab.GetComponent<Piece>());
             MarkUpgrade(prefab.GetComponent<Piece>(), definition.Kind);
             PieceManager.Instance.AddPiece(piece);
@@ -151,7 +156,9 @@ namespace Haugbui.Structures
 
             StructureVisuals.Apply(piece.gameObject, definition);
             StructureVisuals.Present(piece.gameObject, definition);
-            piece.gameObject.AddComponent<HaugbuiStructure>().m_kind = (int)kind;
+            HaugbuiStructure structure = piece.gameObject.AddComponent<HaugbuiStructure>();
+            structure.m_kind = (int)kind;
+            StructureVisuals.BindPlaced(piece.gameObject, definition);
         }
     }
 
@@ -192,18 +199,46 @@ namespace Haugbui.Structures
         private static string FilterHint(Container container)
         {
             ZNetView view = container.m_nview;
-            List<string> filter = ChestFilterStore.Read(view != null && view.IsValid() ? view.GetZDO() : null);
+            List<ChestFilterLine> filter = ChestFilterStore.Read(view != null && view.IsValid() ? view.GetZDO() : null);
             string hint = "\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_filter_open";
             if (filter.Count == 0) return Localization.instance.Localize(hint);
-            string names = string.Join(", ", filter.Select(FilterName));
-            return Localization.instance.Localize(hint + "\n$haugbui_filter_list", names);
+            string count = filter.Count == 1 ? "$haugbui_filter_count_one" : "$haugbui_filter_count";
+            return Localization.instance.Localize(hint + "\n" + count, filter.Count.ToString());
         }
 
-        private static string FilterName(string prefab)
+        /// <summary>
+        /// After a zone reload the saved object is the vanilla host, so copy would place that host.
+        /// Select the Haugbui piece instead. A fresh build already is that piece; selecting it again is the same result.
+        /// </summary>
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(Player), "CopyPiece")]
+        private static bool CopyRegisteredPiece(Player __instance, ref bool __result)
         {
-            GameObject item = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
-            string token = item != null ? item.GetComponent<ItemDrop>().m_itemData.m_shared.m_name : prefab;
-            return Localization.instance.Localize(token);
+            if (GameCamera.instance == null || __instance.m_eye == null) return true;
+            if (!Physics.Raycast(GameCamera.instance.transform.position, GameCamera.instance.transform.forward,
+                    out RaycastHit hit, 50f, __instance.m_removeRayMask)
+                || Vector3.Distance(hit.point, __instance.m_eye.position) >= __instance.m_maxPlaceDistance)
+                return true;
+            Piece piece = hit.collider != null ? hit.collider.GetComponentInParent<Piece>() : null;
+            if (piece == null) return true;
+            ZNetView view = piece.GetComponent<ZNetView>();
+            ZDO zdo = view != null && view.IsValid() ? view.GetZDO() : null;
+            if (zdo == null) return true;
+            var kind = (StructureKind)zdo.GetInt(ZdoKeys.Kind);
+            if (kind == StructureKind.None) return true;
+            Piece registered = HostPrefabSystem.RegisteredPiece(kind);
+            if (registered == null) return true;
+            if (__instance.SetSelectedPiece(registered))
+            {
+                __instance.m_placeRotation = (int)Math.Round(piece.transform.rotation.eulerAngles.y / __instance.m_placeRotationDegrees);
+                __result = true;
+            }
+            else
+            {
+                __instance.Message(MessageHud.MessageType.Center, "$msg_missingrequirement");
+                __result = false;
+            }
+            return false;
         }
 
         private static void TombHover(Container container, HaugbuiStructure structure, ref string result)
@@ -291,6 +326,7 @@ namespace Haugbui.Structures
         [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.Show))]
         private static void HideCraftMenu(Container container)
         {
+            UpgradeBeam.SetPlayerContainer(container);
             SetCraftMenuVisible(!IsHaugbuiStorage(container));
         }
 
@@ -299,6 +335,7 @@ namespace Haugbui.Structures
         [HarmonyPatch(typeof(InventoryGui), "CloseContainer")]
         private static void RestoreCraftMenu()
         {
+            UpgradeBeam.SetPlayerContainer(null);
             SetCraftMenuVisible(true);
         }
 

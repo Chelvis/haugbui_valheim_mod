@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Haugbui.Core.Combat;
 using Haugbui.Core.Creature;
+using Haugbui.Core.Progression;
 using NUnit.Framework;
 
 namespace Haugbui.Core.Tests
@@ -34,6 +35,9 @@ namespace Haugbui.Core.Tests
             TargetFacts player = Creature(true);
             player.IsPlayer = true;
             yield return new TestCaseData(player, TargetVerdict.Player, TargetVerdict.Player).SetName("player");
+            TargetFacts dummy = Creature(true);
+            dummy.IsTrainingDummy = true;
+            yield return new TestCaseData(dummy, TargetVerdict.TrainingDummy, TargetVerdict.TrainingDummy).SetName("training dummy");
             TargetFacts haugbui = Creature(true);
             haugbui.IsHaugbui = true;
             haugbui.Tamed = true;
@@ -101,9 +105,11 @@ namespace Haugbui.Core.Tests
         [Test]
         public void Level_six_takes_half_and_deals_double()
         {
-            float multiplier = Progression.ProgressionTable.Default.ForLevel(6).CombatMultiplier;
-            Assert.That(10f * CombatMath.DealtFactor(multiplier, 1f), Is.EqualTo(20f).Within(1e-4));
-            Assert.That(10f * CombatMath.TakenFactor(multiplier), Is.EqualTo(5f).Within(1e-4));
+            HaugbuiAttributes level = ProgressionTable.Default.ForLevel(6);
+            Assert.That(10f * CombatMath.DealtFactor(level.OffenceMultiplier, 1f), Is.EqualTo(20f).Within(1e-4));
+            Assert.That(10f * CombatMath.TakenFactor(level.DefenceMultiplier), Is.EqualTo(5f).Within(1e-4));
+            Assert.That(CombatMath.DealtFactor(3f, 1f), Is.EqualTo(3f));
+            Assert.That(CombatMath.TakenFactor(4f), Is.EqualTo(0.25f));
         }
     }
 

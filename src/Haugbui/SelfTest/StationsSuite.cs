@@ -10,6 +10,7 @@ using Haugbui.Core.Structures;
 using Haugbui.Creature;
 using Haugbui.Integration;
 using Haugbui.Integration.StationAdapters;
+using Haugbui.Registry;
 using Haugbui.Structures;
 using UnityEngine;
 
@@ -87,30 +88,40 @@ namespace Haugbui.SelfTest
                 _t.Skip("fermenter", "prefab not placed");
                 yield break;
             }
+            // Awake can run before the ZNetView has a ZDO, which skips the RPCs and the registry entry.
+            yield return SelfTestContext.WaitFrames(2);
+            WorldRegistry.EnsureStation(fermenter, fermenter.m_nview);
             var adapter = new FermenterAdapter();
             StationRecipe recipe = adapter.Recipes(fermenter).FirstOrDefault();
             if (!_t.Check("fermenter recipes read, yield from the prefab", recipe != null && recipe.Yield == 6, recipe != null ? $"{recipe.Key} ×{recipe.Yield}" : "none"))
                 yield break;
             Teach(recipe.Input);
             Teach(recipe.Output);
-            Container bases = Chest(new Vector3(3, 0, 6), (recipe.Input, 1));
+            // One base stays in the ordinary chest (HB-084). The second is the one that ferments.
+            Container bases = Chest(new Vector3(3, 0, 6), (recipe.Input, 2));
             Container meads = Chest(new Vector3(9, 0, 4), (recipe.Output, 1));
             Job(fermenter, recipe, JobMode.Finite, 6);
             yield return new WaitForSeconds(2f);
             string blocked = adapter.Read(fermenter).Blocked;
             yield return new WaitForSeconds(4f);
-            _t.Check("exposed fermenter reported and not loaded", blocked != null && Count(bases, recipe.Input) == 1, blocked ?? "not blocked");
+            _t.Check("exposed fermenter reported and not loaded", blocked != null && Count(bases, recipe.Input) == 2, blocked ?? "not blocked");
 
-            // Under the open sky the base never ferments; the test skips the cover rule and shortens the 2400 s.
+            // The barrel restarts its clock while it has no roof, so only a duration that is already elapsed can finish.
             FermenterAdapter.IgnoreCoverForTests = true;
-            fermenter.m_fermentationDuration = 1f;
+            fermenter.m_fermentationDuration = 0f;
             int before = Count(meads, recipe.Output);
             yield return SelfTestContext.WaitFor(() => JobOf(fermenter).Produced >= 6 && _tomb.Worker.Plan == null && _tomb.Carried.IsEmpty, 90f);
             StationJobState job = JobOf(fermenter);
             _t.Check("fermenter: one base fed, tapped, 6 meads produced", job.Supplied == 1 && job.Produced == 6, $"supplied {job.Supplied}, produced {job.Produced}");
             _t.Check("meads stored", Count(meads, recipe.Output) - before == 6, $"+{Count(meads, recipe.Output) - before}");
-            _t.Check("finite job of 6 complete with one base", ProductionJob.Phase(job, 6, true) == JobPhase.Complete && Count(bases, recipe.Input) == 0);
+            _t.Check("finite job of 6 complete with one base", ProductionJob.Phase(job, 6, true) == JobPhase.Complete && Count(bases, recipe.Input) == 1);
             FermenterAdapter.IgnoreCoverForTests = false;
+            StationJobs.Edit(fermenter, saved =>
+            {
+                saved.Enabled = false;
+                return true;
+            });
+            _tomb.Worker.Abort("test");
         }
 
         private IEnumerator FuelOnly(string prefab, Vector3 offset)
@@ -125,6 +136,7 @@ namespace Haugbui.SelfTest
                 yield break;
             }
             IStationAdapter adapter = StationAdapterRegistry.For(station);
+            WorldRegistry.EnsureStation(station, adapter.View(station) ?? station.GetComponent<ZNetView>() ?? station.GetComponentInChildren<ZNetView>());
             StationState state = adapter.Read(station);
             if (!_t.Check($"{prefab} is fuel-only", adapter.Kind(station) == StationKind.FuelOnly && state.FuelPrefabs.Count > 0 && state.MaxFuel > 0,
                     $"{adapter.Kind(station)}, fuel {string.Join(",", state.FuelPrefabs)} max {state.MaxFuel}"))
@@ -176,7 +188,8 @@ namespace Haugbui.SelfTest
             recipe = adapter.Recipes(oven).First();
             Teach(recipe.Input);
             Teach(recipe.Output);
-            Container raw = Chest(new Vector3(2, 0, -7), (recipe.Input, 3));
+            // One item stays in the ordinary chest. The job takes the other three.
+            Container raw = Chest(new Vector3(2, 0, -7), (recipe.Input, 4));
             Container cooked = Chest(new Vector3(8, 0, -8), (recipe.Output, 1));
             Chest(new Vector3(2, 0, -9), ("Wood", 20));
 
@@ -206,7 +219,7 @@ namespace Haugbui.SelfTest
                 $"supplied {job.Supplied}, produced {job.Produced}, stored +{Count(cooked, recipe.Output) - before}");
             _t.Check("nothing burnt", !burnt && !Loose(oven.m_overCookedItem.name, oven.transform.position));
             _t.Check("oven fuelled within capacity", adapter.Read(oven).Fuel <= oven.m_maxFuel);
-            _t.Check("raw items taken only for the job", Count(raw, recipe.Input) == 0);
+            _t.Check("raw items taken only for the job", Count(raw, recipe.Input) == 1, Count(raw, recipe.Input).ToString());
         }
 
         private IEnumerator Fallback()

@@ -86,6 +86,37 @@ namespace Haugbui.Structures
         public const string MarkName = "HaugbuiMark";
 
         /// <summary>
+        /// The mark copied with the placement prefab does not draw, and the vein list is not saved on the component.
+        /// Rebuild both on the live object. The saved prefab stays the vanilla host.
+        /// </summary>
+        internal static void BindPlaced(GameObject target, StructureDefinition definition)
+        {
+            if (target == null || definition == null) return;
+            if (!string.IsNullOrEmpty(definition.FloatingText))
+                RefreshMark(target, definition.FloatingText);
+            if (definition.Parts == null) return;
+            Transform root = target.transform.Find(RootName);
+            if (root == null) return;
+            foreach (VisualPart part in definition.Parts)
+            {
+                if (string.IsNullOrEmpty(part.EmissionFile)) continue;
+                Transform holder = root.Find(part.Prefab);
+                if (holder != null) VeinPulse.Attach(holder.gameObject);
+            }
+        }
+
+        /// <summary>Keeps the mark already there when the sign canvas cannot be copied again.</summary>
+        private static void RefreshMark(GameObject target, string richText)
+        {
+            GameObject sign = PrefabManager.Cache.GetPrefab<GameObject>("sign");
+            Transform canvas = sign != null ? sign.transform.Find("Canvas") : null;
+            if (canvas == null) return;
+            Transform existing = target.transform.Find(MarkName);
+            if (existing != null) Object.DestroyImmediate(existing.gameObject);
+            AddFloatingMark(target, richText);
+        }
+
+        /// <summary>
         /// The sign's icon is a world-space text canvas. Its only mesh is the board, which is not copied.
         /// Cloning the sign itself would add a networked object the player can edit.
         /// </summary>
@@ -101,6 +132,9 @@ namespace Haugbui.Structures
             }
             GameObject copy = Object.Instantiate(canvas.gameObject, target.transform, false);
             copy.name = MarkName;
+            copy.SetActive(true);
+            Canvas drawn = copy.GetComponent<Canvas>();
+            if (drawn != null) drawn.enabled = true;
             const float scale = 1.728f;
             float y = (LocalTop(target) ?? 0.8f) + 0.36f;
             copy.transform.localPosition = new Vector3(0f, y, 0f);

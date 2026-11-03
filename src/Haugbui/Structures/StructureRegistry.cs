@@ -78,8 +78,7 @@ namespace Haugbui.Structures
                 if (upgrade == null || !upgrade.View.IsOwner()) continue;
                 upgrade.Zdo.Set(ZdoKeys.TombGuid, change.Value);
                 Log.Info($"{upgrade.Definition?.PieceId} rebound to tomb {change.Value}");
-                if (upgrade.Kind == StructureKind.Longsword) CombatWarning.Show();
-                else if (upgrade.Kind == StructureKind.Altar) AltarNotice.Show();
+                // The explanation is for the player placing the piece. A reload rebind must not open a modal.
             }
         }
 

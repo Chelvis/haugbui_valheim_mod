@@ -13,6 +13,7 @@ using Haugbui.Structures;
 using Haugbui.UI;
 using Jotunn.Managers;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Haugbui.SelfTest
 {
@@ -38,8 +39,9 @@ namespace Haugbui.SelfTest
             {
                 yield return Setup();
                 if (_tomb == null) yield break;
-                Structures();
-                yield return Editor();
+            yield return Structures();
+            yield return EditButtons();
+            yield return Editor();
                 yield return Collection();
                 yield return Delivery();
                 yield return Finish();
@@ -78,7 +80,7 @@ namespace Haugbui.SelfTest
                 _tomb = null;
         }
 
-        private void Structures()
+        private IEnumerator Structures()
         {
             foreach ((string name, Container chest) in new[] { ("collection", _collection), ("delivery", _deliveryA) })
             {
@@ -92,7 +94,7 @@ namespace Haugbui.SelfTest
                     $"{Cost(chest.GetComponent<Piece>())} items");
                 Transform mark = chest.transform.Find(StructureVisuals.MarkName);
                 var label = mark != null ? mark.GetComponentInChildren<TMPro.TextMeshProUGUI>(true) : null;
-                _t.Check($"{name} chest mark is not a sign", mark != null && mark.GetComponent<Sign>() == null && label != null && !label.raycastTarget, label != null ? label.text : "missing");
+                _t.Check($"{name} chest mark is not a sign", mark != null && mark.gameObject.activeInHierarchy && mark.GetComponent<Sign>() == null && label != null && !label.raycastTarget, label != null ? label.text : "missing");
                 _t.Check($"{name} chest mark bobs five centimetres",
                     mark != null && mark.GetComponent<MarkFloat>() != null
                     && Mathf.Approximately(MarkFloat.Lift(0f), 0f) && Mathf.Approximately(MarkFloat.Lift(1f), MarkFloat.Travel)
@@ -122,10 +124,13 @@ namespace Haugbui.SelfTest
                 _collection.GetHoverText().Contains(Localization.instance.Localize("$haugbui_hover_collection")), _collection.GetHoverText());
             _t.Check("chest hover offset", !float.IsNaN(_deliveryA.GetHoverOffset()) && !float.IsNaN(_collection.GetHoverOffset()));
             CraftMenuHidden();
+            // Hide() leaves the inventory "visible" for two frames, which keeps movement blocked on its own.
+            yield return UntilInventoryClosed();
             DeliveryPanel.Open(_deliveryA.GetComponent<DeliveryChest>());
             _t.Check("delivery panel blocks movement", DeliveryPanel.IsOpen && !_t.Player.TakeInput());
-            DeliveryPanel.Close();
-            _t.Check("closing the delivery panel leaves the player able to move", !DeliveryPanel.IsOpen && _t.Player.TakeInput());
+            DeliveryPanel.Dismiss.onClick.Invoke();
+            _t.Check("delivery corner X closes and movement works", !DeliveryPanel.IsOpen && _t.Player.TakeInput(),
+                $"open {DeliveryPanel.IsOpen}, input {_t.Player.TakeInput()}, inventory {InventoryGui.IsVisible()}");
             IAccessPolicy policy = SinglePlayerAccessPolicy.Instance;
             long owner = _t.Player.GetPlayerID();
             _t.Check("collection chest is a source, never a destination",
@@ -135,6 +140,35 @@ namespace Haugbui.SelfTest
                 policy.CheckContainer(_deliveryA, owner, ContainerUse.DeliveryTarget) == ContainerVerdict.Allowed
                 && policy.CheckContainer(_deliveryA, owner, ContainerUse.StorageSource) == ContainerVerdict.HaugbuiRole
                 && policy.CheckContainer(_deliveryA, owner, ContainerUse.StorageDestination) == ContainerVerdict.HaugbuiRole);
+        }
+
+        /// <summary>The chest window closes itself past 4 m, so the check has to stand next to it.</summary>
+        private void StandBeside(Component thing)
+        {
+            Player player = _t.Player;
+            Vector3 away = player.transform.position - thing.transform.position;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.01f) away = Vector3.back;
+            away.Normalize();
+            Vector3 stand = thing.transform.position + away * 1.5f;
+            stand.y = ZoneSystem.instance.GetGroundHeight(stand);
+            player.transform.position = stand;
+            Rigidbody body = player.GetComponent<Rigidbody>();
+            if (body != null)
+            {
+                body.position = stand;
+                body.linearVelocity = Vector3.zero;
+            }
+        }
+
+        private static IEnumerator UntilInventoryClosed()
+        {
+            for (int i = 0; i < 5 && InventoryGui.IsVisible(); i++) yield return null;
+        }
+
+        private static void Release(Container container)
+        {
+            if (container != null && container.IsInUse()) container.SetInUse(false);
         }
 
         private void CraftMenuHidden()
@@ -159,6 +193,165 @@ namespace Haugbui.SelfTest
             }
         }
 
+        private IEnumerator EditButtons()
+        {
+            InventoryGui gui = InventoryGui.instance;
+            if (gui == null)
+            {
+                _t.Skip("chest edit buttons", "no inventory");
+                yield break;
+            }
+            int wood = CountPrefab(_wood, "Wood");
+            StandBeside(_collection);
+            gui.Show(_collection);
+            yield return null;
+            _t.Check("a collection chest has no edit button", !ChestEditButtons.Visible);
+            // Show() replaces the open container and leaves the previous one marked in use, so the Haugbui skips it.
+            Release(_collection);
+            StandBeside(_wood);
+            gui.Show(_wood);
+            yield return null;
+            _t.Check("a vanilla chest shows Edit filters",
+                ChestEditButtons.Visible && ChestEditButtons.Label == Localization.instance.Localize("$haugbui_filter_edit"),
+                $"visible {ChestEditButtons.Visible}, label {ChestEditButtons.Label}");
+            ChestEditButtons.Press();
+            _t.Check("Edit filters opens the filter panel", ChestFilterPanel.IsOpen && ChestFilterPanel.Current == _wood,
+                ChestFilterPanel.IsOpen ? "wrong chest" : "closed");
+            _t.Check("Edit filters closes the chest window", !gui.IsContainerOpen());
+            ChestFilterPanel.Dismiss.onClick.Invoke();
+            yield return UntilInventoryClosed();
+            _t.Check("closing Edit filters leaves movement free", !ChestFilterPanel.IsOpen && _t.Player.TakeInput(),
+                $"open {ChestFilterPanel.IsOpen}, input {_t.Player.TakeInput()}, inventory {InventoryGui.IsVisible()}");
+
+            StandBeside(_deliveryA);
+            gui.Show(_deliveryA);
+            yield return null;
+            _t.Check("a delivery chest shows Edit requests",
+                ChestEditButtons.Visible && ChestEditButtons.Label == Localization.instance.Localize("$haugbui_delivery_edit"),
+                $"visible {ChestEditButtons.Visible}, label {ChestEditButtons.Label}");
+            ChestEditButtons.Press();
+            _t.Check("Edit requests opens the request editor",
+                DeliveryPanel.IsOpen && DeliveryPanel.Current == _deliveryA.GetComponent<DeliveryChest>(),
+                DeliveryPanel.IsOpen ? "wrong chest" : "closed");
+            DeliveryPanel.Dismiss.onClick.Invoke();
+            yield return UntilInventoryClosed();
+            _t.Check("closing Edit requests leaves movement free", !DeliveryPanel.IsOpen && _t.Player.TakeInput(),
+                $"open {DeliveryPanel.IsOpen}, input {_t.Player.TakeInput()}, inventory {InventoryGui.IsVisible()}");
+            gui.Hide();
+            _t.Check("the edit buttons do not move items", CountPrefab(_wood, "Wood") == wood, CountPrefab(_wood, "Wood").ToString());
+        }
+
+        private IEnumerator DeliveryDraft(DeliveryChest chest)
+        {
+            DeliveryPanel.TypeSearch("Wo");
+            yield return null;
+            Button wood = DeliveryPanel.Suggestion("Wood");
+            if (wood == null)
+            {
+                _t.Skip("delivery suggestion click", "Wood is not in the suggestion list");
+                yield break;
+            }
+            wood.onClick.Invoke();
+            yield return null;
+            _t.Check("clicking a suggestion adds a delivery row and hides the list",
+                DeliveryPanel.RowCount == 1 && !DeliveryPanel.SuggestionsVisible);
+            _t.Check("the search text stays", DeliveryPanel.SearchText == "Wo", DeliveryPanel.SearchText);
+            _t.Check("a new row shows the amount already in the chest", DeliveryPanel.ShownAmount("Wood") == CountPrefab(_deliveryA, "Wood"),
+                DeliveryPanel.ShownAmount("Wood").ToString());
+            _t.Check("Save stays off until the amount is filled", !DeliveryPanel.CanSave && !DeliveryPanel.SaveButton.interactable);
+            _t.Check("clear all is available once there is a row", DeliveryPanel.ClearButton.interactable);
+            DeliveryPanel.SetAmount("Wood", "4");
+            _t.Check("Save turns on when every amount is filled", DeliveryPanel.CanSave && DeliveryPanel.SaveButton.interactable);
+            DeliveryPanel.SaveButton.onClick.Invoke();
+            _t.Check("Save writes the request", chest.Ledger.Remaining("Wood") == 4, Lines(chest));
+            _t.Check("Save closes the request editor", !DeliveryPanel.IsOpen);
+            DeliveryPanel.Open(chest);
+            DeliveryPanel.TypeSearch("");
+            Button stone = DeliveryPanel.Suggestion("Stone");
+            if (stone != null)
+            {
+                stone.onClick.Invoke();
+                _t.Check("Save stays off while any amount is empty", !DeliveryPanel.CanSave);
+                DeliveryPanel.RemoveButton("Stone").onClick.Invoke();
+                _t.Check("the row X removes that delivery line", DeliveryPanel.RowCount == 1);
+            }
+            else _t.Skip("second delivery row", "Stone is not in the suggestion list");
+            DeliveryPanel.ClearButton.onClick.Invoke();
+            _t.Check("clear all empties the list", DeliveryPanel.RowCount == 0 && DeliveryPanel.ShowsEmpty);
+            _t.Check("clear all waits for Save", chest.Ledger.Remaining("Wood") == 4, Lines(chest));
+            DeliveryPanel.Dismiss.onClick.Invoke();
+            DeliveryPanel.Open(chest);
+            _t.Check("closing without Save keeps the requests", DeliveryPanel.RowCount == 1 && chest.Ledger.Remaining("Wood") == 4, Lines(chest));
+            DeliveryPanel.ClearButton.onClick.Invoke();
+            DeliveryPanel.SaveButton.onClick.Invoke();
+            _t.Check("saving an empty list clears the requests", chest.Ledger.Lines.Count == 0, Lines(chest));
+            _t.Check("Save closes the request editor", !DeliveryPanel.IsOpen);
+        }
+
+        private IEnumerator RequestClipboard(DeliveryChest chest)
+        {
+            PanelClipboard.Reset();
+            Text copy = DeliveryPanel.CopyButton != null ? DeliveryPanel.CopyButton.GetComponentInChildren<Text>() : null;
+            Text paste = DeliveryPanel.PasteButton != null ? DeliveryPanel.PasteButton.GetComponentInChildren<Text>() : null;
+            _t.Check("paste request waits for a copy", DeliveryPanel.PasteButton != null && !DeliveryPanel.PasteButton.interactable);
+            _t.Check("copy request is available", DeliveryPanel.CopyButton != null && DeliveryPanel.CopyButton.interactable
+                && copy != null && copy.text == Localization.instance.Localize("$haugbui_delivery_copy")
+                && paste != null && paste.text == Localization.instance.Localize("$haugbui_delivery_paste"));
+            if (DeliveryPanel.CopyButton == null) yield break;
+            string copied = Lines(chest);
+            DeliveryPanel.CopyButton.onClick.Invoke();
+            DeliveryChest other = _deliveryB.GetComponent<DeliveryChest>();
+            other.Edit(ledger =>
+            {
+                while (ledger.Lines.Count > 0) ledger.Cancel(0);
+                return ledger.Request("Resin", 9) == RequestEditResult.Ok;
+            });
+            DeliveryPanel.Open(other);
+            _t.Check("paste request is available on another chest", DeliveryPanel.PasteButton.interactable);
+            DeliveryPanel.PasteButton.onClick.Invoke();
+            _t.Check("paste request replaces the whole list and stays open", DeliveryPanel.IsOpen && Lines(other) == copied, Lines(other));
+            _t.Check("the copied chest keeps its requests", Lines(chest) == copied, Lines(chest));
+
+            other.Edit(ledger =>
+            {
+                while (ledger.Lines.Count > 0) ledger.Cancel(0);
+                return ledger.Request("Wood", 10) == RequestEditResult.Ok;
+            });
+            other.RecordDelivered("Wood", 6);
+            DeliveryPanel.Open(chest);
+            DeliveryPanel.ClearButton.onClick.Invoke();
+            DeliveryPanel.TypeSearch("Wo");
+            yield return null;
+            Button onlyWood = DeliveryPanel.Suggestion("Wood");
+            if (onlyWood != null)
+            {
+                onlyWood.onClick.Invoke();
+                _t.Check("copy request stays off while an amount is empty", !DeliveryPanel.CopyButton.interactable);
+                DeliveryPanel.SetAmount("Wood", "4");
+                DeliveryPanel.CopyButton.onClick.Invoke();
+                DeliveryPanel.Open(other);
+                DeliveryPanel.PasteButton.onClick.Invoke();
+                DeliveryRequest wood = other.Ledger.Lines.FirstOrDefault(line => line.ItemPrefab == "Wood");
+                _t.Check("paste request keeps what was already delivered",
+                    other.Ledger.Lines.Count == 1 && wood != null && wood.Delivered == 6 && wood.Requested == 6, Lines(other));
+            }
+            else _t.Skip("paste request keeps delivered", "Wood is not in the suggestion list");
+
+            DeliveryPanel.Open(chest);
+            DeliveryPanel.ClearButton.onClick.Invoke();
+            DeliveryPanel.CopyButton.onClick.Invoke();
+            DeliveryPanel.Open(other);
+            DeliveryPanel.PasteButton.onClick.Invoke();
+            _t.Check("pasting an empty request list clears the chest", other.Ledger.Lines.Count == 0, Lines(other));
+            _t.Check("an empty copy does not change the source until paste", chest.Ledger.Remaining("Wood") == 120, Lines(chest));
+            other.Edit(ledger =>
+            {
+                while (ledger.Lines.Count > 0) ledger.Cancel(0);
+                return true;
+            });
+            PanelClipboard.Reset();
+        }
+
         private IEnumerator Editor()
         {
             DeliveryChest chest = _deliveryA.GetComponent<DeliveryChest>();
@@ -170,6 +363,14 @@ namespace Haugbui.SelfTest
             _deliveryA.Interact(_t.Player, false, true);
             yield return null;
             _t.Check("Shift+E opens the request editor", DeliveryPanel.IsOpen && DeliveryPanel.Current == chest);
+            _t.Check("an empty delivery list says there is nothing to deliver",
+                DeliveryPanel.ShowsEmpty && DeliveryPanel.EmptyText.Contains(Localization.instance.Localize("$haugbui_delivery_none")), DeliveryPanel.EmptyText);
+            _t.Check("extra items stay in the chest", DeliveryPanel.Footnote.Contains(Localization.instance.Localize("$haugbui_delivery_keep_extra")), DeliveryPanel.Footnote);
+            _t.Check("clear all waits until there is a row", !DeliveryPanel.ClearButton.interactable);
+            yield return DeliveryDraft(chest);
+            DeliveryPanel.Open(chest);
+            _t.Check("delivery suggestions are items the character has picked up",
+                DeliveryPanel.KnownItems.All(k => MaterialKnown(k.Prefab)));
             _t.Check("equipment is not selectable", DeliveryPanel.KnownItems.All(k => IsTransportable(k.Prefab)),
                 string.Join(", ", DeliveryPanel.KnownItems.Where(k => !IsTransportable(k.Prefab)).Select(k => k.Prefab)));
             bool entered = new[] { ("Wood", 100), ("Stone", 200), ("Resin", 50), ("Iron", 30) }
@@ -179,6 +380,7 @@ namespace Haugbui.SelfTest
                 Lines(chest));
             _t.Check("editing a line sets its amount", DeliveryPanel.Submit("Wood", 120) == RequestEditResult.Ok && chest.Ledger.Remaining("Wood") == 120, Lines(chest));
             _t.Check("invalid amount refused", DeliveryPanel.Submit("Wood", 0) == RequestEditResult.InvalidAmount);
+            yield return RequestClipboard(chest);
             DeliveryPanel.Close();
             yield return null;
             _t.Check("editor closes", !DeliveryPanel.IsOpen);
@@ -262,8 +464,9 @@ namespace Haugbui.SelfTest
             _t.Check("delivers the requested wood", sawDeliver && Delivered(a, "Wood") == 15 && CountPrefab(_deliveryA, "Wood") == 15,
                 $"ledger {Delivered(a, "Wood")}, chest {CountPrefab(_deliveryA, "Wood")}");
             _t.Check("never delivers more than requested", maxWood == 15 && Delivered(a, "Wood") == 15, $"max {maxWood} in the chest");
+            // Eleven stone in an ordinary chest: one stays, ten are delivered, the line stays open.
             _t.Check("short stock: delivers what exists, line stays open",
-                Delivered(a, "Stone") == 11 && a.Ledger.Remaining("Stone") == 19 && CountPrefab(_stone, "Stone") == 0, Lines(a));
+                Delivered(a, "Stone") == 10 && a.Ledger.Remaining("Stone") == 20 && CountPrefab(_stone, "Stone") == 1, Lines(a));
             _t.Check("two Delivery Chests served independently", Delivered(b, "Resin") == 3 && CountPrefab(_deliveryB, "Resin") == 3
                                                                    && CountPrefab(_deliveryA, "Resin") == 0, Lines(b));
             _t.Check("Collection Chest is a delivery source", CountPrefab(_collection, "Resin") == 2, CountPrefab(_collection, "Resin").ToString());
@@ -273,7 +476,7 @@ namespace Haugbui.SelfTest
             yield return _t.Reload(_deliveryA.gameObject, go => reloaded = go);
             _deliveryA = reloaded != null ? reloaded.GetComponentInChildren<Container>() : null;
             a = _deliveryA != null ? _deliveryA.GetComponent<DeliveryChest>() : null;
-            if (!_t.Check("delivered counts survive reload", a != null && Delivered(a, "Wood") == 15 && Delivered(a, "Stone") == 11, a != null ? Lines(a) : "chest missing"))
+            if (!_t.Check("delivered counts survive reload", a != null && Delivered(a, "Wood") == 15 && Delivered(a, "Stone") == 10, a != null ? Lines(a) : "chest missing"))
                 yield break;
             ReplaceChest(_deliveryA);
 
@@ -315,6 +518,15 @@ namespace Haugbui.SelfTest
             string.Join(", ", chest.Ledger.Lines.Select(l => $"{l.ItemPrefab} {l.Delivered}/{l.Requested}"));
 
         private static bool IsTransportable(string prefab) => ItemBridge.IsTransportable(new ItemStack { Prefab = prefab });
+
+        private static bool MaterialKnown(string prefab)
+        {
+            GameObject item = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
+            ItemDrop drop = item != null ? item.GetComponent<ItemDrop>() : null;
+            string shared = drop != null && drop.m_itemData != null && drop.m_itemData.m_shared != null
+                ? drop.m_itemData.m_shared.m_name : null;
+            return !string.IsNullOrEmpty(shared) && Player.m_localPlayer != null && Player.m_localPlayer.IsMaterialKnown(shared);
+        }
 
         private static int Cost(Piece piece) => piece.m_resources.Sum(r => r.m_amount);
 

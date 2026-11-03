@@ -468,9 +468,10 @@ game member is in the manifest under feature `Combat` (a missing one disables co
   (`wraith_melee`, not cloned) and its damage are logged at the first engagement. The Wraith's alerted effect plays once
   per engagement (at most every 10 s). Collateral hits on pieces follow the vanilla attack (HB-143).
 - **Level scaling**: `CombatPatches` postfixes `Attack.ModifyDamage` (every hit of a Haugbui's attack) with
-  `CombatMath.DealtFactor` = level `CombatMultiplier` × `Combat.DamageMultiplier`, and prefixes `Character.RPC_Damage`
-  on the owner with `TakenFactor` = 1 / level multiplier (to confirm), before resistances and world modifiers, which
-  all multiply. The tomb sets both factors on the creature at spawn and every tick. Level-based only.
+  `CombatMath.DealtFactor` = level `OffenceMultiplier` × `Combat.DamageMultiplier`, and prefixes `Character.RPC_Damage`
+  on the owner with `TakenFactor` = 1 / level `DefenceMultiplier` (to confirm), before resistances and world modifiers,
+  which all multiply. The two rows start equal (1.0–2.0). The tomb sets both factors on the creature at spawn and
+  every tick. Level-based only; the Altar adds no resistance.
 - **Toggle** (HB-026): `TombController.SetToggle` refuses Combat ON without `combat_ack` (`CombatNeedsConfirmation`);
   `CombatWarning.RequestEnable` shows a `YesNoPopup` (the tomb panel hides itself until it is answered, because the
   vanilla popup draws under Jötunn's panel); Yes → `AcknowledgeCombat` + toggle ON, No → off and unacknowledged.
@@ -491,11 +492,11 @@ game member is in the manifest under feature `Combat` (a missing one disables co
 
 | UI | Entry point | Built with |
 |---|---|---|
-| Tomb panel | `E` on tomb (hover shows name, level, state, HP, cooldown) | Jötunn woodpanel: stats, carried inventory grid (read-only view), overflow retrieve, rename, toggles, rest button |
+| Tomb panel | `E` on tomb (hover shows name, level, state, HP, cooldown) | Jötunn woodpanel: stats, carried inventory grid (read-only view), overflow retrieve, rename, toggles, rest. Corner X closes it |
 | Tomb storage | Button in tomb panel → vanilla container UI via request-open flow | Vanilla `InventoryGui` |
-| Chest filter | `Shift+E` on a player-built vanilla chest | Jötunn panel: typeahead of discovered transportable items, clear-all. Stored in `haugbui_filter` |
-| Delivery panel | `E` opens vanilla chest UI; `Shift+E` opens request editor | Jötunn panel: item picker (known materials), quantity, requested/delivered/remaining |
-| Production panel | `Shift+E` on supported station (Switch/Interactable patch) | Jötunn panel: enable, recipe dropdown, finite/infinite, target, progress |
+| Chest filter | `Shift+E`, or Edit filters on the vanilla chest window | Shared typeahead above the rows. Headers Item and Stacks. The stacks field caps how many stacks of that prefab the chest may hold; empty means the chest's own room. Extra stacks already there stay. An X on each row, clear-all, corner X. Writes immediately to `haugbui_filter` (schema 2; schema 1 loads as unlimited). Hover shows the count, not the names |
+| Delivery panel | `E` opens vanilla chest UI; `Shift+E` or Edit requests opens the editor | Same typeahead. Each row shows how many are already in the chest and an empty requested field. The list is a draft until Save. Save is disabled only while a requested field is empty, then writes the ledger and closes the panel. A refused save stays open. Closing without Save keeps the stored requests. Corner X |
+| Production panel | `Shift+E` on supported station (Switch/Interactable patch) | Jötunn panel: enable, recipe dropdown, finite/infinite, target, progress, corner X. Save closes the panel when the job is stored. The enable toggle does not |
 | Countdown | World-space TMP label on tomb, 1 Hz | TMP + `Billboard` |
 | Warnings | Combat warning on first longsword placement/toggle; world-guard warning on load | `UnifiedPopup` + `YesNoPopup` |
 

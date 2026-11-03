@@ -29,6 +29,7 @@ namespace Haugbui.UI
         private static Text _progress;
         private static Text _status;
         private static Text _enableLabel;
+        private static Button _dismiss;
         private static MonoBehaviour _station;
         private static float _openedAt;
         private static readonly List<StationRecipe> Shown = new List<StationRecipe>();
@@ -36,6 +37,7 @@ namespace Haugbui.UI
         public static bool IsOpen => _root != null && _root.activeSelf;
         internal static MonoBehaviour Current => IsOpen ? _station : null;
         internal static IReadOnlyList<StationRecipe> Recipes => Shown;
+        internal static Button Dismiss => _dismiss;
 
         public static void Open(MonoBehaviour station)
         {
@@ -62,8 +64,9 @@ namespace Haugbui.UI
         public static void Close()
         {
             if (!IsOpen) return;
-            _root.SetActive(false);
+            PanelInput.ClearSelection();
             PanelInput.Released();
+            _root.SetActive(false);
             _station = null;
         }
 
@@ -103,7 +106,7 @@ namespace Haugbui.UI
             _root = gui.CreateWoodpanel(GUIManager.CustomGUIFront.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Width, Height, draggable: false);
             _title = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -35f),
-                gui.AveriaSerifBold, 26, gui.ValheimOrange, true, Color.black, Width - 40f, 40f, false).GetComponent<Text>();
+                gui.AveriaSerifBold, 26, gui.ValheimOrange, true, Color.black, Width - 100f, 40f, false).GetComponent<Text>();
             _owner = Line(gui, -72f, 15, new Color(0.8f, 0.8f, 0.8f));
 
             Label(gui, "$haugbui_job_recipe", -115f);
@@ -124,10 +127,10 @@ namespace Haugbui.UI
             _progress = Line(gui, -215f, 17, Color.white);
             _status = Line(gui, -260f, 16, new Color(0.9f, 0.75f, 0.4f));
 
-            GameObject enable = Button(gui, "", -170f, OnToggleEnabled);
+            GameObject enable = Button(gui, "", -85f, OnToggleEnabled);
             _enableLabel = enable.GetComponentInChildren<Text>();
-            Button(gui, "$haugbui_job_save", 0f, OnSave);
-            Button(gui, "$haugbui_panel_close", 170f, Close);
+            Button(gui, "$haugbui_job_save", 85f, OnSave);
+            _dismiss = PanelChrome.CornerDismiss(gui, _root.transform, Close);
             _root.SetActive(false);
         }
 
@@ -231,18 +234,22 @@ namespace Haugbui.UI
                 Refresh();
                 return;
             }
-            OnSave(true);
+            Commit(true);
         }
 
-        private static void OnSave() => OnSave(StationJobs.Read(_station)?.Enabled ?? true);
+        private static void OnSave()
+        {
+            if (Commit(StationJobs.Read(_station)?.Enabled ?? true)) Close();
+        }
 
-        private static void OnSave(bool enabled)
+        private static bool Commit(bool enabled)
         {
             int.TryParse(_target.text, out int target);
             var mode = _mode.value == 1 ? JobMode.Infinite : JobMode.Finite;
-            if (!Apply(enabled, SelectedRecipe(), mode, target))
-                Player.m_localPlayer?.Message(MessageHud.MessageType.Center,
-                    Localization.instance.Localize(SelectedRecipe() == null ? "$haugbui_job_err_recipe" : "$haugbui_job_err_target"));
+            if (Apply(enabled, SelectedRecipe(), mode, target)) return true;
+            Player.m_localPlayer?.Message(MessageHud.MessageType.Center,
+                Localization.instance.Localize(SelectedRecipe() == null ? "$haugbui_job_err_recipe" : "$haugbui_job_err_target"));
+            return false;
         }
     }
 

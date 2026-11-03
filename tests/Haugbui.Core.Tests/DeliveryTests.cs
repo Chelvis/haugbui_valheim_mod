@@ -71,6 +71,33 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void Replace_keeps_what_was_delivered_and_drops_the_rest()
+        {
+            var ledger = new DeliveryLedger();
+            ledger.Request("Wood", 100);
+            ledger.RecordDelivered("Wood", 40);
+            ledger.Request("Stone", 10);
+            Assert.That(ledger.Replace(new[] { ("Wood", 0) }), Is.EqualTo(RequestEditResult.InvalidAmount));
+            Assert.That(ledger.Lines.Select(l => l.ItemPrefab), Is.EqualTo(new[] { "Wood", "Stone" }));
+
+            Assert.That(ledger.Replace(new[] { ("Wood", 30), ("Resin", 5) }), Is.EqualTo(RequestEditResult.Ok));
+            DeliveryRequest wood = ledger.Lines.Single(l => l.ItemPrefab == "Wood");
+            Assert.That(wood.Delivered, Is.EqualTo(40));
+            Assert.That(wood.Requested, Is.EqualTo(40));
+            Assert.That(ledger.Lines.Any(l => l.ItemPrefab == "Stone"), Is.False);
+            Assert.That(ledger.Lines.Single(l => l.ItemPrefab == "Resin").Requested, Is.EqualTo(5));
+
+            Assert.That(ledger.Replace(new (string, int)[0]), Is.EqualTo(RequestEditResult.Ok));
+            Assert.That(ledger.Lines, Is.Empty);
+
+            var tooMany = new List<(string, int)>();
+            for (int i = 0; i < DeliveryLedger.MaxLines + 1; i++) tooMany.Add(("Item" + i, 1));
+            ledger.Request("Wood", 1);
+            Assert.That(ledger.Replace(tooMany), Is.EqualTo(RequestEditResult.TooManyLines));
+            Assert.That(ledger.Lines.Single().ItemPrefab, Is.EqualTo("Wood"));
+        }
+
+        [Test]
         public void Limits_and_cancel()
         {
             var ledger = new DeliveryLedger();
@@ -166,6 +193,54 @@ namespace Haugbui.Core.Tests
             DeliveryTrip trip = DeliveryPlanner.Plan("Resin", 25, Target(10), carried, new[] { source }, Vec3.Zero);
             Assert.That(trip.Takes.Single().Item.Amount, Is.EqualTo(5));
             Assert.That(trip.Total, Is.EqualTo(25));
+        }
+
+        [Test]
+        public void One_trip_loads_every_line_that_fits()
+        {
+            ContainerSnapshot source = Items.Chest("s", 1, 10, Items.Make("Wood", 20), Items.Make("Stone", 20));
+            DeliveryTrip trip = DeliveryPlanner.Combine(new[] { ("Wood", 10), ("Stone", 10) }, Target(10),
+                new CarriedInventory(4, 100), new[] { source }, Vec3.Zero);
+            Assert.That(trip.Total, Is.EqualTo(20));
+            Assert.That(trip.Takes.Sum(t => t.Item.Amount), Is.EqualTo(20));
+            Assert.That(trip.Takes.Sum(t => t.Item.Prefab == "Wood" ? t.Item.Amount : 0), Is.EqualTo(10));
+        }
+
+        [Test]
+        public void A_full_bag_does_not_take_another_delivery_line()
+        {
+            var carried = new CarriedInventory(2, 10);
+            carried.Add(Items.Make("Wood", 10));
+            ContainerSnapshot source = Items.Chest("s", 1, 10, Items.Make("Stone", 20));
+            DeliveryTrip trip = DeliveryPlanner.Combine(new[] { ("Wood", 10), ("Stone", 10) }, Target(10), carried,
+                new[] { source }, Vec3.Zero);
+            Assert.That(trip.Puts.Where(p => p.Prefab == "Wood").Sum(p => p.Amount), Is.EqualTo(10));
+            Assert.That(trip.Takes.Sum(t => t.Item.Amount), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ordinary_chest_keeps_one_unless_the_filter_lists_it()
+        {
+            ContainerSnapshot ordinary = Items.Chest("s", 5, 10, Items.Make("Wood", 5));
+            ordinary.KeepSeed = true;
+            Assert.That(DeliveryPlanner.Plan("Wood", 30, Target(10), new CarriedInventory(8, 1000), new[] { ordinary }, Vec3.Zero).Total, Is.EqualTo(4));
+
+            ContainerSnapshot last = Items.Chest("last", 5, 10, Items.Make("Wood", 1));
+            last.KeepSeed = true;
+            Assert.That(DeliveryPlanner.Plan("Wood", 30, Target(10), new CarriedInventory(8, 1000), new[] { last }, Vec3.Zero).Total, Is.EqualTo(0));
+
+            ContainerSnapshot listed = Items.Chest("listed", 5, 10, Items.Make("Wood", 3));
+            listed.KeepSeed = true;
+            listed.Filter = new List<string> { "Wood" };
+            Assert.That(DeliveryPlanner.Plan("Wood", 30, Target(10), new CarriedInventory(8, 1000), new[] { listed }, Vec3.Zero).Total, Is.EqualTo(3));
+
+            ContainerSnapshot other = Items.Chest("other", 5, 10, Items.Make("Wood", 2));
+            other.KeepSeed = true;
+            other.Filter = new List<string> { "Stone" };
+            Assert.That(DeliveryPlanner.Plan("Wood", 30, Target(10), new CarriedInventory(8, 1000), new[] { other }, Vec3.Zero).Total, Is.EqualTo(1));
+
+            ContainerSnapshot emptied = Items.Chest("collection", 5, 10, Items.Make("Wood", 3));
+            Assert.That(DeliveryPlanner.Plan("Wood", 30, Target(10), new CarriedInventory(8, 1000), new[] { emptied }, Vec3.Zero).Total, Is.EqualTo(3));
         }
 
         [Test]

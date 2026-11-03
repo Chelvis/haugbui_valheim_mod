@@ -1,0 +1,10 @@
+{
+  "name": "Haugbui",
+  "version_number": "0.0.10",
+  "website_url": "https://github.com/Chelvis/haugbui_valheim_mod",
+  "description": "An undead servant that sorts chests, fetches requests, harvests and feeds your stations.",
+  "dependencies": [
+    "denikson-BepInExPack_Valheim-5.4.2351",
+    "ValheimModding-Jotunn-2.30.2"
+  ]
+}

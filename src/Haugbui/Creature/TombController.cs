@@ -64,6 +64,9 @@ namespace Haugbui.Creature
         internal ServantSlot Slot { get; private set; }
         internal string ServantName => Slot != null && !string.IsNullOrEmpty(Slot.Name) ? Slot.Name : ServantSlots.DefaultName(0);
 
+        internal const string CoinPrefab = "Coins";
+        internal const int CoinBundle = 5;
+
         /// <summary>HB-139: the name lives on the servant slot, so the next tomb bound to it inherits the name.</summary>
         internal bool Rename(string input)
         {
@@ -74,7 +77,22 @@ namespace Haugbui.Creature
             stored.Name = name;
             ServantRegistry.Write(State.OwnerId, stored);
             Slot.Name = name;
+            ApplyDisplayedName();
             return true;
+        }
+
+        /// <summary>The name above the creature is read every frame from the character, so a rename shows immediately.</summary>
+        private void ApplyDisplayedName()
+        {
+            Character character = Creature != null ? Creature.Character : null;
+            if (character == null) return;
+            string name = ServantName;
+            character.m_name = name;
+            ZNetView view = character.m_nview;
+            if (view == null || !view.IsValid() || !view.IsOwner()) return;
+            ZDO zdo = view.GetZDO();
+            zdo.Set(ZDOVars.s_overrideHoverName, name);
+            if (character.GetComponent<Tameable>() != null) zdo.Set(ZDOVars.s_tamedName, name);
         }
 
         /// <summary>
@@ -216,6 +234,7 @@ namespace Haugbui.Creature
             bool fast = SleepFastMode;
             Budget.Observe(TimeSource.Current.Now, fast, CanWork && !Machine.ReturnPending);
             StepState(fast);
+            RegenerateOutdoors();
             if (Time.time < _nextTick) return;
             _nextTick = Time.time + TickSeconds;
             Tick();
@@ -443,14 +462,15 @@ namespace Haugbui.Creature
             creature.Damaged -= Combat.OnDamaged;
             creature.Damaged += Combat.OnDamaged;
             SyncCombatFactors(Attributes);
+            ApplyDisplayedName();
         }
 
         private void SyncCombatFactors(HaugbuiAttributes attributes)
         {
             if (Creature == null) return;
-            Creature.DealtFactor = Core.Combat.CombatMath.DealtFactor(attributes.CombatMultiplier,
+            Creature.DealtFactor = Core.Combat.CombatMath.DealtFactor(attributes.OffenceMultiplier,
                 HaugbuiPlugin.Instance.Settings.CombatDamageMultiplier.Value);
-            Creature.TakenFactor = Core.Combat.CombatMath.TakenFactor(attributes.CombatMultiplier);
+            Creature.TakenFactor = Core.Combat.CombatMath.TakenFactor(attributes.DefenceMultiplier);
         }
 
         /// <summary>Health with dormant regeneration applied up to now; saved health is "full" when negative.</summary>
@@ -461,6 +481,18 @@ namespace Haugbui.Creature
             if (Machine.IsOut || double.IsNaN(state.HealthTime)) return health;
             return HealthMath.Regenerate(health, max, TimeSource.Current.Now - state.HealthTime,
                 HaugbuiPlugin.Instance.Settings.RestFullHealSeconds.Value);
+        }
+
+        /// <summary>Real time only. A jump in the world clock, such as sleep, adds none of this.</summary>
+        private void RegenerateOutdoors()
+        {
+            if (!Machine.IsOut || Creature == null) return;
+            Character character = Creature.Character;
+            if (character == null || character.IsDead() || character.GetHealth() <= 0f) return;
+            float health = character.GetHealth();
+            float next = HealthMath.RegenerateOutdoor(health, character.GetMaxHealth(), Time.unscaledDeltaTime,
+                HaugbuiPlugin.Instance.Settings.OutdoorRegenSeconds.Value, HaugbuiPlugin.Instance.Settings.OutdoorRegenPercent.Value);
+            if (next > health) character.SetHealth(next);
         }
 
         private void SyncHealth(HaugbuiAttributes attributes)
@@ -596,23 +628,37 @@ namespace Haugbui.Creature
             return true;
         }
 
-        /// <summary>HB-T-102: takes one valuable from the player's inventory and adds its worth to the balance.</summary>
-        internal bool Offer(string prefab, Player player)
+        /// <summary>Takes <paramref name="count"/> of a valuable and adds that many times its worth. Nothing is removed when the player holds less.</summary>
+        internal bool Offer(string prefab, Player player, int count = 1)
         {
             int value = HaugbuiPlugin.Instance.Settings.TributeTable.ValueOf(prefab);
-            if (value <= 0 || player == null || State == null || !IsOwner || _destroyed) return false;
+            if (value <= 0 || count < 1 || player == null || State == null || !IsOwner || _destroyed) return false;
             Inventory inventory = player.GetInventory();
-            ItemDrop.ItemData item = inventory.GetAllItems().FirstOrDefault(i => ItemBridge.PrefabName(i) == prefab);
-            if (item == null) return false;
-            bool cheated = item.m_cheated;
-            if (!inventory.RemoveItem(item, 1)) return false;
+            List<ItemDrop.ItemData> stacks = inventory.GetAllItems().Where(i => ItemBridge.PrefabName(i) == prefab).ToList();
+            if (stacks.Sum(i => i.m_stack) < count) return false;
+
+            int need = count;
+            int clean = 0;
+            int cheated = 0;
+            foreach (ItemDrop.ItemData item in stacks)
+            {
+                if (need <= 0) break;
+                int take = System.Math.Min(item.m_stack, need);
+                bool flag = item.m_cheated;
+                if (!inventory.RemoveItem(item, take)) break;
+                if (flag) cheated += take;
+                else clean += take;
+                need -= take;
+            }
+            if (clean + cheated <= 0) return false;
 
             var balance = new TributeBalance(State.Balance, State.CheatedBalance);
-            balance.Offer(value, cheated);
+            balance.Offer(clean * value, false);
+            balance.Offer(cheated * value, true);
             State.Balance = balance.Total;
             State.CheatedBalance = balance.Cheated;
             SaveStateIfChanged();
-            Log.Debug($"Tomb {_tomb.Guid}: offered {prefab} (+{value}{(cheated ? ", cheated" : "")}), balance {State.Balance}.");
+            Log.Debug($"Tomb {_tomb.Guid}: offered {prefab} x{clean + cheated} (+{(clean + cheated) * value}), balance {State.Balance}.");
             TickNow();
             return true;
         }
@@ -738,7 +784,8 @@ namespace Haugbui.Creature
                 return Localization.instance.Localize(Machine.State == HaugbuiState.Dead ? "$haugbui_status_cooldown" : "$haugbui_status_starts_in",
                     PresencePolicy.FormatCountdown(wait));
             if (Machine.State == HaugbuiState.Dead) return "$haugbui_status_waiting_night";
-            if (State.Has(TombToggles.Resting)) return "$haugbui_status_resting";
+            if (State.Has(TombToggles.Resting))
+                return Localization.instance.Localize("$haugbui_status_resting").Replace("$1", ServantName);
             if (!Machine.IsOut && Waiting == ShiftDecision.NoTribute) return "$haugbui_status_no_tribute";
             if (!Machine.IsOut && Waiting == ShiftDecision.NoWork) return "$haugbui_status_no_work";
             return "$haugbui_state_" + Machine.State.ToString().ToLowerInvariant();

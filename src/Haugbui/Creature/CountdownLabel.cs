@@ -45,14 +45,18 @@ namespace Haugbui.Creature
 
         private void Update()
         {
-            if (_text == null || Time.time < _next) return;
-            _next = Time.time + 1f;
+            if (_text == null) return;
 
             double remaining = Remaining();
             Player player = Player.m_localPlayer;
             bool near = player != null && Vector3.Distance(player.transform.position, transform.position) <= CullDistance;
             bool show = remaining > 0 && near;
-            if (show) _text.text = PresencePolicy.FormatCountdown(remaining);
+            // The number refreshes once a second. Showing and hiding follow the player at once.
+            if (show && Time.time >= _next)
+            {
+                _text.text = PresencePolicy.FormatCountdown(remaining);
+                _next = Time.time + 1f;
+            }
             if (_text.gameObject.activeSelf != show) _text.gameObject.SetActive(show);
         }
 

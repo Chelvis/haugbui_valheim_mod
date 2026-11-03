@@ -17,7 +17,26 @@ namespace Haugbui.SelfTest
     /// </summary>
     internal static class SelfTestRunner
     {
-        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute", "production", "territory", "stations", "sleep", "combat", "world", "backup", "integrity", "torture" };
+        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute", "production", "territory", "stations", "sleep", "combat", "world", "backup", "integrity", "torture", "perf" };
+
+        /// <summary>Seconds each suite took on the 2026-11-03 full run (20 min 44 s). A failure that waits out a timeout is included, so a clean run can be shorter.</summary>
+        private static readonly Dictionary<string, int> ExpectedSeconds = new Dictionary<string, int>
+        {
+            { "basics", 5 }, { "structures", 25 }, { "flight", 5 }, { "transfers", 5 }, { "haugbui", 74 },
+            { "storage", 64 }, { "chests", 245 }, { "harvest", 174 }, { "tribute", 19 }, { "production", 159 },
+            { "territory", 50 }, { "stations", 239 }, { "sleep", 9 }, { "combat", 159 },
+            { "world", 3 }, { "backup", 2 }, { "integrity", 2 }, { "torture", 3 }, { "perf", 2 },
+        };
+
+        internal static string Estimate(IEnumerable<string> suites)
+        {
+            int seconds = 0;
+            foreach (string suite in suites)
+                if (ExpectedSeconds.TryGetValue(suite, out int known)) seconds += known;
+            if (seconds < 90) return $"about {Math.Max(1, seconds)} seconds";
+            int minutes = (seconds + 59) / 60;
+            return $"about {minutes} minutes";
+        }
 
         public const string AndExit = "and_exit";
 
@@ -43,10 +62,17 @@ namespace Haugbui.SelfTest
             Integration.WorldSafety.SuppressPopup = true;
             for (int i = 0; i < 5 && UnifiedPopup.IsVisible(); i++) UnifiedPopup.Pop();
             Integration.WorldSafety.RecordLive();
-            Player.m_localPlayer?.Message(MessageHud.MessageType.Center, "Haugbui self-test running…");
+            string estimate = Estimate(suites);
+            Player.m_localPlayer?.Message(MessageHud.MessageType.Center, $"Haugbui self-test running, {estimate}.");
+            if (Console.instance != null && Console.instance.m_chatWindow != null)
+                Console.instance.m_chatWindow.gameObject.SetActive(false);
 
-            HaugbuiPlugin.Instance.StartCoroutine(KeepAreaClear(context));
-            foreach (string suite in suites)
+            yield return context.ClearPresence();
+            Registry.WorldRegistry.HideLoadedWorld();
+            bool godMode = Player.m_localPlayer != null && Player.m_localPlayer.InGodMode();
+            Player.m_localPlayer?.SetGodMode(true);
+            if (context.PresenceClear) HaugbuiPlugin.Instance.StartCoroutine(KeepAreaClear(context));
+            foreach (string suite in context.PresenceClear ? suites : new List<string>())
             {
                 IEnumerator body;
                 switch (suite)
@@ -69,6 +95,7 @@ namespace Haugbui.SelfTest
                     case "backup": body = new BackupSuite(context).Run(); break;
                     case "integrity": body = new IntegritySuite(context).Run(); break;
                     case "torture": body = new TortureSuite(context).Run(); break;
+                    case "perf": body = new PerfSuite(context).Run(); break;
                     default:
                         context.Suite = suite;
                         context.Fail("unknown suite", suite);
@@ -81,17 +108,23 @@ namespace Haugbui.SelfTest
                 // Older suites place several tombs close together; only the territory suite uses the HB-T-110 rules.
                 Structures.PlacementCheck.SameOwnerSpacing = suite == "territory" ? HaugbuiPlugin.Instance.Settings.TombSpacingSameOwner.Value : 0f;
                 Brain.WorkContext.TerritorySuspendedForTests = suite != "territory";
+                var suiteWatch = Stopwatch.StartNew();
                 yield return Guard(context, suite, body);
+                Log.Info($"Self-test suite {suite} took {suiteWatch.Elapsed.TotalSeconds:0}s (estimate {ExpectedSeconds[suite]}s).");
                 Integration.TimeSource.Override = null;
                 Creature.TombController.TributeSuspendedForTests = false;
                 Structures.PlacementCheck.SameOwnerSpacing = HaugbuiPlugin.Instance.Settings.TombSpacingSameOwner.Value;
                 Brain.WorkContext.TerritorySuspendedForTests = false;
                 context.Cleanup();
+                SelfTestContext.DismissPopups();
                 yield return SelfTestContext.WaitFrames(5);
+                SelfTestContext.DismissPopups();
                 Integration.WorldSafety.RecordLive();
                 Integration.ServantRegistry.Unpark(player, parked);
             }
+            Registry.WorldRegistry.RestoreLoadedWorld();
             Integration.WorldSafety.SuppressPopup = false;
+            if (Player.m_localPlayer != null) Player.m_localPlayer.SetGodMode(godMode);
 
             context.WriteReport(stopwatch.Elapsed);
             int failed = context.Results.Count(r => r.Status == TestStatus.Fail);
@@ -99,7 +132,11 @@ namespace Haugbui.SelfTest
             string summary = $"Haugbui self-test finished: {(failed == 0 ? "PASS" : "FAIL")} ({passed} passed, {failed} failed)";
             Log.Info($"{summary}. Report: {Path.Combine(OutputFolder, "report.txt")}");
             Console.instance?.Print($"{summary}. Report: BepInEx/haugbui_selftest/report.txt");
-            Player.m_localPlayer?.Message(MessageHud.MessageType.Center, summary);
+            string result = $"{summary}\n\nReport: BepInEx/haugbui_selftest/report.txt";
+            if (!exitAfter && UnifiedPopup.IsAvailable())
+                UnifiedPopup.Push(new WarningPopup("Haugbui self-test", result, UnifiedPopup.Pop, localizeText: false));
+            else
+                Player.m_localPlayer?.Message(MessageHud.MessageType.Center, summary);
             Running = false;
             Finished?.Invoke(context);
             if (!exitAfter) yield break;
@@ -109,7 +146,7 @@ namespace Haugbui.SelfTest
             Application.Quit();
         }
 
-        private const float MonsterClearRadius = 80f;
+        private const float MonsterClearRadius = 240f;
 
         /// <summary>Monsters that wander in during the run would fight the Haugbuis under test.</summary>
         private static IEnumerator KeepAreaClear(SelfTestContext context)
@@ -177,10 +214,11 @@ namespace Haugbui.SelfTest
             bool exitAfter = args.Any(a => a.Equals(SelfTestRunner.AndExit, StringComparison.OrdinalIgnoreCase));
             string[] selected = args.Where(a => !a.Equals(SelfTestRunner.AndExit, StringComparison.OrdinalIgnoreCase)).ToArray();
             IEnumerable<string> suites = selected.Length == 0 || selected.Contains("all") ? SelfTestRunner.Suites : selected;
+            string running = SelfTestRunner.Estimate(suites);
             Print(SelfTestRunner.Start(suites, exitAfter)
                 ? exitAfter
                     ? "Self-test running; the game will close when it finishes. Report: BepInEx/haugbui_selftest/report.txt"
-                    : "Self-test running; stand still until the result appears on screen (up to 12 minutes)."
+                    : $"Self-test running; stand still until the result appears on screen ({running})."
                 : "Self-test already running or no player.");
         }
     }

@@ -1,21 +1,29 @@
 using System.Linq;
 using Haugbui.Core.Structures;
+using Haugbui.Creature;
+using Haugbui.UI;
 using UnityEngine;
 
 namespace Haugbui.Structures
 {
-    /// <summary>HB-012: the vanilla workbench-extension connection effect between an upgrade and its tomb, near the player.</summary>
+    /// <summary>
+    /// HB-012: the vanilla workbench-extension connection effect between an upgrade and its tomb.
+    /// A workbench draws it only while the station is in use, so this draws only while the player has the tomb open.
+    /// </summary>
     internal sealed class UpgradeBeam : MonoBehaviour
     {
-        private const float ShowDistance = 10f;
         private const float CheckSeconds = 0.5f;
 
         private static GameObject _effectPrefab;
         private static bool _effectSearched;
+        private static Container _playerContainer;
 
         private HaugbuiStructure _structure;
         private GameObject _beam;
         private float _nextCheck;
+
+        /// <summary>The container the local inventory is showing; null when that window is closed.</summary>
+        internal static void SetPlayerContainer(Container container) => _playerContainer = container;
 
         private void Awake() => _structure = GetComponent<HaugbuiStructure>();
 
@@ -26,13 +34,20 @@ namespace Haugbui.Structures
             if (Time.time < _nextCheck) return;
             _nextCheck = Time.time + CheckSeconds;
 
-            Player player = Player.m_localPlayer;
             HaugbuiStructure tomb = _structure != null ? StructureRegistry.FindTomb(_structure.BoundTombGuid) : null;
-            bool show = player != null && tomb != null
-                        && Vector3.Distance(player.transform.position, transform.position) <= ShowDistance
+            bool show = tomb != null && InUse(tomb)
                         && Vector3.Distance(tomb.transform.position, transform.position) <= StructureRegistry.UpgradeRange;
             if (show) Show(tomb.transform.position + Vector3.up * 0.8f);
             else Hide();
+        }
+
+        /// <summary>The tomb panel, or the tomb's own storage window. Not merely standing next to it.</summary>
+        private static bool InUse(HaugbuiStructure tomb)
+        {
+            TombController controller = tomb.GetComponent<TombController>();
+            if (controller != null && TombPanel.IsOpen && TombPanel.Current == controller) return true;
+            Container own = tomb.GetComponent<Container>();
+            return _playerContainer != null && own != null && _playerContainer == own;
         }
 
         private void Show(Vector3 target)
