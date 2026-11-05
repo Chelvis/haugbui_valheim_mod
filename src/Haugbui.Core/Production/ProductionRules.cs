@@ -153,8 +153,10 @@ namespace Haugbui.Core.Production
         /// <param name="cheated">Flag the station needs (HB-061); null lets the planner choose, clean first.</param>
         /// <param name="carry">Simulated carried inventory; takes are added to it.</param>
         /// <param name="ground">Eligible drops. Null ignores the ground.</param>
+        /// <param name="bagOnly">The bag is unloading: use what it already holds. Chests and drops wait until it is stored.</param>
         public static SupplyPick Pick(string prefab, int wanted, bool? cheated, CarriedInventory carry,
-            IReadOnlyCollection<ContainerSnapshot> sources, Vec3 from, int reserved, IEnumerable<GroundItem> ground = null)
+            IReadOnlyCollection<ContainerSnapshot> sources, Vec3 from, int reserved, IEnumerable<GroundItem> ground = null,
+            bool bagOnly = false)
         {
             var pick = new SupplyPick();
             if (wanted <= 0 || string.IsNullOrEmpty(prefab)) return pick;
@@ -169,6 +171,7 @@ namespace Haugbui.Core.Production
             pick.Cheated = flag;
 
             pick.FromCarried = Math.Min(wanted, flag ? carriedCheated : carriedClean);
+            if (bagOnly) return pick;
             int left = wanted - pick.FromCarried;
             foreach (GroundItem drop in drops.Where(d => d.Item.Cheated == flag)
                          .OrderBy(d => Vec3.Distance(from, d.Position)).ThenBy(d => d.Id, StringComparer.Ordinal))

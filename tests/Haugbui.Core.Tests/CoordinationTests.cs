@@ -151,6 +151,25 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void A_due_emptying_is_the_next_chore_ahead_of_gathering_and_delivery()
+        {
+            var candidates = new List<TaskCandidate>
+            {
+                Candidate("deposit", 100, 4),
+                Candidate("deliver", 102, 1),
+                Candidate("gather", 40, 1),
+                Candidate("production_operate", 105, 1),
+            };
+            candidates[candidates.Count - 1].Urgent = true;
+            CarryCycle.HoldUnload(candidates, weight: 10f, capacity: 100f);
+            CarryCycle.ForceDeposit(candidates);
+            Assert.That(candidates.Single(c => c.Kind == "deposit").Priority, Is.EqualTo(CarryCycle.ForcedDepositPriority));
+            Assert.That(candidates.Single(c => c.Kind == "deliver").Priority, Is.EqualTo(102));
+            Assert.That(candidates.Single(c => c.Kind == "gather").Priority, Is.EqualTo(40));
+            Assert.That(candidates.Single(c => c.Kind == "production_operate").Priority, Is.EqualTo(105));
+        }
+
+        [Test]
         public void Highest_priority_then_nearest()
         {
             var provider = new FixedProvider();

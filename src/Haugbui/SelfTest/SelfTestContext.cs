@@ -82,7 +82,8 @@ namespace Haugbui.SelfTest
         }
 
         /// <summary>
-        /// Drops every Haugbui piece the character's loaded area still holds, so a previous run cannot sit inside the next one.
+        /// Removes every placed piece in the character's loaded area, Haugbui or not, so the base he is standing in
+        /// cannot feed the run. ZNetScene.Destroy does not refund the recipe, which would become ground loot.
         /// </summary>
         public IEnumerator ClearPresence()
         {
@@ -98,9 +99,9 @@ namespace Haugbui.SelfTest
             }
             yield return null;
             int left = CountPresence();
-            PresenceClear = Check("Haugbui structures cleared around the player", left == 0,
+            PresenceClear = Check("constructions cleared around the player", left == 0,
                 left == 0 ? $"{removed} removed" : $"{removed} removed, {left} left");
-            if (removed > 0) Log.Info($"Self-test: removed {removed} Haugbui piece(s) around the player, {left} left.");
+            if (removed > 0) Log.Info($"Self-test: removed {removed} construction(s) around the player, {left} left.");
         }
 
         private static int SweepPresence()
@@ -128,6 +129,29 @@ namespace Haugbui.SelfTest
                 ZDOMan.instance.DestroyZDO(zdo);
                 removed++;
             }
+            removed += SweepBuiltPieces();
+            return removed;
+        }
+
+        private static readonly List<Piece> PieceScan = new List<Piece>();
+
+        private static int SweepBuiltPieces()
+        {
+            Player player = Player.m_localPlayer;
+            if (player == null) return 0;
+            PieceScan.Clear();
+            Piece.GetAllPiecesInRadius(player.transform.position, 256f, PieceScan);
+            var roots = new HashSet<int>();
+            int removed = 0;
+            foreach (Piece piece in PieceScan)
+            {
+                if (piece == null || !InPresence(piece.transform.position)) continue;
+                ZNetView view = piece.GetComponent<ZNetView>() ?? piece.GetComponentInParent<ZNetView>();
+                GameObject root = view != null ? view.gameObject : piece.gameObject;
+                if (!roots.Add(root.GetInstanceID())) continue;
+                DestroyOwned(root);
+                removed++;
+            }
             return removed;
         }
 
@@ -135,10 +159,27 @@ namespace Haugbui.SelfTest
         {
             int left = HaugbuiCreature.All.Count(c => c != null && InPresence(c.transform.position));
             left += StructureRegistry.Loaded.Count(s => s != null && InPresence(s.transform.position));
-            if (ZDOMan.instance == null) return left;
+            if (ZDOMan.instance == null) return left + CountBuiltPieces();
             left += ZDOMan.instance.m_objectsByID.Values.Count(zdo =>
                 zdo.GetInt(ZdoKeys.Kind) != (int)StructureKind.None && InPresence(zdo.GetPosition()));
-            return left;
+            return left + CountBuiltPieces();
+        }
+
+        private static int CountBuiltPieces()
+        {
+            Player player = Player.m_localPlayer;
+            if (player == null) return 0;
+            PieceScan.Clear();
+            Piece.GetAllPiecesInRadius(player.transform.position, 256f, PieceScan);
+            var roots = new HashSet<int>();
+            foreach (Piece piece in PieceScan)
+            {
+                if (piece == null || !InPresence(piece.transform.position)) continue;
+                ZNetView view = piece.GetComponent<ZNetView>() ?? piece.GetComponentInParent<ZNetView>();
+                GameObject root = view != null ? view.gameObject : piece.gameObject;
+                roots.Add(root.GetInstanceID());
+            }
+            return roots.Count;
         }
 
         private static bool InPresence(Vector3 point)

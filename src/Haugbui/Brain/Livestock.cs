@@ -4,7 +4,8 @@ using UnityEngine;
 namespace Haugbui.Brain
 {
     /// <summary>
-    /// A single egg with EggGrow is the one the game incubates. A stack does not.
+    /// A single egg the game can hatch is left on the ground. That is EggGrow (a hen or an asksvin egg
+    /// warming up) and EggHatch (an asksvin egg that hatches when someone stands near it). A stack does not hatch.
     /// Food stays when a tamed animal that eats it is inside that animal's search range.
     /// </summary>
     internal static class Livestock
@@ -21,8 +22,11 @@ namespace Haugbui.Brain
 
         internal static bool HatchingEgg(ItemDrop drop)
         {
-            if (drop == null || drop.GetComponent<EggGrow>() == null || drop.m_itemData == null) return false;
+            if (drop == null || drop.m_itemData == null) return false;
+            bool warming = drop.GetComponent<EggGrow>() != null;
+            if (!warming && drop.GetComponent<EggHatch>() == null) return false;
             if (drop.m_itemData.m_stack <= 1) return true;
+            if (!warming) return false;
             ZNetView view = drop.m_nview;
             return view != null && view.IsValid() && view.GetZDO().GetFloat(ZDOVars.s_growStart) > 0f;
         }

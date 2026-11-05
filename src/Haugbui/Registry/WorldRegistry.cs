@@ -140,15 +140,27 @@ namespace Haugbui.Registry
             int missing = scene.Count(c => !indexed.Contains(c));
             int stale = indexed.Count(c => !scene.Contains(c));
 
-            int stations = UnityEngine.Object.FindObjectsByType<Smelter>(FindObjectsSortMode.None).Count(s => s.m_nview != null && s.m_nview.GetZDO() != null)
-                           + UnityEngine.Object.FindObjectsByType<Fermenter>(FindObjectsSortMode.None).Count(s => s.m_nview != null && s.m_nview.GetZDO() != null)
-                           + UnityEngine.Object.FindObjectsByType<CookingStation>(FindObjectsSortMode.None).Count(s => s.m_nview != null && s.m_nview.GetZDO() != null)
-                           + UnityEngine.Object.FindObjectsByType<ShieldGenerator>(FindObjectsSortMode.None).Count(s => s.m_nview != null && s.m_nview.GetZDO() != null);
+            int stations = CountVisible(UnityEngine.Object.FindObjectsByType<Smelter>(FindObjectsSortMode.None), s => s.m_nview)
+                           + CountVisible(UnityEngine.Object.FindObjectsByType<Fermenter>(FindObjectsSortMode.None), s => s.m_nview)
+                           + CountVisible(UnityEngine.Object.FindObjectsByType<CookingStation>(FindObjectsSortMode.None), s => s.m_nview)
+                           + CountVisible(UnityEngine.Object.FindObjectsByType<ShieldGenerator>(FindObjectsSortMode.None), s => s.m_nview);
             Stations.Prune(s => s != null);
             ok = missing == 0 && stale == 0 && stations == Stations.Count;
             return $"containers {indexed.Count} indexed / {scene.Count} in scene (missing {missing}, stale {stale}); " +
                    $"stations {Stations.Count} / {stations}; harvestables {Harvestables.Count}; beds {Beds.Count}; " +
                    $"item drops {ItemDrops.Count}; characters {Characters.Count}";
+        }
+
+        private static int CountVisible<T>(T[] found, Func<T, ZNetView> viewOf) where T : MonoBehaviour
+        {
+            int count = 0;
+            foreach (T station in found)
+            {
+                if (station == null || Hidden.Contains(station.GetInstanceID())) continue;
+                ZNetView view = viewOf(station);
+                if (view != null && view.GetZDO() != null) count++;
+            }
+            return count;
         }
 
         private static List<Action> Track(GameObject go)

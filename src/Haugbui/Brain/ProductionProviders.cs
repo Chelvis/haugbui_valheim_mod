@@ -131,6 +131,7 @@ namespace Haugbui.Brain
             var carry = new CarriedInventory(context.Carried.Slots, context.Carried.Capacity);
             carry.Restore(context.Carried.Stacks.Select(s => s.Copy(s.Amount)));
             IReadOnlyList<GroundItem> ground = context.GroundItems ? SupplyDrops.Of(context) : null;
+            bool bagOnly = CarryCycle.ShouldUnload(context.Carried.Weight, context.Carried.Capacity);
 
             // HB-117: another input in the queue is the player's; only fuel goes in, so it finishes and the job resumes.
             bool manual = state.QueuedInputs.Any(i => i != work.Recipe.Input);
@@ -142,7 +143,7 @@ namespace Haugbui.Brain
             {
                 wanted = StationFill.Inputs(state.Queued, state.MaxQueue, ProductionJob.InputsWanted(job, yield));
                 inputs = SupplyPlanner.Pick(work.Recipe.Input, wanted, state.RequiredCheated, carry, context.Sources, context.From,
-                    context.Reserved(work.Recipe.Input), ground);
+                    context.Reserved(work.Recipe.Input), ground, bagOnly);
             }
 
             SupplyPick fuel = new SupplyPick();
@@ -153,7 +154,7 @@ namespace Haugbui.Brain
                 // Fuel is consumed without a flag (RPC_AddFuel), so cheated fuel would come back clean (HB-061).
                 foreach (string prefab in state.FuelPrefabs)
                 {
-                    fuel = SupplyPlanner.Pick(prefab, fuelWanted, false, carry, context.Sources, context.From, context.Reserved(prefab), ground);
+                    fuel = SupplyPlanner.Pick(prefab, fuelWanted, false, carry, context.Sources, context.From, context.Reserved(prefab), ground, bagOnly);
                     fuelPrefab = prefab;
                     if (fuel.Total > 0) break;
                 }

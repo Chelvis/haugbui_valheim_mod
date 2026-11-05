@@ -81,6 +81,8 @@ namespace Haugbui.UI
                 Close();
                 return;
             }
+            if (PanelInput.CopyPressed()) Copy();
+            else if (PanelInput.PastePressed()) Paste();
             _search.Tick();
             _search.RaiseAbove(_dismiss.transform);
             _search.Cover(_list.Root);

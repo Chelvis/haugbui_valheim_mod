@@ -21,7 +21,7 @@ namespace Haugbui.Core.Storage
         public Dictionary<string, int> StackCaps { get; set; } = new Dictionary<string, int>();
 
         /// <summary>
-        /// An ordinary storage chest. Taking from it leaves one of each prefab, unless the filter lists that prefab.
+        /// Storage other than a Collection Chest. Taking from it leaves one of each prefab, unless the filter lists that prefab.
         /// </summary>
         public bool KeepSeed { get; set; }
 

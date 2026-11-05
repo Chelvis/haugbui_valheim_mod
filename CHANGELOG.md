@@ -1,12 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.0.11
 
-Panel polish after 0.0.10: one search field above the filter and delivery lists, a row X, Clear all, a corner X on
-every Haugbui panel, and Edit filters / Edit requests on the vanilla chest window. A chest filter can cap how many
-stacks of an item the chest may hold. A stack that does not fit is taken in part. With ground items on, a production
-job takes what it carries, then ground drops, then chests. Outside, a living Haugbui regains 1% of max health every
-10 real seconds. Offence and defence are separate rows: 0.5, 0.8, 1.1, 1.4, 1.7, 2.0. The step and level 1 stay open.
+The bag fills to 80%, then feeds machines from what it already carries and stores the rest. Every 3 real minutes, and
+first after it leaves the tomb, emptying the bag is the next task. Damage with no creature behind it, such as eitr, a
+stake wall or fire, does not scare it or cancel the trip. Shift+C and Shift+V copy and paste a chest filter or a
+delivery request, from the editor and from the chest hover. Offence and defence are 0.5, 0.8, 1.1, 1.4, 1.7, 2.0.
 
 ## 0.0.10
 

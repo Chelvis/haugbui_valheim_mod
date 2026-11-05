@@ -40,6 +40,9 @@ namespace Haugbui.Brain
         private MonoBehaviour _target;
         private float _travelDeadline;
         private float _nextCoverage;
+        private bool _out;
+        private bool _unloadDue;
+        private double _unloadReadyAt;
 
         public HaugbuiWorker(TombController tomb)
         {
@@ -54,7 +57,11 @@ namespace Haugbui.Brain
                 new SortTombStorageProvider(),
                 new CollectionProvider(),
                 new GroundItemProvider(),
-            }, candidates => CarryCycle.HoldUnload(candidates, _tomb.Carried.Weight, _tomb.Carried.Capacity));
+            }, candidates =>
+            {
+                CarryCycle.HoldUnload(candidates, _tomb.Carried.Weight, _tomb.Carried.Capacity);
+                if (_unloadDue) CarryCycle.ForceDeposit(candidates);
+            });
             _carried = new CarriedEndpoint("carried:" + tomb.Guid, tomb.Carried);
         }
 
@@ -123,10 +130,28 @@ namespace Haugbui.Brain
             if (!_tomb.IsOwner || _tomb.State == null) return;
             if (Time.time >= _nextCoverage) RefreshCoverage();
             PruneOwnDrops();
-            if (!_tomb.CanWork) return;
+            if (!_tomb.CanWork)
+            {
+                _out = false;
+                return;
+            }
+            // Leaving the tomb, then every three real minutes after an emptying finishes.
+            if (!_out)
+            {
+                _out = true;
+                _unloadDue = true;
+            }
+            else if (!_unloadDue && Time.timeAsDouble >= _unloadReadyAt)
+                _unloadDue = true;
             if (Plan != null) Reservations.Table.Renew(Holder);
             else PlanNow();
         }
+
+        /// <summary>The next plan, once the current one finishes, empties the bag.</summary>
+        internal void RequireUnload() => _unloadDue = true;
+
+        /// <summary>Drops a due emptying so a self-test can go back to ordinary work.</summary>
+        internal void DismissUnload() => SettleUnload();
 
         public void RefreshCoverage()
         {
@@ -137,9 +162,18 @@ namespace Haugbui.Brain
         public void PlanNow()
         {
             if (Plan != null || Paused || !_tomb.CanWork || _tomb.Machine.State != HaugbuiState.Idle || _tomb.Machine.ReturnPending) return;
+            if (_unloadDue && _tomb.Carried.IsEmpty) SettleUnload();
             _context.Refresh(_tomb, Policy);
             Plan = _planner.Next(_context, Holder);
+            // Nothing left that a chest will take. The bag may still hold the rest, and the three minutes start.
+            if (_unloadDue && (Plan == null || Plan.Kind != TaskKinds.Deposit)) SettleUnload();
             if (Plan != null) Log.Debug($"Tomb {_tomb.Guid}: plan {Plan}");
+        }
+
+        private void SettleUnload()
+        {
+            _unloadDue = false;
+            _unloadReadyAt = Time.timeAsDouble + CarryCycle.ForcedUnloadSeconds;
         }
 
         /// <summary>HB-167: would it find work right now? Plans from the tomb with a separate context and reserves nothing.</summary>

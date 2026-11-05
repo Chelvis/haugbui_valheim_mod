@@ -152,6 +152,7 @@
   "haugbui_panel_rename": "Nome",
   "haugbui_msg_overflow_left": "Parte do excedente não coube. Continua no túmulo.",
   "haugbui_msg_overflow_none": "Não há excedente para recuperar.",
+  "haugbui_msg_ping_inside": "O Haugbui está dentro do sarcófago.",
   "haugbui_hover_bound": "Ligado ao túmulo",
   "haugbui_hover_ready": "Sem recarga",
   "haugbui_hover_collection": "Um Haugbui guarda o que você deixar aqui.",

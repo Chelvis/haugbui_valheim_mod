@@ -29,6 +29,19 @@ namespace Haugbui.Creature
         }
     }
 
+    /// <summary>A hit with no creature behind it (eitr, a stake wall) must not play the wraith's alert.</summary>
+    [HarmonyPatch(typeof(MonsterAI), "OnDamaged")]
+    internal static class ObjectDamageAlert
+    {
+        private static bool Prepare() => GameApiSelfCheck.IsAvailable(Core.GameApi.Features.Combat);
+
+        private static bool Prefix(MonsterAI __instance, Character attacker)
+        {
+            if (attacker != null) return true;
+            return __instance.GetComponent<HaugbuiCreature>() == null;
+        }
+    }
+
     /// <summary>The interaction gesture uses the attack clip. Its Hit event must not deal damage.</summary>
     [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.OnAttackTrigger))]
     internal static class GestureHitGuard

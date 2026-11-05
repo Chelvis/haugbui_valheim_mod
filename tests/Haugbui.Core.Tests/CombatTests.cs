@@ -206,12 +206,12 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
-        public void Damage_without_attacker_keeps_it_away_for_the_calm_time()
+        public void Damage_with_no_creature_behind_it_is_not_a_threat()
         {
             var tracker = new ThreatTracker();
             tracker.Damaged(100, null);
-            Assert.That(tracker.Threatened(100 + ThreatTracker.CalmSeconds - 0.1, _ => AttackerStatus.Gone), Is.True);
-            Assert.That(tracker.Threatened(100 + ThreatTracker.CalmSeconds + 0.1, _ => AttackerStatus.Gone), Is.False);
+            Assert.That(tracker.Threatened(100, _ => AttackerStatus.Gone), Is.False);
+            Assert.That(tracker.Attackers, Is.EqualTo(0));
         }
 
         [Test]

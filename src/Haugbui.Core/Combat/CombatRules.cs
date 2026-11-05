@@ -82,8 +82,8 @@ namespace Haugbui.Core.Combat
 
     /// <summary>
     /// HB-144: who hurt the Haugbui and whether any of them remains. An attacker remains while it is present and either
-    /// targets the Haugbui or hit it within <see cref="MemorySeconds"/>; any damage keeps it threatened for
-    /// <see cref="CalmSeconds"/>, also damage without an attacker.
+    /// targets the Haugbui or hit it within <see cref="MemorySeconds"/>. A creature's hit keeps it threatened for
+    /// <see cref="CalmSeconds"/>. A hit with no creature behind it is not recorded.
     /// </summary>
     public sealed class ThreatTracker
     {
@@ -98,8 +98,9 @@ namespace Haugbui.Core.Combat
 
         public void Damaged(double now, string attacker)
         {
+            if (string.IsNullOrEmpty(attacker)) return;
             _lastDamage = now;
-            if (!string.IsNullOrEmpty(attacker)) _lastHitBy[attacker] = now;
+            _lastHitBy[attacker] = now;
         }
 
         public bool HitRecently(string attacker, double now) =>

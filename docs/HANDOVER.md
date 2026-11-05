@@ -6,7 +6,8 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 
 ## 1. Where we are
 
-- **Version 0.0.10** (tag `v0.0.10` on `main`). Tag `v0.0.9` stays on `8d06b9f`. Milestones **M1–M10 done**.
+- **Version 0.0.11** (tag `v0.0.11` on `main`). Tag `v0.0.10` stays on `7d553e1`. Milestones **M1–M11 done**.
+  Full self-test 2026-11-05: 709 passed, 0 failed.
   M9 self-test 2026-10-21: `world backup integrity torture`, 33 passed, 0 failed. The on-disk missing-mod round trip
   (DLL removed) is still the product owner's observation; the protection table in `TECHNICAL_FEASIBILITY.md` §9.3
   stays the host-prefab design until that is written in. M8 full run 2026-10-19: 494 passed, 2 storage failures from
@@ -26,6 +27,7 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 | M8 | Combat (Longsword, nearest aggressor, raid overlap, level scaling, flee without entering) | 0.0.8 |
 | M9 | World marker and guard warning, opt-in backup, blob integrity, save/reload torture | 0.0.9 |
 | M10 | Tomb panel, hovers, chest filter, rename, localization, kitbash looks, build-menu icons | 0.0.10 |
+| M11 | Carry cycle, timed bag emptying, chest-list copy, object damage ignored | 0.0.11 |
 
 ## 2. What is next
 
@@ -33,15 +35,14 @@ Remaining milestones (tickets in `docs/IMPLEMENTATION_BACKLOG.json`):
 
 | Milestone | Tickets | Notes |
 |---|---|---|
-| **M11 Optimization + release** (next) | HB-T-084..089 | Performance budget (HB-201), multi-Haugbui validation, config review, README, Thunderstore package, regression checklist. Custom 3D models (HB-T-107) stay optional. |
-| M12 Away mode | HB-T-094..097 | Remote logistics on world data while the player is far away; spike HB-T-090 already passed. Charges tribute shifts. |
-| M13 Material piles | HB-T-118 | After M11 and M12. Off by default. Dismantle a one-material pile for a delivery or a job. Chests first or piles first, per tomb. |
+| **M12 Away mode** (next) | HB-T-094..097 | Remote logistics on world data while the player is far away; spike HB-T-090 already passed. Charges tribute shifts. |
+| M13 Material piles and fires | HB-T-118, HB-T-119 | After M12. Piles off by default. Keep-lit on a refillable Fireplace, also off by default. |
 
 ## 3. Known gaps carried forward
 
 - Tomb zone unloaded while the Haugbui is out: it despawns and resumes on the next load; the deposit happens then.
 - No custom emerge/enter VFX or idle sounds. Combat plays the Wraith's own alert effect.
-- Combat defence (incoming damage divided by the level multiplier) is still marked "to confirm" in PRD §23.
+- Combat offence and defence are confirmed: 0.5, 0.8, 1.1, 1.4, 1.7, 2.0.
 - Non-owner peers see stale state text (multiplayer is out of scope for v1).
 - Deposits do not reserve destination room (re-read when putting); each planning tick snapshots all containers in
   radius — measure in M11 (HB-201).

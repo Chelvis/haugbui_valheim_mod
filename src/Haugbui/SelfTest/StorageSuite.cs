@@ -269,6 +269,17 @@ namespace Haugbui.SelfTest
 
             yield return SetTime(FakeTime.Night);
             _t.Check("emerges to work", _tomb.Creature != null, _tomb.Machine.State.ToString());
+            if (_tomb.Creature != null)
+            {
+                Vector3 toward = _tomb.Creature.transform.position - _t.Player.transform.position;
+                toward.y = 0f;
+                bool looked = ServantFinder.Look(_tomb);
+                float face = toward.sqrMagnitude > 0.04f ? Vector3.Dot(_t.Player.transform.forward, toward.normalized) : 1f;
+                _t.Check("Shift+F on the tomb faces the Haugbui", looked && face > 0.95f, face.ToString("0.00"));
+                CreaturePing ping = _tomb.Creature.GetComponent<CreaturePing>();
+                _t.Check("the Haugbui is marked through walls", ping != null && ping.Showing);
+                ping?.Clear();
+            }
             bool sawCarriedGrid = false;
             yield return SelfTestContext.WaitFor(() =>
             {
@@ -334,6 +345,10 @@ namespace Haugbui.SelfTest
         {
             Container empty = Chest(new Vector3(2, 0, -7));
             if (!_t.Check("filter chest placed", empty != null)) yield break;
+            string hover = empty.GetHoverText();
+            _t.Check("chest hover shows copy and paste",
+                hover.Contains("Shift+C") && hover.Contains(Localization.instance.Localize("$haugbui_filter_copy"))
+                && hover.Contains("Shift+V") && hover.Contains(Localization.instance.Localize("$haugbui_filter_paste")), hover);
             var from = WorldRegistry.ToVec3(empty.transform.position);
             ContainerSnapshot snap = WorkContext.Snapshot(empty);
             _t.Check("empty filter: an empty chest receives nothing",
@@ -352,6 +367,12 @@ namespace Haugbui.SelfTest
             int capped = StorageSelector.Plan(lots, 200, new[] { snap }, from).Sum(a => a.Amount);
             _t.Check("a stack cap of one accepts a single stack", capped == oneStack, $"{capped}/{oneStack}");
             ChestFilterStore.Write(empty.m_nview.GetZDO(), new[] { "Wood" });
+            Container pasted = Chest(new Vector3(4, 0, -7));
+            ChestListHotkeys.Copy(empty);
+            if (pasted != null) ChestListHotkeys.Paste(pasted);
+            _t.Check("looking at a chest copies and pastes its filter",
+                pasted != null && FilterText(pasted) == "Wood:0", pasted != null ? FilterText(pasted) : "no chest");
+            PanelClipboard.Reset();
 
             ItemStack wood = Stack("Wood", 5);
             ItemBridge.RefreshShared(wood);
@@ -380,7 +401,11 @@ namespace Haugbui.SelfTest
                 TombPanel.StatusText);
             _t.Check("tomb panel blocks movement", TombPanel.IsOpen && !_t.Player.TakeInput());
             TombPanel.Dismiss.onClick.Invoke();
-            _t.Check("tomb corner X closes and movement works", !TombPanel.IsOpen && _t.Player.TakeInput());
+            // Inventory, the trader and the menu keep TakeInput false for a frame after they hide, and the menu also
+            // does on the frame a popup closes. The click itself has already shut the panel.
+            if (!TombPanel.IsOpen && !_t.Player.TakeInput()) yield return null;
+            _t.Check("tomb corner X closes and movement works", !TombPanel.IsOpen && _t.Player.TakeInput(),
+                $"open {TombPanel.IsOpen}, input {_t.Player.TakeInput()}, inventory {InventoryGui.IsVisible()}, menu {Menu.IsVisible()}, popup {UnifiedPopup.IsVisible()}");
             _tomb.Carried.Remove(cheated, 2);
             _tomb.Carried.Remove(stone, 5);
 

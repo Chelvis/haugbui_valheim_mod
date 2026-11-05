@@ -3467,7 +3467,7 @@
     {
       "id": "M13",
       "name": "Material piles",
-      "goal": "After M11 and M12. The Haugbui can dismantle a one-material pile for a delivery or a production job, off by default.",
+      "goal": "After M11 and M12. The Haugbui can dismantle a one-material pile, and keep refillable fires lit.",
       "tickets": [
         {
           "id": "HB-T-118",
@@ -3503,6 +3503,41 @@
             "HB-176",
             "HB-045",
             "HB-031"
+          ]
+        },
+        {
+          "id": "HB-T-119",
+          "title": "Keep refillable fires lit",
+          "description": "Not part of M11 or M12. On a Fireplace with m_canRefill and without m_infiniteFuel, Shift+E toggles a keep-lit flag on that piece and changes nothing else. Default off. Hover appends the on or off line (English keep lit, Portuguese manter aceso). While on, refill when the shown fuel (ceil of the ZDO fuel) is 1 or 0, up to m_maxFuel, one unit at a time through RPC_AddFuel, and only after the fuel value rises. The fuel item is the fire's own m_fuelItem. Sources follow HB-113. Smelter, CookingStation and ShieldGenerator are not fires. Wards and territories apply.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-061",
+            "HB-T-046"
+          ],
+          "acceptance_criteria": [
+            "Shift+E flips the hover between keep lit on and off and does not open another panel",
+            "A fire at 1 fuel is filled to its maximum",
+            "A fire above 1 is left alone",
+            "A fire with keep lit off is never fueled",
+            "A smelter is not fueled by this task",
+            "The fuel item is removed only after the fire accepts it"
+          ],
+          "components": [
+            "Brain",
+            "UI"
+          ],
+          "testing": {
+            "automated": [
+              "Refuel starts at 1 and at 0, and stops at max"
+            ],
+            "self_test": [
+              "Shift+E toggles the hover; a hearth at 1 wood is filled; an off hearth and a smelter are untouched; totals conserved"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-177",
+            "HB-045"
           ]
         }
       ]

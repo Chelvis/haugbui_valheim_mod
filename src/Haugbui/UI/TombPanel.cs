@@ -46,6 +46,7 @@ namespace Haugbui.UI
         private static readonly Dictionary<TombToggles, Text> ToggleLabels = new Dictionary<TombToggles, Text>();
         private static TombController _tomb;
         private static bool _refreshing;
+        private static bool _closing;
         private static float _openedAt;
 
         public static bool IsOpen => _root != null && _root.activeSelf;
@@ -91,9 +92,14 @@ namespace Haugbui.UI
         public static void Close()
         {
             if (!IsOpen) return;
+            // Deactivating the name field and the toggles fires their callbacks. A toggle callback would turn a
+            // setting off, or open the combat confirmation and show the panel again, while this close is in progress.
+            _closing = true;
+            PanelInput.ClearSelection();
             _root.SetActive(false);
             PanelInput.Released();
             _tomb = null;
+            _closing = false;
         }
 
         /// <summary>Called every frame by the plugin.</summary>
@@ -105,6 +111,7 @@ namespace Haugbui.UI
                 Close();
                 return;
             }
+            if (PanelInput.FindPressed()) ServantFinder.Look(_tomb);
             if (Time.frameCount % 15 == 0) Refresh();
         }
 
@@ -113,6 +120,7 @@ namespace Haugbui.UI
         {
             if (_tomb == null) return false;
             bool saved = _tomb.Rename(input);
+            if (_closing) return saved;
             if (_name != null && !_name.isFocused && _tomb != null) _name.text = _tomb.ServantName;
             Refresh();
             return saved;
@@ -354,7 +362,7 @@ namespace Haugbui.UI
 
         private static void OnToggle(TombToggles flag, bool on)
         {
-            if (_refreshing || _tomb == null) return;
+            if (_closing || _refreshing || _tomb == null) return;
             if (flag == TombToggles.Combat && on)
             {
                 RequestCombat();

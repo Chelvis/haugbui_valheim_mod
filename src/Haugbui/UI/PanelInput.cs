@@ -36,15 +36,27 @@ namespace Haugbui.UI
             return field != null && field.isFocused;
         }
 
+        public static bool ShiftHeld() => Down(KeyCode.LeftShift, held: true) || Down(KeyCode.RightShift, held: true);
+
+        public static bool CopyPressed() => !Typing() && ShiftHeld() && Down(KeyCode.C, held: false);
+
+        public static bool PastePressed() => !Typing() && ShiftHeld() && Down(KeyCode.V, held: false);
+
+        public static bool FindPressed() => !Typing() && ShiftHeld() && Down(KeyCode.F, held: false);
+
+        /// <summary>Valheim reads the keyboard through ZInput. Unity's Input does not see these keys.</summary>
+        private static bool Down(KeyCode key, bool held) =>
+            held ? ZInput.GetKey(key, false) : ZInput.GetKeyDown(key, false);
+
         /// <summary>Esc and the gamepad back button always close. E closes unless a text field is focused.</summary>
         public static bool ShouldClose(float openedAt)
         {
-            if (Input.GetKeyDown(KeyCode.Escape) || ZInput.GetButtonDown("JoyButtonB"))
+            if (ZInput.GetKeyDown(KeyCode.Escape, false) || ZInput.GetButtonDown("JoyButtonB"))
             {
                 ZInput.ResetButtonStatus("JoyButtonB");
                 return true;
             }
-            return Time.time - openedAt > 0.2f && !Typing() && Input.GetKeyDown(KeyCode.E);
+            return Time.time - openedAt > 0.2f && !Typing() && ZInput.GetKeyDown(KeyCode.E, false);
         }
     }
 }

@@ -152,6 +152,7 @@
   "haugbui_panel_rename": "Name",
   "haugbui_msg_overflow_left": "Some of the overflow did not fit. It stays in the tomb.",
   "haugbui_msg_overflow_none": "There is no overflow to retrieve.",
+  "haugbui_msg_ping_inside": "The Haugbui is inside the tomb.",
   "haugbui_hover_bound": "Bound to its tomb",
   "haugbui_hover_ready": "No cooldown",
   "haugbui_hover_collection": "A Haugbui puts away what you leave here.",

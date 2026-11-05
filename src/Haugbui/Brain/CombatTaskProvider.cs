@@ -45,6 +45,8 @@ namespace Haugbui.Brain
 
         public void OnDamaged(float damage, Character attacker)
         {
+            // The refinery cloud, a pool of eitr and a stake wall hurt it with no creature behind the hit.
+            if (attacker == null) return;
             string id = CombatGateway.IdOf(attacker);
             if (id != null) _attackers[id] = attacker;
             _threat.Damaged(Time.timeAsDouble, id);

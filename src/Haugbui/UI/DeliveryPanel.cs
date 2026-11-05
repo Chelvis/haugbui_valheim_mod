@@ -103,6 +103,8 @@ namespace Haugbui.UI
                 Close();
                 return;
             }
+            if (PanelInput.CopyPressed()) CopyDraft();
+            else if (PanelInput.PastePressed()) PasteDraft();
             _search.Tick();
             _search.RaiseAbove(_dismiss.transform);
             _search.Cover(_list.Root);

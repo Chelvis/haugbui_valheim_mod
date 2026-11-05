@@ -119,6 +119,9 @@ namespace Haugbui.SelfTest
             _t.Check("collection chest has no request ledger", _collection.GetComponent<DeliveryChest>() == null);
             string hover = _deliveryA.GetHoverText();
             _t.Check("delivery hover shows the alt-interact hint", hover.Contains(Localization.instance.Localize("$haugbui_delivery_edit")), hover);
+            _t.Check("delivery hover shows copy and paste",
+                hover.Contains("Shift+C") && hover.Contains(Localization.instance.Localize("$haugbui_delivery_copy"))
+                && hover.Contains("Shift+V") && hover.Contains(Localization.instance.Localize("$haugbui_delivery_paste")), hover);
             _t.Check("delivery hover states its role", hover.Contains(Localization.instance.Localize("$haugbui_hover_delivery")), hover);
             _t.Check("collection hover states its role",
                 _collection.GetHoverText().Contains(Localization.instance.Localize("$haugbui_hover_collection")), _collection.GetHoverText());

@@ -398,6 +398,39 @@ namespace Haugbui.SelfTest
             _t.Check("toggle on: the ground wood is taken", !Live(pile), "the drop is still there");
             _t.Check("the drop is used before the chest", !Live(pile) && Count(woodChest, "Wood") == chestBefore,
                 $"drop first {dropFirst}, chest {Count(woodChest, "Wood")}/{chestBefore}");
+
+            yield return SelfTestContext.WaitFor(() => _tomb.Worker.Plan == null, 20f);
+            StationJobs.Edit(kiln, job =>
+            {
+                ProductionJob.Edit(job, true, wood.Input, wood.Output, JobMode.Infinite, 0);
+                return true;
+            });
+            var stone = new ItemStack { Prefab = "Stone", Amount = 1, WorldLevel = Game.m_worldLevel };
+            ItemBridge.RefreshShared(stone);
+            float gap = _tomb.Carried.Capacity * CarryCycle.UnloadFraction - _tomb.Carried.Weight;
+            if (stone.UnitWeight > 0f && gap > 0f)
+                stone.Amount = Mathf.CeilToInt((gap + 0.05f) / stone.UnitWeight);
+            _tomb.Carried.Add(stone);
+            if (_t.Check("bag is full enough to unload", CarryCycle.ShouldUnload(_tomb.Carried.Weight, _tomb.Carried.Capacity),
+                    $"{_tomb.Carried.Weight:0.00}/{_tomb.Carried.Capacity:0.00}"))
+            {
+                int woodLeft = Count(woodChest, "Wood");
+                bool fetched = false;
+                float watch = Time.time + 8f;
+                while (Time.time < watch)
+                {
+                    TaskPlan plan = _tomb.Worker.Plan;
+                    if (plan != null && plan.Kind == TaskKinds.ProductionFeed)
+                        fetched |= plan.Steps.Any(s => s.Kind == StepKind.Take || s.Kind == StepKind.PickUp);
+                    yield return null;
+                }
+                _t.Check("a full bag does not fetch more for the kiln", !fetched && Count(woodChest, "Wood") == woodLeft,
+                    $"fetched {fetched}, chest {Count(woodChest, "Wood")}/{woodLeft}, weight {_tomb.Carried.Weight:0}");
+            }
+            _tomb.Carried.Remove(stone, _tomb.Carried.CountPrefab("Stone"));
+            RemovePrefab(woodChest, "Stone");
+            RemovePrefab(_tomb.GetComponent<Container>(), "Stone");
+
             StationJobs.Edit(kiln, job =>
             {
                 job.Enabled = false;
@@ -496,6 +529,14 @@ namespace Haugbui.SelfTest
 
         private static int Count(Container container, string prefab) =>
             container == null ? 0 : ItemBridge.CountPrefab(container.GetInventory(), prefab);
+
+        private static void RemovePrefab(Container container, string prefab)
+        {
+            if (container == null) return;
+            Inventory inventory = container.GetInventory();
+            foreach (ItemDrop.ItemData item in inventory.GetAllItems().Where(i => ItemBridge.PrefabName(i) == prefab).ToList())
+                inventory.RemoveItem(item);
+        }
 
         private static int Count(Container container, string prefab, bool cheated) =>
             container == null ? 0 : container.GetInventory().GetAllItems().Where(i => ItemBridge.PrefabName(i) == prefab && i.m_cheated == cheated).Sum(i => i.m_stack);

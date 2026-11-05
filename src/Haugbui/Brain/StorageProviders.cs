@@ -114,13 +114,15 @@ namespace Haugbui.Brain
             {
                 if (!Creature.ItemBridge.IsTransportable(stack)) continue;
                 if (context.NoDestination.IsWaiting(stack.KindKey, context.Now)) continue;
-                int room = StorageSelector.Plan(stack, stack.Amount, context.Destinations, context.From).Sum(a => a.Amount);
+                int available = source.Takeable(stack.Prefab);
+                if (available <= 0) continue;
+                int room = StorageSelector.Plan(stack, available, context.Destinations, context.From).Sum(a => a.Amount);
                 if (room <= 0)
                 {
                     context.NoDestination.Fail(stack.KindKey, context.Now);
                     continue;
                 }
-                int take = simulated.Add(stack.Copy(System.Math.Min(room, stack.Amount)));
+                int take = simulated.Add(stack.Copy(System.Math.Min(room, available)));
                 if (take > 0) steps.Add(new TaskStep(StepKind.Take, source.Id, stack.Copy(take), take));
             }
             return steps;

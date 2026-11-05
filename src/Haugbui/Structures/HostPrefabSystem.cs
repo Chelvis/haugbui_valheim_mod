@@ -9,6 +9,7 @@ using Haugbui.Core.Persistence;
 using Haugbui.Core.Structures;
 using Haugbui.Diagnostics;
 using Haugbui.Integration;
+using Haugbui.UI;
 using Jotunn.Configs;
 using Jotunn.Entities;
 using Jotunn.Managers;
@@ -200,7 +201,7 @@ namespace Haugbui.Structures
         {
             ZNetView view = container.m_nview;
             List<ChestFilterLine> filter = ChestFilterStore.Read(view != null && view.IsValid() ? view.GetZDO() : null);
-            string hint = "\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_filter_open";
+            string hint = "\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_filter_open" + ChestListHotkeys.HoverKeys("$haugbui_filter_copy", "$haugbui_filter_paste");
             if (filter.Count == 0) return Localization.instance.Localize(hint);
             string count = filter.Count == 1 ? "$haugbui_filter_count_one" : "$haugbui_filter_count";
             return Localization.instance.Localize(hint + "\n" + count, filter.Count.ToString());
@@ -284,7 +285,8 @@ namespace Haugbui.Structures
                 open++;
                 remaining += line.Remaining;
             }
-            result += Localization.instance.Localize("\n$haugbui_hover_delivery\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_delivery_edit") +
+            result += Localization.instance.Localize("\n$haugbui_hover_delivery\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_delivery_edit"
+                                                      + ChestListHotkeys.HoverKeys("$haugbui_delivery_copy", "$haugbui_delivery_paste")) +
                       (open > 0 ? "\n" + Localization.instance.Localize("$haugbui_delivery_hover_open", open.ToString(), remaining.ToString()) : "");
         }
 

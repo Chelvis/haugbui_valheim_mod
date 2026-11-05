@@ -192,6 +192,28 @@ namespace Haugbui.SelfTest
             if (_tomb.Creature == null) yield return Emerge();
             _tomb.Carried.Add(Stack("Wood", 12));
             _t.Check("carried items saved", _tomb.Structure.Zdo.GetByteArray(ZdoKeys.Carried.GetStableHashCode()) != null);
+            GameObject chestGo = _t.PlaceVanilla("piece_chest_wood", SelfTestContext.OnGround(_arena + new Vector3(3f, 0f, 2f)), Quaternion.identity);
+            Container chest = chestGo != null ? chestGo.GetComponentInChildren<Container>() : null;
+            if (chest != null)
+            {
+                yield return SelfTestContext.WaitFor(() => chest.m_nview != null && chest.m_nview.IsValid(), 5f);
+                ChestFilterStore.Write(chest.m_nview.GetZDO(), new[] { "Wood" });
+                yield return SelfTestContext.WaitFrames(3);
+                if (_tomb.Worker.Plan != null) _tomb.Worker.Abort("self-test");
+                yield return WaitFor(() => _tomb.Machine.State == HaugbuiState.Idle, 15f);
+                bool paused = _tomb.Worker.Paused;
+                _tomb.Worker.Paused = false;
+                _tomb.Worker.RequireUnload();
+                _tomb.Worker.PlanNow();
+                _t.Check("emptying the bag is the next task",
+                    _tomb.Worker.Plan != null && _tomb.Worker.Plan.Kind == "deposit",
+                    $"plan {_tomb.Worker.Plan}, wood {_tomb.Carried.CountPrefab("Wood")}, state {_tomb.Machine.State}");
+                if (_tomb.Worker.Plan != null) _tomb.Worker.Abort("self-test");
+                _tomb.Worker.DismissUnload();
+                _tomb.Worker.Paused = paused;
+                ZNetScene.instance.Destroy(chestGo);
+            }
+            else _t.Skip("emptying the bag is the next task", "chest was not placed");
             int before = Count("Wood");
             yield return SetTime(Noon);
             yield return WaitFor(() => _tomb.Machine.State == HaugbuiState.Dormant, 20f);
@@ -278,6 +300,16 @@ namespace Haugbui.SelfTest
             if (_tomb.Creature == null) yield return Emerge();
             HaugbuiCreature creature = _tomb.Creature;
             if (creature == null) yield break;
+            _tomb.Carried.Add(Stack("Wood", 3));
+            var poke = new HitData();
+            poke.m_damage.m_damage = 1f;
+            creature.Character.Damage(poke);
+            yield return null;
+            _t.Check("a hit with no creature behind it does not send it home",
+                _tomb.Machine.State != HaugbuiState.Fleeing && _tomb.Carried.CountPrefab("Wood") == 3,
+                _tomb.Machine.State.ToString());
+            _tomb.Carried.Remove(Stack("Wood", 0), 3);
+
             _tomb.Carried.Add(Stack("Resin", 5));
             int before = Count("Resin");
             var hit = new HitData();

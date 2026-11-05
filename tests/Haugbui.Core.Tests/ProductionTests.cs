@@ -267,5 +267,18 @@ namespace Haugbui.Core.Tests
             SupplyPick ignored = SupplyPlanner.Pick("IronOre", 8, null, Carry(), sources, new Vec3(0, 0, 0), 0, null);
             Assert.That(ignored.Takes.Select(t => t.Source), Is.EqualTo(new[] { "chest" }));
         }
+
+        [Test]
+        public void An_unloading_bag_is_not_topped_up_from_a_chest_or_the_ground()
+        {
+            CarriedInventory carry = Carry();
+            carry.Add(Ore(3));
+            var sources = new List<ContainerSnapshot> { Chest("a", 1, Ore(30)) };
+            var ground = new[] { new GroundItem { Id = "drop", Position = Vec3.Zero, Item = Ore(5) } };
+            SupplyPick pick = SupplyPlanner.Pick("IronOre", 20, null, carry, sources, Vec3.Zero, 0, ground, bagOnly: true);
+            Assert.That(pick.FromCarried, Is.EqualTo(3));
+            Assert.That(pick.Takes, Is.Empty);
+            Assert.That(pick.Total, Is.EqualTo(3));
+        }
     }
 }

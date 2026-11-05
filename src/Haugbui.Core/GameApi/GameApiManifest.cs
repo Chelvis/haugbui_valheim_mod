@@ -292,6 +292,7 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "MonsterAI", "m_targetStatic", MemberKind.Field, Features.Combat),
             M(Valheim, "MonsterAI", "GetStaticTarget", MemberKind.Method, Features.Combat),
             M(Valheim, "MonsterAI", "m_attackPlayerObjects", MemberKind.Field, Features.Combat),
+            M(Valheim, "MonsterAI", "OnDamaged", MemberKind.Method, Features.Combat, "System.Single", "Character"),
             M(Valheim, "BaseAI", "IsAlerted", MemberKind.Method, Features.Combat),
             M(Valheim, "BaseAI", "SetAlerted", MemberKind.Method, Features.Combat, "System.Boolean"),
             M(Valheim, "BaseAI", "m_lastFlee", MemberKind.Field, Features.Combat),

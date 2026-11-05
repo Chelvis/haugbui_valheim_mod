@@ -171,6 +171,24 @@ namespace Haugbui.SelfTest
                 if (Live(single)) _t.Track(single.gameObject);
             }
 
+            GameObject asksvinEgg = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab("AsksvinEgg") : null;
+            if (asksvinEgg == null) _t.Skip("asksvin egg stays", "AsksvinEgg is not in this game");
+            else if (asksvinEgg.GetComponent<EggGrow>() == null && asksvinEgg.GetComponent<EggHatch>() == null)
+                _t.Fail("asksvin egg stays", "AsksvinEgg has neither EggGrow nor EggHatch");
+            else
+            {
+                Chest(away * 9f, "AsksvinEgg");
+                ItemDrop singleAsk = DropAt("AsksvinEgg", 1, Ground(away * 11f) + Vector3.up, old: true);
+                ItemDrop stackAsk = DropAt("AsksvinEgg", 2, Ground(away * 12f) + Vector3.up, old: true);
+                int beforeAsk = Held("AsksvinEgg");
+                float askEnd = Time.time + 45f;
+                while (Time.time < askEnd && (Live(stackAsk) || _tomb.Worker.Plan != null || !_tomb.Carried.IsEmpty)) yield return null;
+                _t.Check("a single asksvin egg stays", Live(singleAsk));
+                _t.Check("a stack of asksvin eggs is still collected", !Live(stackAsk) && Held("AsksvinEgg") == beforeAsk + 2,
+                    $"live {Live(stackAsk)}, stored {Held("AsksvinEgg") - beforeAsk}");
+                if (Live(singleAsk)) _t.Track(singleAsk.gameObject);
+            }
+
             GameObject animalPrefab = null;
             if (ZNetScene.instance != null)
                 foreach (GameObject prefab in ZNetScene.instance.m_prefabs)

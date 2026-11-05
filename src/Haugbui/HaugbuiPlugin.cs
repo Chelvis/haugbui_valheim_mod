@@ -22,7 +22,7 @@ namespace Haugbui
         public const string PluginGuid = "com.kelvinmarques.haugbui";
         public const string PluginName = "Haugbui";
         // Keep in sync with HaugbuiVersion in Directory.Build.props.
-        public const string PluginVersion = "0.0.10";
+        public const string PluginVersion = "0.0.11";
 
         private Harmony _harmony;
         private bool _piecesRegistered;
@@ -90,6 +90,7 @@ namespace Haugbui
             UI.DeliveryPanel.Update();
             UI.ProductionPanel.Update();
             UI.ChestFilterPanel.Update();
+            UI.ChestListHotkeys.Update();
             UI.ChestEditButtons.Sync();
         }
 
