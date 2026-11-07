@@ -502,5 +502,37 @@ namespace Haugbui.Core.Tests
             Assert.That((read.CreatureState, read.PositionX, read.PositionY, read.PositionZ, read.HealthTime),
                 Is.EqualTo(((int)HaugbuiState.Idle, 1f, 2f, 3f, 42.0)));
         }
+
+        [Test]
+        public void Older_saves_do_not_keep_the_unread_away_bit()
+        {
+            var writer = new BlobWriter(3);
+            writer.Write("g").Write(7L).Write((int)(TombToggles.GroundItems | TombToggles.AwayMode))
+                .Write(1f).Write(double.NaN).Write(1)
+                .Write(0).Write(float.NaN).Write(0f).Write(0f).Write(double.NaN)
+                .Write(0).Write(0).Write(0).Write(0L).Write(double.NaN);
+            Assert.That(TombStateSerializer.Instance.TryDeserialize(writer.ToArray(), out TombState state), Is.EqualTo(BlobReadStatus.Ok));
+            Assert.That(state.Has(TombToggles.AwayMode), Is.False);
+            Assert.That(state.Has(TombToggles.GroundItems), Is.True);
+
+            var chosen = new TombState { Toggles = TombToggles.Defaults | TombToggles.AwayMode };
+            TombStateSerializer.Instance.TryDeserialize(TombStateSerializer.Instance.Serialize(chosen), out TombState again);
+            Assert.That(again.Has(TombToggles.AwayMode), Is.True);
+            Assert.That(new TombState().Has(TombToggles.AwayMode), Is.False);
+        }
+
+        [Test]
+        public void Older_servant_slots_drop_the_unread_away_bit()
+        {
+            var writer = new BlobWriter(1);
+            writer.Write(0).Write("Haugbui").Write("g").Write(double.NaN).Write((int)(TombToggles.Harvesting | TombToggles.AwayMode));
+            Assert.That(ServantSlotSerializer.Instance.TryDeserialize(writer.ToArray(), out ServantSlot slot), Is.EqualTo(BlobReadStatus.Ok));
+            Assert.That(slot.Toggles.HasFlag(TombToggles.AwayMode), Is.False);
+            Assert.That(slot.Toggles.HasFlag(TombToggles.Harvesting), Is.True);
+
+            var chosen = new ServantSlot { Toggles = TombToggles.Harvesting | TombToggles.AwayMode };
+            Assert.That(ServantSlots.Decode(ServantSlots.Encode(chosen), out ServantSlot again), Is.EqualTo(BlobReadStatus.Ok));
+            Assert.That(again.Toggles.HasFlag(TombToggles.AwayMode), Is.True);
+        }
     }
 }

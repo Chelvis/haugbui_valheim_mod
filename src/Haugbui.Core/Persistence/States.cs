@@ -15,7 +15,7 @@ namespace Haugbui.Core.Persistence
         CombatAcknowledged = 1 << 5,
         AwayMode = 1 << 6,
 
-        Defaults = GroundItems | Harvesting | Production | AwayMode
+        Defaults = GroundItems | Harvesting | Production
     }
 
     public sealed class TombState
@@ -68,7 +68,7 @@ namespace Haugbui.Core.Persistence
     {
         public static readonly TombStateSerializer Instance = new TombStateSerializer();
 
-        public int CurrentVersion => 3;
+        public int CurrentVersion => 4;
 
         public void Write(TombState value, BlobWriter writer)
         {
@@ -91,6 +91,8 @@ namespace Haugbui.Core.Persistence
                 DeathTime = reader.ReadDouble(),
                 LevelCache = reader.ReadInt(),
             };
+            // This bit used to ship inside Defaults, and nothing read it, so every older save has it set.
+            if (reader.SchemaVersion < 4) state.Toggles &= ~TombToggles.AwayMode;
             if (reader.SchemaVersion < 2) return state;
             state.CreatureState = reader.ReadInt();
             state.PositionX = reader.ReadFloat();

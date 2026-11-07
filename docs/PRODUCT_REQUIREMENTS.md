@@ -333,16 +333,16 @@ early.] Night-only work (without the Altar) already limits throughput.
 
 ### 13.4 Away mode (working while the player is elsewhere)
 
-Planned for release 1.1 (backlog M12), with a feasibility spike in M1; can move into 1.0 if the spike is clean.
-
-- **HB-125** While the game is running but the tomb's area is not loaded (the player is far away), the tomb keeps
-  working on world data without a visible Haugbui: sorts tomb storage and Collection Chests into storage chests,
-  fulfils Delivery Chest requests, and refills smelter/kiln/refinery inputs and fuel within capacity.
-- **HB-126** Away mode follows the same rules as the visible Haugbui (night/Altar, toggles, storage rule, wards,
-  destination-first) and is throttled by simulated travel time, so it is never faster than the visible Haugbui.
-- **HB-127** Not done in away mode: harvesting, collecting station outputs, cooking, combat. The game freezes
-  those objects while unloaded and catches up when the player returns; the visible Haugbui then collects.
-- **HB-128** Config `AwayMode.Enabled`, default ON. The tomb panel shows what was done while away (summary counters).
+- **HB-125** While the game is running, a tomb whose checkbox is on keeps its area loaded. The existing Haugbui
+  keeps flying and working. A tomb with the checkbox off does not keep its area loaded.
+- **HB-126** The same rules as when the player is there, because it is the same Haugbui: night or Altar, toggles,
+  the existing-item rule, wards, `StrictItemData`, leave-one, delivery reservations, territories, the bag and
+  tribute. There is no second budget.
+- **HB-127** Cooking, plants, beehives, ground items, fermenters and combat are not a separate simulation. They
+  keep going because the area stays loaded.
+- **HB-128** The checkbox starts off, including tombs saved before it existed. `AwayMode.Enabled` (default ON) is
+  a master switch; both must be on. The panel shows the checkbox and a warning that this uses more CPU.
+  `AwayMode.TickSeconds` stays in the config so older files load, and nothing reads it.
 - **HB-129** Nothing happens while the game is closed (world time is paused).
 
 ## 14. Death and resurrection
@@ -616,5 +616,9 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-11-03 | Object damage does not scare it (HB-144) — **to confirm** | A hit with no creature behind it is ignored. That covers the eitr refinery's cloud, refined eitr, a spike wall, and the same kind of hit from fire or smoke. It does not flee, does not play the alert, and does not cancel the trip, so ore already in the bag is still fed. A creature's hit, and a player's hit, still send it home |
 | 2026-11-04 | Keep lit (HB-177, confirmed) | M13, not M11 or M12. Every refillable Fireplace starts off, and the hover shows the off line until Shift+E. Shift+E only toggles that piece. On: "[Shift+E] keep lit (on)" / "[Shift+E] manter aceso (ligado)". Off: the same line with off / desligado. Refuel when the shown fuel is 1 or 0, filling it to the top with that fire's own fuel. Zero is included. Smelters, kilns, ovens and the shield generator are not included |
 | 2026-11-07 | Reset a finished station job (HB-112) — **to confirm** | Reset zeros supplied and produced. The target, the recipe, the mode and whether the job is on stay as they are. The same finite amount runs again. Items already in the station are not removed. Zeroing only the produced count would leave the job finished, because the supplied inputs already cover the target |
+| 2026-11-07 | Away mode keeps the area loaded (HB-125, confirmed) | A checkbox on the tomb, default off, keeps that Haugbui's area loaded while the game is running, and the existing Haugbui keeps working. Closing the game still pauses the world. The label is "Keep working while you are away" / "Continua trabalhando enquanto você está longe". The warning is "Keeps this Haugbui's area loaded while you are away. Uses more CPU and can slow the game." / "Mantém a área deste Haugbui carregada enquanto você está longe. Usa mais CPU e pode deixar o jogo lento." |
+| 2026-11-07 | Away checkbox starts off on old tombs (HB-128) — **to confirm** | The away bit used to be part of the default toggles and nothing read it, so every saved tomb had it on. Tomb saves older than schema 4, and servant slots older than schema 2, load with that bit off. A new tomb starts off |
+| 2026-11-07 | Away master switch and unused tick (HB-128) — **to confirm** | `AwayMode.Enabled` stays default on and is a master switch. The checkbox is the per-tomb choice. Both must be on. `AwayMode.TickSeconds` stays in the config so older files load. Nothing reads it |
+| 2026-11-07 | Kept area matches a player bubble (HB-125) — **to confirm** | The kept area is the same near-simulation distance the game uses around a player, centered on the tomb. One new zone is generated per tick. There is no separate count of what was done while away |
 
 Open: every row marked **to confirm**.

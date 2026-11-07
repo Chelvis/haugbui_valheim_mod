@@ -25,21 +25,27 @@ namespace Haugbui.Core.Persistence
     {
         public static readonly ServantSlotSerializer Instance = new ServantSlotSerializer();
 
-        public int CurrentVersion => 1;
+        public int CurrentVersion => 2;
 
         public void Write(ServantSlot value, BlobWriter writer)
         {
             writer.Write(value.Index).Write(value.Name).Write(value.TombGuid).Write(value.DeathTime).Write((int)value.Toggles);
         }
 
-        public ServantSlot Read(BlobReader reader) => new ServantSlot
+        public ServantSlot Read(BlobReader reader)
         {
-            Index = reader.ReadInt(),
-            Name = reader.ReadString(),
-            TombGuid = reader.ReadString(),
-            DeathTime = reader.ReadDouble(),
-            Toggles = (TombToggles)reader.ReadInt(),
-        };
+            var slot = new ServantSlot
+            {
+                Index = reader.ReadInt(),
+                Name = reader.ReadString(),
+                TombGuid = reader.ReadString(),
+                DeathTime = reader.ReadDouble(),
+                Toggles = (TombToggles)reader.ReadInt(),
+            };
+            // Slots copied Defaults, which included this bit before anything read it.
+            if (reader.SchemaVersion < 2) slot.Toggles &= ~TombToggles.AwayMode;
+            return slot;
+        }
     }
 
     public static class ServantSlots

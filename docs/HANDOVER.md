@@ -6,8 +6,9 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 
 ## 1. Where we are
 
-- **Version 0.0.11** (tag `v0.0.11` on `main`). Tag `v0.0.10` stays on `7d553e1`. Milestones **M1–M11 done**.
-  Full self-test 2026-11-05: 709 passed, 0 failed.
+- **Version 0.0.12** (tag `v0.0.12` on `main`). Tag `v0.0.11` stays on `533acdc`. Tag `v0.0.10` stays on `7d553e1`.
+  Milestones **M1–M12 done**. Away suite 2026-11-07, Valheim 1.0.21: 16 passed, 0 failed, player 514 m from the tomb.
+  Full self-test 2026-11-05 (0.0.11): 709 passed, 0 failed.
   M9 self-test 2026-10-21: `world backup integrity torture`, 33 passed, 0 failed. The on-disk missing-mod round trip
   (DLL removed) is still the product owner's observation; the protection table in `TECHNICAL_FEASIBILITY.md` §9.3
   stays the host-prefab design until that is written in. M8 full run 2026-10-19: 494 passed, 2 storage failures from
@@ -28,6 +29,7 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 | M9 | World marker and guard warning, opt-in backup, blob integrity, save/reload torture | 0.0.9 |
 | M10 | Tomb panel, hovers, chest filter, rename, localization, kitbash looks, build-menu icons | 0.0.10 |
 | M11 | Carry cycle, timed bag emptying, chest-list copy, object damage ignored | 0.0.11 |
+| M12 | Opt-in keep-loaded area; the existing Haugbui keeps working. The game closed still pauses the world | 0.0.12 |
 
 ## 2. What is next
 
@@ -35,12 +37,11 @@ Remaining milestones (tickets in `docs/IMPLEMENTATION_BACKLOG.json`):
 
 | Milestone | Tickets | Notes |
 |---|---|---|
-| **M12 Away mode** (next) | HB-T-094..097 | Remote logistics on world data while the player is far away; spike HB-T-090 already passed. Charges tribute shifts. |
-| M13 Material piles and fires | HB-T-118, HB-T-119 | After M12. Piles off by default. Keep-lit on a refillable Fireplace, also off by default. |
+| **M13 Material piles and fires** (next) | HB-T-118, HB-T-119 | Piles off by default. Keep-lit on a refillable Fireplace, also off by default. |
 
 ## 3. Known gaps carried forward
 
-- Tomb zone unloaded while the Haugbui is out: it despawns and resumes on the next load; the deposit happens then.
+- A tomb with the away checkbox off still unloads when the player leaves: the Haugbui despawns and resumes on the next load. A checked tomb stays loaded while the game is open.
 - No custom emerge/enter VFX or idle sounds. Combat plays the Wraith's own alert effect.
 - Combat offence and defence are confirmed: 0.5, 0.8, 1.1, 1.4, 1.7, 2.0.
 - Non-owner peers see stale state text (multiplayer is out of scope for v1).

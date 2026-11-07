@@ -16,7 +16,7 @@ harvest your fields and keep your smelters running — while you go adventuring.
 </div>
 
 > [!NOTE]
-> Version **0.0.11** is the last tagged build.
+> Version **0.0.12** is the last tagged build.
 > Leia em português: [README.pt-BR.md](README.pt-BR.md).
 
 ---
@@ -120,7 +120,8 @@ same moment and duplicate or lose it. Give those mods a different set of chests,
 | M9 | World safety: marker and warning, opt-in backup, blob integrity, save/reload checks | ✅ (0.0.9) |
 | M10 | Tomb panel, hovers, chest filter, localization, structure looks and build-menu icons | ✅ (0.0.10) |
 | M11 | Carry cycle, timed bag emptying, chest-list copy, object damage ignored | ✅ (0.0.11) |
-| M12 | Away mode (release 1.1) | ⏳ |
+| M12 | Away mode: an opted-in tomb keeps its area loaded | ✅ (0.0.12) |
+| M13 | Material piles and keep-lit fires | ⏳ |
 
 The full plan lives in [`docs/`](docs):
 [requirements](docs/PRODUCT_REQUIREMENTS.md) ·

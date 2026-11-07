@@ -9,6 +9,7 @@ using Haugbui.Creature;
 using Haugbui.Structures;
 using Jotunn.Managers;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Haugbui.UI
@@ -17,7 +18,7 @@ namespace Haugbui.UI
     internal static class TombPanel
     {
         private const float Width = 480f;
-        private const float Height = 788f;
+        private const float Height = 822f;
         private const float Inset = 24f;
         private const float ContentWidth = Width - Inset * 2f;
         private const int OfferRows = 3;
@@ -29,6 +30,7 @@ namespace Haugbui.UI
             (TombToggles.Combat, "$haugbui_panel_combat"),
             (TombToggles.Production, "$haugbui_panel_production"),
             (TombToggles.Resting, "$haugbui_panel_rest"),
+            (TombToggles.AwayMode, "$haugbui_panel_away"),
         };
 
         private static GameObject _root;
@@ -38,6 +40,7 @@ namespace Haugbui.UI
         private static Text _statusSide;
         private static Text _carried;
         private static Text _tribute;
+        private static GameObject _awayTip;
         private static Button _retrieve;
         private static Button _find;
         private static Button _dismiss;
@@ -83,6 +86,7 @@ namespace Haugbui.UI
             _builtFor = values;
             _tomb = tomb;
             _openedAt = Time.time;
+            if (_awayTip != null) _awayTip.SetActive(false);
             Refresh();
             if (!_root.activeSelf)
             {
@@ -175,16 +179,17 @@ namespace Haugbui.UI
                 labelRect.anchoredPosition = new Vector2(Inset + 36f, y);
                 text.alignment = TextAnchor.MiddleLeft;
                 ToggleLabels[flag] = text;
+                if (flag == TombToggles.AwayMode) AddAwayWarning(gui, text, y);
             }
 
-            _tribute = Block(gui, Inset, 500f, ContentWidth, 44f);
+            _tribute = Block(gui, Inset, 534f, ContentWidth, 44f);
             Offers.Clear();
             IReadOnlyList<KeyValuePair<string, int>> valuables = HaugbuiPlugin.Instance.Settings.TributeTable.Values;
             int columns = (valuables.Count + OfferRows - 1) / OfferRows;
             if (columns < 1) columns = 1;
             const float offerGap = 12f;
             float buttonWidth = (ContentWidth - offerGap * (columns - 1)) / columns;
-            const float offerTop = 560f;
+            const float offerTop = 594f;
             for (int i = 0; i < valuables.Count; i++)
             {
                 string prefab = valuables[i].Key;
@@ -272,6 +277,11 @@ namespace Haugbui.UI
                 Localization.instance.Localize("$haugbui_panel_activity") + " " + Localization.instance.Localize(_tomb.Worker.Activity ?? "$haugbui_activity_none"),
             });
 
+            if (_awayTip != null)
+            {
+                Text tip = _awayTip.GetComponentInChildren<Text>();
+                if (tip != null) tip.text = Localization.instance.Localize("$haugbui_panel_away_warn");
+            }
             foreach ((TombToggles flag, string label) in Toggles)
             {
                 string requirement = Requirement(flag, structure);
@@ -359,6 +369,66 @@ namespace Haugbui.UI
             int left = _tomb.RetrieveOverflow(Player.m_localPlayer);
             if (left > 0) Player.m_localPlayer.Message(MessageHud.MessageType.Center, "$haugbui_msg_overflow_left");
             Refresh();
+        }
+
+        private static void AddAwayWarning(GUIManager gui, Text label, float y)
+        {
+            var labelRect = (RectTransform)label.transform;
+            labelRect.sizeDelta = new Vector2(ContentWidth - 68f, 32f);
+            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+
+            Text mark = gui.CreateText("\u26a0", _root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                Vector2.zero, gui.AveriaSerifBold, 18, new Color(0.95f, 0.72f, 0.25f), true, Color.black, 28f, 28f, false).GetComponent<Text>();
+            var markRect = (RectTransform)mark.transform;
+            markRect.pivot = new Vector2(0.5f, 0.5f);
+            markRect.anchoredPosition = new Vector2(Width - Inset - 16f, y);
+            mark.alignment = TextAnchor.MiddleCenter;
+            mark.raycastTarget = true;
+
+            var tip = new GameObject("AwayWarning", typeof(RectTransform), typeof(Image));
+            tip.transform.SetParent(_root.transform, false);
+            var tipRect = (RectTransform)tip.transform;
+            tipRect.anchorMin = tipRect.anchorMax = new Vector2(0f, 1f);
+            tipRect.pivot = new Vector2(0f, 1f);
+            tipRect.sizeDelta = new Vector2(ContentWidth, 68f);
+            tipRect.anchoredPosition = new Vector2(Inset, y - 22f);
+            Image plate = tip.GetComponent<Image>();
+            plate.color = new Color(0.08f, 0.07f, 0.05f, 0.95f);
+            plate.raycastTarget = false;
+            Image panel = _root.GetComponent<Image>();
+            if (panel != null) plate.sprite = panel.sprite;
+
+            Text tipText = gui.CreateText(Localization.instance.Localize("$haugbui_panel_away_warn"), tip.transform,
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(8f, -4f), gui.AveriaSerifBold, 14, Color.white,
+                true, Color.black, ContentWidth - 16f, 60f, false).GetComponent<Text>();
+            var tipTextRect = (RectTransform)tipText.transform;
+            tipTextRect.pivot = new Vector2(0f, 1f);
+            tipTextRect.anchoredPosition = new Vector2(8f, -4f);
+            tipText.alignment = TextAnchor.UpperLeft;
+            tipText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            tipText.raycastTarget = false;
+            tip.SetActive(false);
+            _awayTip = tip;
+
+            AwayHint hint = mark.gameObject.AddComponent<AwayHint>();
+            hint.Tip = tip;
+        }
+
+        private sealed class AwayHint : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+        {
+            public GameObject Tip;
+
+            public void OnPointerEnter(PointerEventData eventData)
+            {
+                if (Tip == null) return;
+                Tip.SetActive(true);
+                Tip.transform.SetAsLastSibling();
+            }
+
+            public void OnPointerExit(PointerEventData eventData)
+            {
+                if (Tip != null) Tip.SetActive(false);
+            }
         }
 
         private static string Requirement(TombToggles flag, HaugbuiStructure structure)

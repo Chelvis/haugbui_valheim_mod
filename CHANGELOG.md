@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.0.12
+
+A tomb checkbox, off by default, keeps that Haugbui's area loaded while you are away, so the same Haugbui keeps
+working. Closing the game still pauses the world. The mark beside the checkbox warns that this uses more CPU.
 
 Reset on a station panel zeros the supplied and produced counts and runs that same finite amount again. The tomb
 panel has Find Haugbui, and the tomb hover shows Shift+F for the same look and the 5 second silhouette. The key

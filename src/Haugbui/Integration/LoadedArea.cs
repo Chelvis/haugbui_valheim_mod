@@ -10,7 +10,10 @@ namespace Haugbui.Integration
         public static bool IsLoaded(Vector3 point)
         {
             if (ZoneSystem.instance == null || ZNet.instance == null) return false;
-            return ZoneSystem.instance.IsZoneLoaded(point) && ZNetScene.InActiveArea(point, ZNet.instance.GetReferencePosition());
+            if (!ZoneSystem.instance.IsZoneLoaded(point)) return false;
+            // A tomb that stays loaded is its own active area, so work there does not wait for the player.
+            if (ZNetScene.InActiveArea(point, ZNet.instance.GetReferencePosition())) return true;
+            return KeepLoaded.Inside(point);
         }
 
         public static float Coverage(Vector3 center, float radius, float step) =>

@@ -3340,13 +3340,13 @@
     },
     {
       "id": "M12",
-      "name": "Away mode (remote worker)",
-      "goal": "The tomb keeps doing logistics on world data while the player is elsewhere in the world. Planned as release 1.1 so the core ships first; can be pulled into 1.0 if the spike is clean.",
+      "name": "Away mode (keep the area loaded)",
+      "goal": "A tomb checkbox, default off, keeps that Haugbui's area loaded while the game is running. The existing Haugbui keeps working. Closing the game still pauses the world.",
       "tickets": [
         {
           "id": "HB-T-094",
-          "title": "RemoteWorkerService and hand-over",
-          "description": "Single service ticking every AwayMode.TickSeconds (default 10 s) over tombs whose zone is not instantiated; rebuilds worker state from ZDOs; hand-over flag so the visible Haugbui and the remote worker never run at once; travel-time budget so remote throughput never exceeds the visible Haugbui; night/Altar rules via ITimeSource; config AwayMode.Enabled. Reuses WorkBudget from HB-T-098. Charges the tribute shift like the visible Haugbui (HB-167).",
+          "title": "Keep an opted-in tomb's area loaded",
+          "description": "While AwayMode.Enabled is on, a tomb whose checkbox is on keeps the same near-simulation bubble a player would, centered on the tomb. Terrain TTL is refreshed and the tomb's objects stay instantiated, including after a login far away. The existing Haugbui keeps working, so night, tribute, the bag and every other rule stay on that worker. TickSeconds is unused. A missing API member disables this feature only.",
           "priority": "P1",
           "dependencies": [
             "HB-T-090",
@@ -3357,15 +3357,15 @@
           ],
           "acceptance_criteria": [
             "No work while the game is closed",
-            "Never both remote and physical worker for one tomb",
-            "Remote throughput ≤ physical throughput in a timed comparison"
+            "A tomb with the checkbox off does not keep its area loaded",
+            "A tomb with the checkbox on keeps the existing Haugbui; there is no second worker"
           ],
           "components": [
-            "RemoteWorkerService"
+            "KeepLoaded"
           ],
           "testing": {
             "automated": [
-              "Travel budget and hand-over state tests"
+              "Old tomb and servant blobs load with the away bit off; a current save keeps an explicit choice"
             ],
             "manual": [
               "Leave base for a night, return, compare"
@@ -3379,8 +3379,8 @@
         },
         {
           "id": "HB-T-095",
-          "title": "Remote sorting and delivery",
-          "description": "Remote providers for tomb storage/Collection Chest sorting and Delivery Chest requests on ZDO inventories, using the same StorageSelector, DeliveryLedger, access policy (ward ZDOs) and destination-first transfers.",
+          "title": "Sorting and delivery while the area stays loaded",
+          "description": "Sorting and delivery are the existing worker, running because the tomb and its chests stay instantiated. No separate inventory writes.",
           "priority": "P1",
           "dependencies": [
             "HB-T-094",
@@ -3388,16 +3388,16 @@
             "HB-T-053"
           ],
           "acceptance_criteria": [
-            "Same results as the physical worker on the same base",
-            "Item totals conserved across save/reload during remote work"
+            "The same worker sorts and delivers; item totals stay conserved",
+            "An unchecked tomb does not stay loaded"
           ],
           "components": [
-            "RemoteWorkerService",
-            "TransferService"
+            "KeepLoaded",
+            "HaugbuiWorker"
           ],
           "testing": {
             "automated": [
-              "Conservation tests on serialized inventories"
+              "Self-test away: the checkbox and the master switch"
             ],
             "manual": [
               "Away-and-back test"
@@ -3410,21 +3410,19 @@
         },
         {
           "id": "HB-T-096",
-          "title": "Remote station refill",
-          "description": "Top up smelter/blast furnace/kiln/refinery queues and fuel on ZDO keys within capacity for active jobs; no output collection, cooking, cauldron, harvesting or combat remotely; key list kept in Haugbui.Core/GameApi/GameApiManifest.cs and checked by the API self-check.",
+          "title": "Stations, cooking and the ground stay live",
+          "description": "Smelters, cooking, plants, beehives, fermenters, ground items and combat keep going because their objects stay loaded. Nothing writes their stocks. The members used to pin the area are in GameApiManifest under RemoteWork.",
           "priority": "P1",
           "dependencies": [
             "HB-T-094",
             "HB-T-061"
           ],
           "acceptance_criteria": [
-            "Queue/fuel never exceed capacity",
-            "Station processes remote queue on return",
-            "Unsupported stations untouched"
+            "No stock is written by the away path",
+            "A missing RemoteWork member leaves the checkbox saved and the area unloaded"
           ],
           "components": [
-            "RemoteWorkerService",
-            "ProductionStationAdapter"
+            "KeepLoaded"
           ],
           "testing": {
             "automated": [],
@@ -3439,15 +3437,16 @@
         },
         {
           "id": "HB-T-097",
-          "title": "Away summary in the tomb panel",
-          "description": "Counters of what was done while away (items sorted, delivered, ore/fuel loaded) shown on return and in the panel.",
+          "title": "Away checkbox on the tomb panel",
+          "description": "One checkbox, default off, with the agreed label and a hover warning about CPU. English and Portuguese. There is no away ledger.",
           "priority": "P2",
           "dependencies": [
             "HB-T-094",
             "HB-T-080"
           ],
           "acceptance_criteria": [
-            "Summary matches the debug ledger"
+            "The checkbox starts off, including a tomb saved before this version",
+            "The warning is on the alert mark"
           ],
           "components": [
             "UI"

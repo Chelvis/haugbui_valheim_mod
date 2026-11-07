@@ -318,6 +318,14 @@ namespace Haugbui.Core.GameApi
             M(Valheim, "World", "m_fileSource", MemberKind.Field, Features.WorldSafety),
             M(Valheim, "World", "m_worldName", MemberKind.Field, Features.WorldSafety),
             M("assembly_utils", "FileHelpers", null, MemberKind.Type, Features.WorldSafety),
+
+            M(Valheim, "ZoneSystem", "Update", MemberKind.Method, Features.RemoteWork),
+            M(Valheim, "ZoneSystem", "PokeLocalZone", MemberKind.Method, Features.RemoteWork),
+            M(Valheim, "ZNetScene", "CreateDestroyObjects", MemberKind.Method, Features.RemoteWork),
+            M(Valheim, "ZNetScene", "RemoveObjects", MemberKind.Method, Features.RemoteWork),
+            M(Valheim, "ZNetScene", "CreateObjects", MemberKind.Method, Features.RemoteWork),
+            M(Valheim, "ZDOMan", "FindSectorObjects", MemberKind.Method, Features.RemoteWork),
+            M(Valheim, "ZNet", "GetSyncedSimulationDistance", MemberKind.Method, Features.RemoteWork),
         };
 
         public static IEnumerable<string> FeaturesOf(IEnumerable<ApiMember> members) =>

@@ -18,5 +18,8 @@ namespace Haugbui.Integration
         public const string Requests = "haugbui_requests";
         public const string Job = "haugbui_job";
         public const string Filter = "haugbui_filter";
+
+        /// <summary>1 while this tomb asked to keep its area loaded. The checkbox is the source of truth; this is how a far tomb is found.</summary>
+        public const string KeepLoaded = "haugbui_keep";
     }
 }

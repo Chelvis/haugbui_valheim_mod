@@ -30,6 +30,13 @@ namespace Haugbui.Creature
 
         private static readonly List<TombController> Instances = new List<TombController>();
 
+        internal static void CollectAwayAnchors(List<Vector3> into)
+        {
+            foreach (TombController tomb in Instances)
+                if (tomb != null && tomb.State != null && tomb.State.Has(TombToggles.AwayMode))
+                    into.Add(tomb.transform.position);
+        }
+
         private HaugbuiStructure _tomb;
         private PersistentSlot<List<ItemStack>> _carriedSlot;
         private PersistentSlot<List<ItemStack>> _overflowSlot;
@@ -184,6 +191,7 @@ namespace Haugbui.Creature
                 if (!_tomb.BlobsBlocked)
                     Log.Error($"Tomb {_tomb.Guid}: carried inventory unreadable; it is kept untouched and this tomb will not run.");
                 _tomb.BlobsBlocked = true;
+                KeepLoaded.Stamp(_tomb.Zdo, false);
                 WearNTear blocked = GetComponent<WearNTear>();
                 if (blocked != null) blocked.m_onDestroyed += () => WorldSafety.RecordLive(_tomb.Guid);
                 return;
@@ -208,6 +216,7 @@ namespace Haugbui.Creature
             WearNTear wear = GetComponent<WearNTear>();
             if (wear != null) wear.m_onDestroyed += OnTombDestroyed;
             gameObject.AddComponent<CountdownLabel>();
+            KeepLoaded.Stamp(_tomb.Zdo, State != null && State.Has(TombToggles.AwayMode));
             Instances.Add(this);
             _planTick = HaugbuiPlugin.Instance.Scheduler.Register("plan:" + _tomb.Guid,
                 HaugbuiPlugin.Instance.Settings.PlanningIntervalSeconds.Value, Worker.Tick, Time.timeAsDouble);
@@ -216,6 +225,7 @@ namespace Haugbui.Creature
         private void OnDestroy()
         {
             Instances.Remove(this);
+            KeepLoaded.Invalidate();
             HaugbuiPlugin.Instance?.Scheduler?.Unregister(_planTick);
             Worker?.ReleaseAll();
             // Zone unload or logout: the creature goes with the tomb; the saved state resumes it on the next load.
@@ -611,6 +621,7 @@ namespace Haugbui.Creature
 
             State.Set(toggle, on);
             SaveStateIfChanged();
+            if (toggle == TombToggles.AwayMode) KeepLoaded.Stamp(_tomb.Zdo, on);
             TombToggles toggles = State.Toggles;
             UpdateSlot(s => s.Toggles = toggles);
             TickNow();

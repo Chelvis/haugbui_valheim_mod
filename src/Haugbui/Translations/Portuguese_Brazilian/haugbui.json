@@ -51,6 +51,8 @@
   "haugbui_panel_combat": "Defender o local de sepultamento",
   "haugbui_panel_production": "Produção",
   "haugbui_panel_rest": "Descansar no túmulo",
+  "haugbui_panel_away": "Continua trabalhando enquanto você está longe",
+  "haugbui_panel_away_warn": "Mantém a área deste Haugbui carregada enquanto você está longe. Usa mais CPU e pode deixar o jogo lento.",
   "haugbui_panel_needs_longsword": "requer a Espada Longa do Rei Caído",
   "haugbui_panel_needs_level": "requer túmulo nível $1",
   "haugbui_panel_open_storage": "Depósito do túmulo",
