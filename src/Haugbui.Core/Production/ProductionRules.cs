@@ -59,6 +59,17 @@ namespace Haugbui.Core.Production
         public static int Remaining(StationJobState job) =>
             job.Mode == JobMode.Infinite ? -1 : Math.Max(0, job.Target - job.Produced);
 
+        /// <summary>
+        /// Starts the same batch again. Supplied has to go too: a finite job is finished once the inputs
+        /// already cover the target, even if the collected count is put back to zero.
+        /// </summary>
+        public static void ResetProgress(StationJobState job)
+        {
+            if (job == null) return;
+            job.Supplied = 0;
+            job.Produced = 0;
+        }
+
         /// <summary>Panel edit: a new recipe starts a new count; other edits keep the progress.</summary>
         public static void Edit(StationJobState job, bool enabled, string input, string output, JobMode mode, int target)
         {

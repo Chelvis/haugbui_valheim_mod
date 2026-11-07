@@ -37,6 +37,11 @@ namespace Haugbui.Brain
 
         public static void Set(string station, string text) => Lines[station] = (text, Time.time);
 
+        public static void Forget(string station)
+        {
+            if (station != null) Lines.Remove(station);
+        }
+
         /// <summary>Null when no Haugbui looked at the station recently.</summary>
         public static string Get(string station) =>
             Lines.TryGetValue(station, out (string Text, float At) line) && Time.time - line.At < FreshSeconds ? line.Text : null;

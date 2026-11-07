@@ -272,7 +272,8 @@ namespace Haugbui.Structures
                 Localization.instance.Localize("$haugbui_panel_cooldown", cooldown),
             });
             result = name + "\n" + body + tribute + actions +
-                     Localization.instance.Localize("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_panel_open");
+                     Localization.instance.Localize("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_panel_open"
+                                                    + TombFindHotkey.HoverLine());
         }
 
         private static void DeliveryHover(Container container, ref string result)

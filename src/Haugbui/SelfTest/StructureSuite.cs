@@ -203,7 +203,9 @@ namespace Haugbui.SelfTest
                 controller != null && tombHover.Contains(controller.ServantName) && tombHover.Contains(levelText)
                 && tombHover.Contains(Localization.instance.Localize("$haugbui_panel_state"))
                 && tombHover.Contains(Localization.instance.Localize("$haugbui_panel_health"))
-                && tombHover.Contains(cooldownLabel), tombHover);
+                && tombHover.Contains(cooldownLabel)
+                && tombHover.Contains("Shift+F")
+                && tombHover.Contains(Localization.instance.Localize("$haugbui_panel_find")), tombHover);
             _t.Check("tomb hover offset", !float.IsNaN(_tomb.GetComponent<Container>().GetHoverOffset()));
             HaugbuiStructure bound = _upgrades.FirstOrDefault(u => u != null);
             if (bound != null)

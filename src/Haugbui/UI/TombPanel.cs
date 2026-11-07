@@ -17,7 +17,7 @@ namespace Haugbui.UI
     internal static class TombPanel
     {
         private const float Width = 480f;
-        private const float Height = 740f;
+        private const float Height = 788f;
         private const float Inset = 24f;
         private const float ContentWidth = Width - Inset * 2f;
         private const int OfferRows = 3;
@@ -39,6 +39,7 @@ namespace Haugbui.UI
         private static Text _carried;
         private static Text _tribute;
         private static Button _retrieve;
+        private static Button _find;
         private static Button _dismiss;
         private static string _builtFor;
         private static readonly List<(string Prefab, Button Button)> Offers = new List<(string, Button)>();
@@ -66,6 +67,7 @@ namespace Haugbui.UI
         internal static string CarriedText => _carried != null ? _carried.text : string.Empty;
         internal static string TitleText => _title != null ? _title.text : string.Empty;
         internal static Button Dismiss => _dismiss;
+        internal static Button Find => _find;
 
         public static void Open(TombController tomb)
         {
@@ -111,7 +113,6 @@ namespace Haugbui.UI
                 Close();
                 return;
             }
-            if (PanelInput.FindPressed()) ServantFinder.Look(_tomb);
             if (Time.frameCount % 15 == 0) Refresh();
         }
 
@@ -197,6 +198,7 @@ namespace Haugbui.UI
                 Offers.Add((prefab, button.GetComponent<Button>()));
             }
 
+            _find = BottomButton(gui, "$haugbui_panel_find", Inset, ContentWidth, FindServant, 76f).GetComponent<Button>();
             float half = (ContentWidth - 12f) / 2f;
             _retrieve = BottomButton(gui, "$haugbui_panel_retrieve", Inset, half, Retrieve).GetComponent<Button>();
             BottomButton(gui, "$haugbui_panel_open_storage", Inset + half + 12f, half, OpenStorage);
@@ -219,10 +221,10 @@ namespace Haugbui.UI
             return text;
         }
 
-        private static GameObject BottomButton(GUIManager gui, string label, float left, float width, UnityEngine.Events.UnityAction action)
+        private static GameObject BottomButton(GUIManager gui, string label, float left, float width, UnityEngine.Events.UnityAction action, float y = 32f)
         {
             GameObject button = gui.CreateButton(Localization.instance.Localize(label), _root.transform,
-                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(left + width / 2f, 32f), width, 36f);
+                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(left + width / 2f, y), width, 36f);
             button.GetComponent<Button>().onClick.AddListener(action);
             return button;
         }
@@ -337,6 +339,13 @@ namespace Haugbui.UI
             if (!_tomb.Offer(prefab, Player.m_localPlayer, OfferCount(prefab)))
                 Player.m_localPlayer?.Message(MessageHud.MessageType.Center, "$haugbui_msg_offer_failed");
             Refresh();
+        }
+
+        private static void FindServant()
+        {
+            TombController tomb = _tomb;
+            Close();
+            ServantFinder.Look(tomb);
         }
 
         private static void Retrieve()

@@ -5,7 +5,7 @@ namespace Haugbui.UI
 {
     /// <summary>
     /// The filter and delivery editors stay open while the player can still take input, so C and V
-    /// would toggle walk and auto loot. Shift+F on the tomb would do the same for whatever F is bound to.
+    /// would toggle walk and auto loot. Shift+F on the tomb hover would do the same for whatever F is bound to.
     /// </summary>
     [HarmonyPatch(typeof(ZInput), nameof(ZInput.GetButtonDown))]
     internal static class PanelShortcutGuard
@@ -16,7 +16,7 @@ namespace Haugbui.UI
             bool walkOrLoot = name == "ToggleWalk" || name == "AutoPickup";
             // C walks and V picks up. Shift+C and Shift+V on a chest, or either key while an editor is open, are the list.
             bool listKeys = walkOrLoot && (editors || (PanelInput.ShiftHeld() && ChestListHotkeys.AimedAtList()));
-            bool findKey = TombPanel.IsOpen && PanelInput.ShiftHeld() && BoundToKeyboardF(name);
+            bool findKey = !TombPanel.IsOpen && PanelInput.ShiftHeld() && TombFindHotkey.AimedAtTomb() && BoundToKeyboardF(name);
             if (!listKeys && !findKey) return true;
             ZInput.ResetButtonStatus(name);
             __result = false;

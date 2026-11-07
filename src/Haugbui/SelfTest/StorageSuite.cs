@@ -273,9 +273,12 @@ namespace Haugbui.SelfTest
             {
                 Vector3 toward = _tomb.Creature.transform.position - _t.Player.transform.position;
                 toward.y = 0f;
-                bool looked = ServantFinder.Look(_tomb);
+                TombPanel.Open(_tomb);
+                yield return null;
+                bool looked = TombPanel.Find != null;
+                if (looked) TombPanel.Find.onClick.Invoke();
                 float face = toward.sqrMagnitude > 0.04f ? Vector3.Dot(_t.Player.transform.forward, toward.normalized) : 1f;
-                _t.Check("Shift+F on the tomb faces the Haugbui", looked && face > 0.95f, face.ToString("0.00"));
+                _t.Check("Find Haugbui faces it and closes the panel", looked && !TombPanel.IsOpen && face > 0.95f, face.ToString("0.00"));
                 CreaturePing ping = _tomb.Creature.GetComponent<CreaturePing>();
                 _t.Check("the Haugbui is marked through walls", ping != null && ping.Showing);
                 ping?.Clear();

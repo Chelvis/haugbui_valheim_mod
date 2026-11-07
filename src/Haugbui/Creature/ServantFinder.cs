@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 
 namespace Haugbui.Creature
 {
-    /// <summary>From the tomb panel, Shift+F turns the camera toward the Haugbui and marks it for a few seconds.</summary>
+    /// <summary>Find Haugbui, from the tomb button or from Shift+F on the tomb hover, turns the camera and marks it for a few seconds.</summary>
     internal static class ServantFinder
     {
         internal static bool Look(TombController tomb)

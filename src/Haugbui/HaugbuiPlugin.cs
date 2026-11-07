@@ -91,6 +91,7 @@ namespace Haugbui
             UI.ProductionPanel.Update();
             UI.ChestFilterPanel.Update();
             UI.ChestListHotkeys.Update();
+            UI.TombFindHotkey.Update();
             UI.ChestEditButtons.Sync();
         }
 

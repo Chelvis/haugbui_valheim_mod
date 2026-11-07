@@ -105,6 +105,25 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void Reset_clears_both_counts_and_the_same_target_runs_again()
+        {
+            StationJobState job = Finite(50);
+            ProductionJob.RecordSupplied(job, 50);
+            ProductionJob.RecordProduced(job, 50, 1);
+            Assert.That(ProductionJob.Phase(job, 1, true), Is.EqualTo(JobPhase.Complete));
+
+            job.Produced = 0;
+            Assert.That(ProductionJob.InputsWanted(job, 1), Is.EqualTo(0));
+            Assert.That(ProductionJob.Phase(job, 1, true), Is.EqualTo(JobPhase.Complete));
+
+            ProductionJob.ResetProgress(job);
+            Assert.That(new[] { job.Supplied, job.Produced, job.Target }, Is.EqualTo(new[] { 0, 0, 50 }));
+            Assert.That(ProductionJob.InputsWanted(job, 1), Is.EqualTo(50));
+            Assert.That(ProductionJob.Phase(job, 1, true), Is.EqualTo(JobPhase.Feeding));
+            Assert.That(job.Enabled, Is.True);
+        }
+
+        [Test]
         public void Lowering_the_target_below_supplied_stops_feeding()
         {
             StationJobState job = Finite(10);

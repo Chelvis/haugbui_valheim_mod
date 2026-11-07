@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Reset on a station panel zeros the supplied and produced counts and runs that same finite amount again. The tomb
+panel has Find Haugbui, and the tomb hover shows Shift+F for the same look and the 5 second silhouette. The key
+does not run while that panel is open.
+
 ## 0.0.11
 
 The bag fills to 80%, then feeds machines from what it already carries and stores the rest. Every 3 real minutes, and

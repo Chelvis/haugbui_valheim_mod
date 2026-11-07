@@ -29,6 +29,7 @@ namespace Haugbui.UI
         private static Text _progress;
         private static Text _status;
         private static Text _enableLabel;
+        private static Button _reset;
         private static Button _dismiss;
         private static MonoBehaviour _station;
         private static float _openedAt;
@@ -38,6 +39,7 @@ namespace Haugbui.UI
         internal static MonoBehaviour Current => IsOpen ? _station : null;
         internal static IReadOnlyList<StationRecipe> Recipes => Shown;
         internal static Button Dismiss => _dismiss;
+        internal static Button Reset => _reset;
 
         public static void Open(MonoBehaviour station)
         {
@@ -100,6 +102,21 @@ namespace Haugbui.UI
             return saved;
         }
 
+        /// <summary>Self-test hook: the same path as the Reset button.</summary>
+        internal static bool ResetProgress(MonoBehaviour station)
+        {
+            if (station == null) return false;
+            bool saved = StationJobs.Edit(station, job =>
+            {
+                if (job.Supplied == 0 && job.Produced == 0) return false;
+                ProductionJob.ResetProgress(job);
+                return true;
+            });
+            if (saved) ProductionStatus.Forget(StationAdapterRegistry.IdOf(station));
+            if (station == _station) Refresh();
+            return saved;
+        }
+
         private static void Build()
         {
             GUIManager gui = GUIManager.Instance;
@@ -127,9 +144,10 @@ namespace Haugbui.UI
             _progress = Line(gui, -215f, 17, Color.white);
             _status = Line(gui, -260f, 16, new Color(0.9f, 0.75f, 0.4f));
 
-            GameObject enable = Button(gui, "", -85f, OnToggleEnabled);
+            GameObject enable = Button(gui, "", -165f, OnToggleEnabled, 140f);
             _enableLabel = enable.GetComponentInChildren<Text>();
-            Button(gui, "$haugbui_job_save", 85f, OnSave);
+            _reset = Button(gui, "$haugbui_job_reset", 0f, OnReset, 140f).GetComponent<Button>();
+            Button(gui, "$haugbui_job_save", 165f, OnSave, 140f);
             _dismiss = PanelChrome.CornerDismiss(gui, _root.transform, Close);
             _root.SetActive(false);
         }
@@ -142,10 +160,10 @@ namespace Haugbui.UI
             gui.CreateText(Localization.instance.Localize(token), _root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(95f, y), gui.AveriaSerifBold, 17, Color.white, true, Color.black, 140f, 30f, false);
 
-        private static GameObject Button(GUIManager gui, string label, float x, Action action)
+        private static GameObject Button(GUIManager gui, string label, float x, Action action, float width)
         {
             GameObject button = gui.CreateButton(Localization.instance.Localize(label), _root.transform,
-                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(x, 45f), 155f, 40f);
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(x, 45f), width, 40f);
             button.GetComponent<Button>().onClick.AddListener(() => action());
             return button;
         }
@@ -180,6 +198,7 @@ namespace Haugbui.UI
             StationJobState job = StationJobs.Read(_station);
             bool enabled = job != null && job.Enabled;
             _enableLabel.text = Localization.instance.Localize(enabled ? "$haugbui_job_disable" : "$haugbui_job_enable");
+            _reset.interactable = job != null && (job.Supplied > 0 || job.Produced > 0);
             _target.interactable = !FuelOnly;
             _mode.interactable = !FuelOnly;
             _owner.text = Localization.instance.Localize(OwnerText(job));
@@ -236,6 +255,8 @@ namespace Haugbui.UI
             }
             Commit(true);
         }
+
+        private static void OnReset() => ResetProgress(_station);
 
         private static void OnSave()
         {

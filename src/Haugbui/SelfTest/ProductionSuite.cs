@@ -233,6 +233,25 @@ namespace Haugbui.SelfTest
             yield return new WaitForSeconds(5f);
             _t.Check("complete job takes no more ore", Count(_oreChest, Ore) == ore && Job().Supplied == 3);
             _t.Check("panel status: complete", ProductionPanel.StatusText(_smelter, Job()) == "$haugbui_job_complete", ProductionPanel.StatusText(_smelter, Job()));
+
+            ProductionPanel.Open(_smelter);
+            yield return null;
+            _t.Check("a finished job can be reset", ProductionPanel.Reset != null && ProductionPanel.Reset.interactable);
+            ProductionPanel.Reset.onClick.Invoke();
+            StationJobState cleared = Job();
+            _t.Check("reset keeps the target and clears both counts",
+                cleared != null && cleared.Enabled && cleared.Target == 3 && cleared.Supplied == 0 && cleared.Produced == 0 && cleared.InputPrefab == Ore,
+                cleared == null ? "no job" : $"target {cleared.Target}, supplied {cleared.Supplied}, produced {cleared.Produced}");
+            _t.Check("reset is no longer complete", ProductionPanel.StatusText(_smelter, cleared) != "$haugbui_job_complete",
+                ProductionPanel.StatusText(_smelter, cleared));
+            // The reload check still expects this finished batch.
+            StationJobs.Edit(_smelter, j =>
+            {
+                j.Supplied = 3;
+                j.Produced = 3;
+                return true;
+            });
+            ProductionPanel.Close();
         }
 
         private IEnumerator Reload()
