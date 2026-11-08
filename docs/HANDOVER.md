@@ -7,7 +7,7 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 ## 1. Where we are
 
 - **Version 0.0.12** (tag `v0.0.12` on `main`). Tag `v0.0.11` stays on `533acdc`. Tag `v0.0.10` stays on `7d553e1`.
-  Milestones **M1–M12 done**. Away suite 2026-11-07, Valheim 1.0.21: 16 passed, 0 failed, player 514 m from the tomb.
+  Milestones **M1–M12 done**. Away suite 2026-11-07, Valheim 1.0.21: 22 passed, 0 failed, player 515 m from the tomb.
   Full self-test 2026-11-05 (0.0.11): 709 passed, 0 failed.
   M9 self-test 2026-10-21: `world backup integrity torture`, 33 passed, 0 failed. The on-disk missing-mod round trip
   (DLL removed) is still the product owner's observation; the protection table in `TECHNICAL_FEASIBILITY.md` §9.3
@@ -41,7 +41,7 @@ Remaining milestones (tickets in `docs/IMPLEMENTATION_BACKLOG.json`):
 
 ## 3. Known gaps carried forward
 
-- A tomb with the away checkbox off still unloads when the player leaves: the Haugbui despawns and resumes on the next load. A checked tomb stays loaded while the game is open.
+- A tomb with the away checkbox off still unloads when the player leaves: the Haugbui despawns and resumes on the next load. A checked tomb stays loaded only while he may be out (not while Rest is on, not during a revive wait, not by day without the Altar). At dusk the area streams back in so he can come out.
 - No custom emerge/enter VFX or idle sounds. Combat plays the Wraith's own alert effect.
 - Combat offence and defence are confirmed: 0.5, 0.8, 1.1, 1.4, 1.7, 2.0.
 - Non-owner peers see stale state text (multiplayer is out of scope for v1).

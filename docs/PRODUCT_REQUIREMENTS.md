@@ -333,13 +333,14 @@ early.] Night-only work (without the Altar) already limits throughput.
 
 ### 13.4 Away mode (working while the player is elsewhere)
 
-- **HB-125** While the game is running, a tomb whose checkbox is on keeps its area loaded. The existing Haugbui
-  keeps flying and working. A tomb with the checkbox off does not keep its area loaded.
+- **HB-125** While the game is running, a tomb whose checkbox is on keeps its area loaded only while that Haugbui
+  may be out. Rest, a revive wait, and daytime without the Altar do not keep it loaded. While he may be out, the
+  existing Haugbui keeps flying and working. A tomb with the checkbox off does not keep its area loaded.
 - **HB-126** The same rules as when the player is there, because it is the same Haugbui: night or Altar, toggles,
   the existing-item rule, wards, `StrictItemData`, leave-one, delivery reservations, territories, the bag and
   tribute. There is no second budget.
 - **HB-127** Cooking, plants, beehives, ground items, fermenters and combat are not a separate simulation. They
-  keep going because the area stays loaded.
+  keep going while the area is loaded, which is while he may be out.
 - **HB-128** The checkbox starts off, including tombs saved before it existed. `AwayMode.Enabled` (default ON) is
   a master switch; both must be on. The panel shows the checkbox and a warning that this uses more CPU.
   `AwayMode.TickSeconds` stays in the config so older files load, and nothing reads it.
@@ -620,5 +621,7 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-11-07 | Away checkbox starts off on old tombs (HB-128) — **to confirm** | The away bit used to be part of the default toggles and nothing read it, so every saved tomb had it on. Tomb saves older than schema 4, and servant slots older than schema 2, load with that bit off. A new tomb starts off |
 | 2026-11-07 | Away master switch and unused tick (HB-128) — **to confirm** | `AwayMode.Enabled` stays default on and is a master switch. The checkbox is the per-tomb choice. Both must be on. `AwayMode.TickSeconds` stays in the config so older files load. Nothing reads it |
 | 2026-11-07 | Kept area matches a player bubble (HB-125) — **to confirm** | The kept area is the same near-simulation distance the game uses around a player, centered on the tomb. One new zone is generated per tick. There is no separate count of what was done while away |
+| 2026-11-07 | Away area only while he may be out (HB-125, confirmed) | The checkbox does not keep the area loaded while Rest is on, while he is dead and the revive wait has not finished, or by day when the tomb has no Altar. It loads again when he is allowed out: night, or day with the Altar, once the wait is over |
+| 2026-11-07 | Away area through the work window (HB-125) — **to confirm** | The area stays loaded for the whole time he is allowed out, including while he is inside because there is nothing to do or tribute is unpaid, so a job can still appear. It also stays loaded while he flies home, and drops once he has entered. At dusk the zones stream back in over a few seconds. The warning is "Keeps this Haugbui's area loaded while he can be out and you are away. Uses more CPU and can slow the game." / "Mantém a área deste Haugbui carregada enquanto ele pode estar fora e você está longe. Usa mais CPU e pode deixar o jogo lento." |
 
 Open: every row marked **to confirm**.

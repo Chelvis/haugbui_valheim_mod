@@ -52,7 +52,7 @@
   "haugbui_panel_production": "Production",
   "haugbui_panel_rest": "Rest in the tomb",
   "haugbui_panel_away": "Keep working while you are away",
-  "haugbui_panel_away_warn": "Keeps this Haugbui's area loaded while you are away. Uses more CPU and can slow the game.",
+  "haugbui_panel_away_warn": "Keeps this Haugbui's area loaded while he can be out and you are away. Uses more CPU and can slow the game.",
   "haugbui_panel_needs_longsword": "needs the Fallen King's Longsword",
   "haugbui_panel_needs_level": "needs tomb level $1",
   "haugbui_panel_open_storage": "Tomb storage",

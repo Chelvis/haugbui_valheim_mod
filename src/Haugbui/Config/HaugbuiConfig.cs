@@ -191,7 +191,7 @@ namespace Haugbui.Config
                 "How often a dormant Haugbui looks for work (or tribute) during its shift.", 2f, 120f);
 
             AwayModeEnabled = BindAdmin(AwayMode, "Enabled", true,
-                "Master switch for the tomb checkbox that keeps that Haugbui's area loaded while you are away. Each tomb still starts with the checkbox off.");
+                "Master switch for the tomb checkbox that keeps that Haugbui's area loaded while he can be out and you are away. Each tomb still starts with the checkbox off.");
             RemoteTickSeconds = BindAdmin(AwayMode, "TickSeconds", 10f,
                 "Kept so older configs still load. The area stays loaded; there is no repeating tick.", 2f, 120f);
 

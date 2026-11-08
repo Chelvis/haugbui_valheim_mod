@@ -1,18 +1,23 @@
 using System.Collections.Generic;
+using Haugbui.Core.Creature;
 using Haugbui.Core.GameApi;
+using Haugbui.Core.Persistence;
+using Haugbui.Core.Structures;
 using Haugbui.Creature;
+using Haugbui.Structures;
 using UnityEngine;
 
 namespace Haugbui.Integration
 {
     /// <summary>
-    /// Tombs that opted in stay simulated while the player is elsewhere: their terrain TTL is refreshed and their
-    /// objects are kept in the same lists the game uses for the player. The existing Haugbui then keeps working.
+    /// Tombs that opted in stay simulated while their Haugbui may be out: terrain TTL is refreshed and objects stay
+    /// in the same lists the game uses for the player. Rest, a revive wait, and daytime without the Altar do not pin.
     /// </summary>
     internal static class KeepLoaded
     {
         private static readonly List<Vector3> Anchors = new List<Vector3>();
-        private static readonly List<Vector3> Scanned = new List<Vector3>();
+        private static readonly List<ZDOID> Kept = new List<ZDOID>();
+        private static readonly HashSet<string> FullTimeTombs = new HashSet<string>();
         private static readonly List<ZDO> Near = new List<ZDO>();
         private static readonly List<ZDO> Distant = new List<ZDO>();
         private static readonly List<ZDO> Spawn = new List<ZDO>();
@@ -125,18 +130,67 @@ namespace Haugbui.Integration
             if (forceScan || Time.time >= _scanAt)
             {
                 _scanAt = Time.time + 2f;
-                Scanned.Clear();
-                foreach (ZDO zdo in ZDOMan.instance.m_objectsByID.Values)
-                    if (zdo != null && zdo.GetInt(ZdoKeys.KeepLoaded) != 0) Scanned.Add(zdo.GetPosition());
+                ScanKept();
             }
-            for (int i = 0; i < Scanned.Count; i++)
+            for (int i = 0; i < Kept.Count; i++)
             {
-                Vector3 pos = Scanned[i];
+                ZDO zdo = ZDOMan.instance.GetZDO(Kept[i]);
+                if (zdo == null || !HoldsFromSave(zdo)) continue;
+                Vector3 pos = zdo.GetPosition();
                 bool have = false;
                 for (int j = 0; j < Anchors.Count; j++)
                     if ((Anchors[j] - pos).sqrMagnitude < 4f) { have = true; break; }
                 if (!have) Anchors.Add(pos);
             }
+        }
+
+        private static void ScanKept()
+        {
+            Kept.Clear();
+            FullTimeTombs.Clear();
+            foreach (ZDO zdo in ZDOMan.instance.m_objectsByID.Values)
+            {
+                if (zdo == null) continue;
+                if (zdo.GetInt(ZdoKeys.KeepLoaded) != 0) Kept.Add(zdo.m_uid);
+            }
+            float range = StructureRegistry.UpgradeRange;
+            foreach (ZDO zdo in ZDOMan.instance.m_objectsByID.Values)
+            {
+                if (zdo == null || zdo.GetInt(ZdoKeys.Kind) != (int)StructureKind.Altar) continue;
+                string bound = zdo.GetString(ZdoKeys.TombGuid);
+                if (string.IsNullOrEmpty(bound)) continue;
+                Vector3 altar = zdo.GetPosition();
+                for (int i = 0; i < Kept.Count; i++)
+                {
+                    ZDO tomb = ZDOMan.instance.GetZDO(Kept[i]);
+                    if (tomb == null || tomb.GetString(ZdoKeys.Guid) != bound) continue;
+                    if (Vector3.Distance(altar, tomb.GetPosition()) <= range) FullTimeTombs.Add(bound);
+                }
+            }
+        }
+
+        /// <summary>
+        /// A far tomb has no controller, so whether he may come out is read from the save. Without that, dusk would
+        /// never load the area and he would stay inside until the player walked back.
+        /// </summary>
+        private static bool HoldsFromSave(ZDO zdo)
+        {
+            if (HaugbuiPlugin.Instance == null) return false;
+            if (TombStateSerializer.Instance.TryDeserialize(new ZdoBlobStore(zdo).Get(ZdoKeys.TombState), out TombState state) != BlobReadStatus.Ok
+                || state == null || !state.Has(TombToggles.AwayMode)) return false;
+            ITimeSource time = TimeSource.Current;
+            return PresencePolicy.ShouldBeOut(new PresenceInput
+            {
+                Now = time.Now,
+                DayLengthSeconds = time.DayLengthSeconds,
+                FullTime = FullTimeTombs.Contains(state.Guid),
+                Resting = state.Has(TombToggles.Resting),
+                Dead = state.CreatureState == (int)HaugbuiState.Dead,
+                DeathTime = state.DeathTime,
+                CooldownSeconds = TombController.CooldownSeconds,
+                DawnReturnLeadSeconds = HaugbuiPlugin.Instance.Settings.DawnReturnLeadSeconds.Value,
+                StartTime = state.StartTime,
+            });
         }
     }
 }

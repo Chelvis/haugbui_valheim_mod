@@ -33,9 +33,17 @@ namespace Haugbui.Creature
         internal static void CollectAwayAnchors(List<Vector3> into)
         {
             foreach (TombController tomb in Instances)
-                if (tomb != null && tomb.State != null && tomb.State.Has(TombToggles.AwayMode))
+                if (tomb != null && tomb.HoldsArea)
                     into.Add(tomb.transform.position);
         }
+
+        /// <summary>
+        /// The checkbox only pins the area while he is allowed out. A flight home still counts: dropping the area
+        /// then would despawn him before the bag is deposited.
+        /// </summary>
+        internal bool HoldsArea =>
+            State != null && !_destroyed && Machine != null && State.Has(TombToggles.AwayMode)
+            && (Machine.IsOut || PresencePolicy.ShouldBeOut(Input()));
 
         private HaugbuiStructure _tomb;
         private PersistentSlot<List<ItemStack>> _carriedSlot;

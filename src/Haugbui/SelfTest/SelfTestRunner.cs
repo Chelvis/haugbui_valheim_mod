@@ -25,7 +25,7 @@ namespace Haugbui.SelfTest
             { "basics", 5 }, { "structures", 25 }, { "flight", 5 }, { "transfers", 5 }, { "haugbui", 74 },
             { "storage", 64 }, { "chests", 245 }, { "harvest", 174 }, { "tribute", 19 }, { "production", 159 },
             { "territory", 50 }, { "stations", 239 }, { "sleep", 9 }, { "combat", 159 },
-            { "world", 3 }, { "backup", 2 }, { "integrity", 2 }, { "torture", 3 }, { "perf", 2 }, { "away", 75 },
+            { "world", 3 }, { "backup", 2 }, { "integrity", 2 }, { "torture", 3 }, { "perf", 2 }, { "away", 120 },
         };
 
         internal static string Estimate(IEnumerable<string> suites)

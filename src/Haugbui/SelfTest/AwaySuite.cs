@@ -1,5 +1,6 @@
 #if DEBUG
 using System.Collections;
+using Haugbui.Core.Creature;
 using Haugbui.Core.GameApi;
 using Haugbui.Core.Persistence;
 using Haugbui.Core.Structures;
@@ -11,8 +12,8 @@ using UnityEngine;
 namespace Haugbui.SelfTest
 {
     /// <summary>
-    /// Moves the player outside the simulation bubble. An unchecked tomb unloads. A checked one stays,
-    /// and its Haugbui emerges and empties the tomb from there.
+    /// Moves the player outside the simulation bubble. An unchecked tomb unloads. A checked one unloads by day,
+    /// reloads when the night starts, and its Haugbui emerges and empties the tomb from there.
     /// </summary>
     internal sealed class AwaySuite
     {
@@ -92,7 +93,27 @@ namespace Haugbui.SelfTest
             _opted.SetToggle(TombToggles.Production, false, out _);
             _ready = _t.Check("checkbox starts off", !_opted.State.Has(TombToggles.AwayMode) && tomb.Zdo.GetInt(ZdoKeys.KeepLoaded) == 0)
                 && _t.Check("checkbox turns on", _opted.SetToggle(TombToggles.AwayMode, true, out _))
-                && _t.Check("opted-in tomb is an anchor", tomb.Zdo.GetInt(ZdoKeys.KeepLoaded) == 1 && KeepLoaded.Anchored(_optedPos));
+                && _t.Check("daytime is not an anchor", tomb.Zdo.GetInt(ZdoKeys.KeepLoaded) == 1 && !KeepLoaded.Anchored(_optedPos));
+            if (!_ready) yield break;
+
+            _time.Fraction = FakeTime.Night;
+            _ready = _t.Check("a checked tomb anchors at night", KeepLoaded.Anchored(_optedPos))
+                && _t.Check("rest turns on", _opted.SetToggle(TombToggles.Resting, true, out _))
+                && _t.Check("rest in tomb is not an anchor", !KeepLoaded.Anchored(_optedPos));
+            if (!_ready) yield break;
+
+            _time.Fraction = FakeTime.Noon;
+            _ready = _t.Check("rest turns off", _opted.SetToggle(TombToggles.Resting, false, out _))
+                && _t.Check("daytime stays unanchored", !KeepLoaded.Anchored(_optedPos));
+            if (!_ready) yield break;
+
+            _opted.State.DeathTime = TimeSource.Current.Now;
+            _opted.Machine.Restore(HaugbuiState.Dead);
+            _opted.TickNow();
+            _ready = _t.Check("death cooldown is not an anchor", !KeepLoaded.Anchored(_optedPos));
+            _opted.State.DeathTime = double.NaN;
+            _opted.Machine.Restore(HaugbuiState.Dormant);
+            _opted.TickNow();
             if (!_ready) yield break;
 
             Add(_chest, "Wood", 1);
@@ -118,7 +139,15 @@ namespace Haugbui.SelfTest
                 _t.Check("far tomb stays unchecked",
                     controller != null && !controller.State.Has(TombToggles.AwayMode) && plain.Zdo.GetInt(ZdoKeys.KeepLoaded) == 0
                     && !KeepLoaded.Anchored(_plainPos));
-                _t.Check("opted-in tomb stayed loaded while the player was away", Alive(_optedId));
+                float until = Time.time + 8f;
+                bool unloaded = !Alive(_optedId);
+                while (Time.time < until && !unloaded)
+                {
+                    Pin(target, false);
+                    if (!Alive(_optedId)) unloaded = true;
+                    yield return null;
+                }
+                _t.Check("opted-in tomb unloads by day while the player is away", unloaded);
                 yield break;
             }
             _t.Fail("place an unchecked tomb outside the bubble", "no dry ground far enough from the opted-in tomb");
@@ -129,10 +158,9 @@ namespace Haugbui.SelfTest
             _lookout = _optedPos + new Vector3(0f, 0f, _span);
             if (Vector3.Distance(_lookout, _plainPos) < _span * 0.8f)
                 _lookout = _optedPos + new Vector3(0f, 0f, -_span);
-            if (!_t.Check("opted-in tomb is loaded before the night", _opted != null && Alive(_optedId))) yield break;
+            if (!_t.Check("opted-in tomb is unloaded before the night", !Alive(_optedId))) yield break;
             Pin(_lookout, false);
             _time.Fraction = FakeTime.Night;
-            _opted.TickNow();
 
             bool sawWood = false;
             bool viewGone = false;
@@ -144,12 +172,13 @@ namespace Haugbui.SelfTest
                 Pin(_lookout, false);
                 float away = Vector3.Distance(_t.Player.transform.position, _optedPos);
                 bool far = away > _span * 0.75f && !ZNetScene.InActiveArea(_optedPos, _t.Player.transform.position);
-                int left = Count(_tombStorage, "Wood");
-                int stored = Count(_chest, "Wood");
+                int left = Count(Box(_optedId), "Wood");
+                int stored = Count(Box(_chestId), "Wood");
+                TombController live = Live();
                 if (far && left > 0) sawWood = true;
                 if (!Alive(_plainId)) viewGone = true;
                 if (!ZoneSystem.instance.IsZoneLoaded(_plainPos)) zoneGone = true;
-                if (far && sawWood && left == 0 && stored == 9 && _opted != null && _opted.Creature != null) sorted = true;
+                if (far && sawWood && left == 0 && stored == 9 && live != null && live.Creature != null) sorted = true;
                 yield return null;
             }
 
@@ -159,8 +188,9 @@ namespace Haugbui.SelfTest
             _t.Check("unchecked tomb unloads while the player is away", viewGone);
             _t.Check("unchecked tomb's zone unloads", zoneGone);
             _t.Check("the job was still open after the player left", sawWood);
+            TombController back = Live();
             _t.Check("sorted the tomb while the player was away", sorted,
-                $"tomb {Count(_tombStorage, "Wood")}, chest {Count(_chest, "Wood")}, creature {(_opted != null && _opted.Creature != null)}");
+                $"tomb {Count(Box(_optedId), "Wood")}, chest {Count(Box(_chestId), "Wood")}, creature {(back != null && back.Creature != null)}");
 
             enabled.Value = false;
             KeepLoaded.Invalidate();
@@ -205,6 +235,24 @@ namespace Haugbui.SelfTest
                 body.linearVelocity = Vector3.zero;
             }
             if (ZNet.instance != null) ZNet.instance.SetReferencePosition(position);
+        }
+
+        private Container Box(ZDOID id)
+        {
+            if (id.IsNone() || ZDOMan.instance == null || ZNetScene.instance == null) return null;
+            ZDO zdo = ZDOMan.instance.GetZDO(id);
+            if (zdo == null) return null;
+            ZNetView view = ZNetScene.instance.FindInstance(zdo);
+            return view != null ? view.GetComponent<Container>() ?? view.GetComponentInChildren<Container>() : null;
+        }
+
+        private TombController Live()
+        {
+            if (_optedId.IsNone() || ZDOMan.instance == null || ZNetScene.instance == null) return null;
+            ZDO zdo = ZDOMan.instance.GetZDO(_optedId);
+            if (zdo == null) return null;
+            ZNetView view = ZNetScene.instance.FindInstance(zdo);
+            return view != null ? view.GetComponent<TombController>() : null;
         }
 
         private static bool Alive(ZDOID id)
