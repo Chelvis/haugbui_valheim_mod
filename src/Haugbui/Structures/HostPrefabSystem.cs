@@ -284,11 +284,21 @@ namespace Haugbui.Structures
             foreach (Core.Persistence.DeliveryRequest line in chest.Ledger.OpenLines)
             {
                 open++;
-                remaining += line.Remaining;
+                remaining += Core.Storage.DeliveryLedger.Owed(line, CountIn(container, line.ItemPrefab));
             }
             result += Localization.instance.Localize("\n$haugbui_hover_delivery\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $haugbui_delivery_edit"
                                                       + ChestListHotkeys.HoverKeys("$haugbui_delivery_copy", "$haugbui_delivery_paste")) +
                       (open > 0 ? "\n" + Localization.instance.Localize("$haugbui_delivery_hover_open", open.ToString(), remaining.ToString()) : "");
+        }
+
+        private static int CountIn(Container container, string prefab)
+        {
+            Inventory inventory = container != null ? container.GetInventory() : null;
+            if (inventory == null || string.IsNullOrEmpty(prefab)) return 0;
+            int count = 0;
+            foreach (ItemDrop.ItemData item in inventory.GetAllItems())
+                if (item != null && item.m_dropPrefab != null && item.m_dropPrefab.name == prefab) count += item.m_stack;
+            return count;
         }
 
         [HarmonyPrefix]

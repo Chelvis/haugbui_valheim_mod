@@ -137,16 +137,19 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
-        public void A_request_ahead_of_itself_is_closed_instead_of_reopened()
+        public void A_fulfilled_quota_is_dropped_and_a_keep_line_stays()
         {
             var lines = new List<DeliveryRequest>
             {
                 new DeliveryRequest { ItemPrefab = "Wood", Requested = 2, Delivered = 5 },
+                new DeliveryRequest { ItemPrefab = "Stone", Requested = 4, Delivered = 4 },
+                new DeliveryRequest { ItemPrefab = "Resin", Requested = 8, Delivered = 8, KeepAmount = true },
                 new DeliveryRequest { ItemPrefab = "", Requested = 1, Delivered = 0 },
             };
 
             Assert.That(BlobIntegrity.RepairRequests(lines), Is.True);
-            Assert.That(lines.Select(l => l.ItemPrefab + ":" + l.Requested + ":" + l.Delivered), Is.EqualTo(new[] { "Wood:5:5" }));
+            Assert.That(lines.Select(l => l.ItemPrefab + ":" + l.Requested + ":" + l.KeepAmount), Is.EqualTo(new[] { "Resin:8:True" }));
+            Assert.That(BlobIntegrity.RepairRequests(lines), Is.False);
         }
 
         [Test]

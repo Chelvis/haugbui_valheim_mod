@@ -12,25 +12,28 @@ namespace Haugbui.UI
 {
     /// <summary>
     /// Request lines of one Delivery Chest. The list is a draft until Save, which writes the same ledger.
-    /// Closing without Save keeps what was already stored. A new row's amount starts empty.
+    /// Closing without Save keeps what was already stored. A new row's amount starts empty and its keep-amount box starts off.
+    /// Saving a line starts that line's delivered count over.
     /// </summary>
     internal static class DeliveryPanel
     {
-        private const float Width = 860f;
+        private const float Width = 980f;
         private const float Height = 540f;
         private const float RowHeight = 36f;
         private const float Inset = 24f;
 
         private sealed class DraftLine
         {
-            public DraftLine(string prefab, string amount)
+            public DraftLine(string prefab, string amount, bool keepAmount = false)
             {
                 Prefab = prefab;
                 Amount = amount ?? "";
+                KeepAmount = keepAmount;
             }
 
             public string Prefab;
             public string Amount;
+            public bool KeepAmount;
         }
 
         private static GameObject _root;
@@ -60,6 +63,16 @@ namespace Haugbui.UI
         internal static bool ShowsEmpty => _empty != null && _empty.gameObject.activeSelf;
         internal static string EmptyText => _empty != null ? _empty.text : "";
         internal static string Footnote => _footnote != null ? _footnote.text : "";
+        internal static string HeaderText
+        {
+            get
+            {
+                if (_headers == null) return "";
+                var texts = new List<string>();
+                foreach (Text text in _headers.GetComponentsInChildren<Text>(true)) texts.Add(text.text);
+                return string.Join("|", texts);
+            }
+        }
         internal static bool SuggestionsVisible => _search != null && _search.SuggestionsVisible;
         internal static string SearchText => _search != null ? _search.Text : "";
         internal static IReadOnlyList<(string Prefab, string Name)> KnownItems => _search != null ? _search.Known : Array.Empty<(string, string)>();
@@ -138,6 +151,34 @@ namespace Haugbui.UI
             return row != null ? row.Find("remove:" + prefab)?.GetComponent<Button>() : null;
         }
 
+        internal static Toggle KeepToggle(string prefab)
+        {
+            Transform row = FindRow(prefab);
+            return row != null ? row.Find("keep:" + prefab)?.GetComponent<Toggle>() : null;
+        }
+
+        internal static bool KeepChecked(string prefab)
+        {
+            Toggle toggle = KeepToggle(prefab);
+            return toggle != null && toggle.isOn;
+        }
+
+        internal static string KeepLabel(string prefab)
+        {
+            Transform row = FindRow(prefab);
+            Text text = row != null ? row.Find("keep-label:" + prefab)?.GetComponent<Text>() : null;
+            return text != null ? text.text : "";
+        }
+
+        internal static void SetKeep(string prefab, bool on)
+        {
+            DraftLine line = Draft.Find(item => item.Prefab == prefab);
+            if (line == null) return;
+            line.KeepAmount = on;
+            Toggle toggle = KeepToggle(prefab);
+            if (toggle != null && toggle.isOn != on) toggle.isOn = on;
+        }
+
         /// <summary>Same path as filling the row and pressing Save.</summary>
         internal static RequestEditResult? Submit(string prefab, int amount)
         {
@@ -201,6 +242,8 @@ namespace Haugbui.UI
         private const float AmountLeft = 275f;
         private const float RequestedLeft = 395f;
         private const float RequestedWidth = 110f;
+        private const float KeepLeft = 530f;
+        private const float KeepLabelLeft = 558f;
 
         private static void Column(GUIManager gui, Transform parent, string token, float left) =>
             PanelChrome.LeftLabel(gui, parent, Localization.instance.Localize(token), left + PanelChrome.ScrollInset, 160f, 15, gui.ValheimOrange);
@@ -221,7 +264,7 @@ namespace Haugbui.UI
             foreach (IGrouping<string, DeliveryRequest> group in _chest.Ledger.Lines.GroupBy(line => line.ItemPrefab))
             {
                 DeliveryRequest best = group.OrderByDescending(line => line.Delivered).First();
-                Draft.Add(new DraftLine(best.ItemPrefab, best.Requested > 0 ? best.Requested.ToString() : ""));
+                Draft.Add(new DraftLine(best.ItemPrefab, best.Requested > 0 ? best.Requested.ToString() : "", best.KeepAmount));
             }
         }
 
@@ -259,23 +302,23 @@ namespace Haugbui.UI
         private static void CopyDraft()
         {
             if (!CanCopy) return;
-            var lines = new List<(string Prefab, int Requested)>();
+            var lines = new List<RequestDraft>();
             foreach (DraftLine line in Draft)
             {
                 if (!int.TryParse(line.Amount, out int amount)) return;
-                lines.Add((line.Prefab, amount));
+                lines.Add(new RequestDraft(line.Prefab, amount, line.KeepAmount));
             }
             PanelClipboard.CopyRequests(lines);
             RefreshButtons();
         }
 
-        /// <summary>Replaces the open chest's whole request list and writes it. Already delivered amounts stay.</summary>
+        /// <summary>Replaces the open chest's whole request list and writes it. Each line starts with nothing delivered.</summary>
         private static void PasteDraft()
         {
             if (_chest == null || _chest.ReadOnly || !PanelClipboard.HasRequests) return;
             Draft.Clear();
-            foreach ((string prefab, int requested) in PanelClipboard.Requests)
-                Draft.Add(new DraftLine(prefab, requested.ToString()));
+            foreach (RequestDraft line in PanelClipboard.Requests)
+                Draft.Add(new DraftLine(line.Prefab, line.Requested.ToString(), line.KeepAmount));
             RequestEditResult result = Write();
             if (result != RequestEditResult.Ok)
             {
@@ -304,11 +347,11 @@ namespace Haugbui.UI
         private static RequestEditResult Write()
         {
             if (_chest == null) return RequestEditResult.InvalidItem;
-            var lines = new List<(string Prefab, int Requested)>();
+            var lines = new List<RequestDraft>();
             foreach (DraftLine line in Draft)
             {
                 if (!int.TryParse(line.Amount, out int amount)) return RequestEditResult.InvalidAmount;
-                lines.Add((line.Prefab, amount));
+                lines.Add(new RequestDraft(line.Prefab, amount, line.KeepAmount));
             }
             RequestEditResult result = RequestEditResult.Ok;
             bool saved = _chest.Edit(ledger => (result = ledger.Replace(lines)) == RequestEditResult.Ok);
@@ -360,6 +403,19 @@ namespace Haugbui.UI
                         PaintCount(count, captured.Prefab, value);
                         RefreshButtons();
                     });
+                    GameObject keepGo = gui.CreateToggle(row.transform, 22f, 22f);
+                    keepGo.name = "keep:" + line.Prefab;
+                    var keepRect = (RectTransform)keepGo.transform;
+                    keepRect.anchorMin = keepRect.anchorMax = new Vector2(0f, 0.5f);
+                    keepRect.pivot = new Vector2(0f, 0.5f);
+                    keepRect.anchoredPosition = new Vector2(KeepLeft, 0f);
+                    Toggle keep = keepGo.GetComponent<Toggle>();
+                    keep.isOn = line.KeepAmount;
+                    keep.interactable = _chest == null || !_chest.ReadOnly;
+                    keep.onValueChanged.AddListener(on => captured.KeepAmount = on);
+                    Text keepLabel = PanelChrome.LeftLabel(gui, row.transform, Localization.instance.Localize("$haugbui_delivery_keep_amount"),
+                        KeepLabelLeft, 220f, 15, Color.white);
+                    keepLabel.gameObject.name = "keep-label:" + line.Prefab;
                     if (_chest == null || !_chest.ReadOnly)
                     {
                         GameObject remove = gui.CreateButton(Localization.instance.Localize("$haugbui_panel_dismiss"), row.transform,

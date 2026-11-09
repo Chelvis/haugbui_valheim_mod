@@ -115,6 +115,10 @@ namespace Haugbui.Core.Persistence
         public int Requested { get; set; }
         public int Delivered { get; set; }
 
+        /// <summary>When set, Requested is the stock to hold. Delivered is not the quota.</summary>
+        public bool KeepAmount { get; set; }
+
+        /// <summary>Quota progress. A keep-amount line does not use this.</summary>
         public int Remaining => Math.Max(0, Requested - Delivered);
     }
 
@@ -122,19 +126,21 @@ namespace Haugbui.Core.Persistence
     {
         public static readonly DeliveryRequestsSerializer Instance = new DeliveryRequestsSerializer();
 
-        public int CurrentVersion => 1;
+        /// <summary>v2 stores the keep-amount flag. Older lines are one-time quotas.</summary>
+        public int CurrentVersion => 2;
 
         public void Write(List<DeliveryRequest> value, BlobWriter writer)
         {
             writer.Write(value.Count);
             foreach (DeliveryRequest request in value)
-                writer.Write(request.ItemPrefab).Write(request.Requested).Write(request.Delivered);
+                writer.Write(request.ItemPrefab).Write(request.Requested).Write(request.Delivered).Write(request.KeepAmount);
         }
 
         public List<DeliveryRequest> Read(BlobReader reader)
         {
             int count = reader.ReadInt();
             if (count < 0 || count > 1000) throw new ArgumentException("request count out of range");
+            bool keep = reader.SchemaVersion >= 2;
             var result = new List<DeliveryRequest>(count);
             for (int i = 0; i < count; i++)
             {
@@ -143,6 +149,7 @@ namespace Haugbui.Core.Persistence
                     ItemPrefab = reader.ReadString(),
                     Requested = reader.ReadInt(),
                     Delivered = reader.ReadInt(),
+                    KeepAmount = keep && reader.ReadBool(),
                 });
             }
             return result;

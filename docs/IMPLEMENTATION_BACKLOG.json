@@ -1539,14 +1539,16 @@
         {
           "id": "HB-T-051",
           "title": "DeliveryLedger and request persistence",
-          "description": "Core ledger of lines {item, requested, delivered}; edit/cancel/complete semantics; remaining; reservation totals for production; persisted on chest ZDO.",
+          "description": "Core ledger of lines {item, requested, delivered, keep amount}; a saved line starts delivered over; a fulfilled quota is removed; keep amount uses the chest count; reservation totals for production; persisted on chest ZDO.",
           "priority": "P0",
           "dependencies": [
             "HB-T-013"
           ],
           "acceptance_criteria": [
             "Never delivers above requested",
-            "Edits below delivered complete the line",
+            "Saving a line starts its delivered count over",
+            "A fulfilled quota is removed",
+            "Keep amount uses the chest count and does not remove a surplus",
             "Survives reload"
           ],
           "components": [
@@ -1571,7 +1573,7 @@
         {
           "id": "HB-T-052",
           "title": "Delivery request editor UI",
-          "description": "Panel listing lines with requested/delivered/remaining, item picker of discovered transportable items, quantity input, cancel/clear completed.",
+          "description": "Panel listing lines with the amount in the chest, a requested field, a keep-amount checkbox with no column header, item picker of discovered transportable items, row delete, clear all, copy, paste and save.",
           "priority": "P0",
           "dependencies": [
             "HB-T-050",

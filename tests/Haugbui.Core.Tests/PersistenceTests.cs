@@ -58,14 +58,27 @@ namespace Haugbui.Core.Tests
             var requests = new List<DeliveryRequest>
             {
                 new DeliveryRequest { ItemPrefab = "Wood", Requested = 40, Delivered = 12 },
-                new DeliveryRequest { ItemPrefab = "Resin", Requested = 20, Delivered = 20 },
+                new DeliveryRequest { ItemPrefab = "Resin", Requested = 20, Delivered = 0, KeepAmount = true },
             };
 
             DeliveryRequestsSerializer.Instance.TryDeserialize(DeliveryRequestsSerializer.Instance.Serialize(requests),
                 out List<DeliveryRequest> read);
 
-            Assert.That(read.Select(r => $"{r.ItemPrefab}:{r.Requested}:{r.Delivered}:{r.Remaining}"),
-                Is.EqualTo(new[] { "Wood:40:12:28", "Resin:20:20:0" }));
+            Assert.That(read.Select(r => $"{r.ItemPrefab}:{r.Requested}:{r.Delivered}:{r.Remaining}:{r.KeepAmount}"),
+                Is.EqualTo(new[] { "Wood:40:12:28:False", "Resin:20:0:20:True" }));
+        }
+
+        [Test]
+        public void An_old_request_blob_loads_as_a_one_time_quota()
+        {
+            byte[] v1 = new BlobWriter(1).Write(1).Write("Wood").Write(40).Write(12).ToArray();
+
+            Assert.That(DeliveryRequestsSerializer.Instance.TryDeserialize(v1, out List<DeliveryRequest> read), Is.EqualTo(BlobReadStatus.Ok));
+            DeliveryRequest line = read.Single();
+            Assert.That(line.ItemPrefab, Is.EqualTo("Wood"));
+            Assert.That(line.Requested, Is.EqualTo(40));
+            Assert.That(line.Delivered, Is.EqualTo(12));
+            Assert.That(line.KeepAmount, Is.False);
         }
 
         [Test]

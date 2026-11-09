@@ -27,6 +27,15 @@ namespace Haugbui.Core.Storage
 
         public int FreeSlots => Math.Max(0, Slots - Items.Count);
 
+        public int CountPrefab(string prefab)
+        {
+            if (Items == null || string.IsNullOrEmpty(prefab)) return 0;
+            int total = 0;
+            for (int i = 0; i < Items.Count; i++)
+                if (Items[i] != null && Items[i].Prefab == prefab && Items[i].Amount > 0) total += Items[i].Amount;
+            return total;
+        }
+
         public bool Contains(ItemStack item) => Items.Any(i => i.SameKind(item) && i.Amount > 0);
 
         /// <summary>

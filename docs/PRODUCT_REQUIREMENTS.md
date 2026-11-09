@@ -231,25 +231,34 @@ The brief only fixed each upgrade's mandatory ingredient; the rest is a balance 
 - **HB-080** Buildable chest, **exactly 10 slots**, distinct look. Cost (tunable, §4.3): Wood ×10,
   GreydwarfEye ×10; Workbench.
 - **HB-081** `E` opens the chest normally; `Shift+E` (alt-interact) opens the request editor.
-- **HB-082** A request line = {item, requested quantity}. Up to 10 lines [Decision]. Item picker lists transportable
-  items the player has discovered. Copy Request and Paste Request keep one list in memory until the game closes.
-  Paste replaces that chest's whole request list and writes it immediately, keeping what was already delivered the
-  same way Save does. The panel stays open. Copy stays off while a requested amount is empty. An empty copy is a
-  real copy, and pasting it clears the other chest. While the editor is open, and while looking at the chest,
-  Shift+C copies and Shift+V pastes. The hover shows both. Those presses do not toggle walk or auto loot. The filter
-  editor uses the same two keys.
-- **HB-083** The ledger tracks `delivered` per line. Remaining = requested − delivered. The Haugbui never fetches
-  more than remaining, never removes more from a source than it delivers. One trip to a Delivery Chest loads every
-  open line that still fits in the bag, then puts them all in.
+- **HB-082** A request line = {item, requested quantity, keep amount}. Up to 10 lines [Decision]. Keep amount defaults
+  off. Item picker lists transportable items the player has discovered. Copy Request and Paste Request keep one list
+  in memory until the game closes. Paste replaces that chest's whole request list and writes it immediately. Each
+  written line starts with nothing delivered, the same way Save does, and the keep-amount choice is copied with the
+  line. The panel stays open. Copy stays off while a requested amount is empty. An empty copy is a real copy, and
+  pasting it clears the other chest. While the editor is open, and while looking at the chest, Shift+C copies and
+  Shift+V pastes. The hover shows both. Those presses do not toggle walk or auto loot. The filter editor uses the
+  same two keys.
+- **HB-083** With keep amount off, the ledger tracks `delivered` for that saved line. Remaining = requested −
+  delivered. When delivered reaches requested, the line is removed. Saving the line sets delivered back to zero, so
+  the amount is a new quota and a later line for the same item starts at zero. With keep amount on, delivered is
+  ignored: remaining = requested − how many of that item are in the chest now. The Haugbui never fetches more than
+  remaining, never removes more from a source than it delivers. One trip to a Delivery Chest loads every line that
+  still needs items and still fits in the bag, then puts them all in.
 - **HB-084** Sources: storage containers and Collection Chests in radius (never other Delivery Chests or tomb
   storage). Insufficient stock → deliver what exists and keep the line open. An ordinary storage chest keeps one of
   each prefab, so it still accepts that item later. A filter that lists the prefab may be emptied of it. Collection
   Chests and tomb storage are still emptied. The same leave-one rule applies when a production job takes from storage.
-- **HB-085** Lines can be edited (requested < delivered → line completes) or cancelled; completed lines show as done
-  until cleared.
+- **HB-085** Lines can be edited or cancelled. Next to Requested, each row has a checkbox with no column header,
+  labelled "Keep amount" / "Manter quantidade", default off, and saved with the line. The row X, Clear all, Copy,
+  Paste and Save stay. Clear all, deleting the row, and saving an amount all drop what that line had delivered. A
+  fulfilled one-time quota is removed and is not shown as a completed row. A keep-amount line stays.
 - **HB-086** Multiple Delivery Chests are independent; requests are stored on each chest.
-- **HB-087** Items reserved by open requests (remaining quantities) are not consumed by production jobs.
-- **HB-088** Delivery stops when the chest has no room; player removing items does not reduce `delivered`.
+- **HB-087** Items reserved by open requests (remaining quantities) are not consumed by production jobs. A keep-amount
+  line reserves only the shortfall still missing from its chest.
+- **HB-088** Delivery stops when the chest has no room. The Haugbui never removes a surplus. With keep amount off,
+  taking items out does not bring more. With keep amount on, taking items out means the chest holds less than
+  requested, so the Haugbui brings the difference and the line stays.
 
 ## 11. Ground item collection
 
@@ -623,5 +632,6 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-11-07 | Kept area matches a player bubble (HB-125) — **to confirm** | The kept area is the same near-simulation distance the game uses around a player, centered on the tomb. One new zone is generated per tick. There is no separate count of what was done while away |
 | 2026-11-07 | Away area only while he may be out (HB-125, confirmed) | The checkbox does not keep the area loaded while Rest is on, while he is dead and the revive wait has not finished, or by day when the tomb has no Altar. It loads again when he is allowed out: night, or day with the Altar, once the wait is over |
 | 2026-11-07 | Away area through the work window (HB-125) — **to confirm** | The area stays loaded for the whole time he is allowed out, including while he is inside because there is nothing to do or tribute is unpaid, so a job can still appear. It also stays loaded while he flies home, and drops once he has entered. At dusk the zones stream back in over a few seconds. The warning is "Keeps this Haugbui's area loaded while he can be out and you are away. Uses more CPU and can slow the game." / "Mantém a área deste Haugbui carregada enquanto ele pode estar fora e você está longe. Usa mais CPU e pode deixar o jogo lento." |
+| 2026-11-08 | Delivery keep amount (HB-083, HB-085, HB-088, confirmed) | Next to Requested, each row has a checkbox with no column header, labelled "Keep amount" / "Manter quantidade", default off, saved with the line. The row X, Clear all, Copy, Paste and Save stay, and the surplus footnote stays. Off: the requested amount is a one-time quota; the Haugbui brings that many and the line is then removed. On: the requested amount is how many should be in the chest now; remaining is that minus the chest count; taking items out brings more; the line stays; a full chest stops it; a surplus is left. Saving a line, Clear all, deleting the row, or saving a new amount drops what that line had delivered. A later line for the same item starts at zero. Keep amount ignores that history and looks at the chest. Copy and paste carry the checkbox and also start delivered at zero. An old save is a quota. A quota that was already fulfilled is dropped on load so it cannot stick |
 
 Open: every row marked **to confirm**.

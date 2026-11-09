@@ -44,6 +44,7 @@ namespace Haugbui.SelfTest
             yield return Editor();
                 yield return Collection();
                 yield return Delivery();
+                yield return DeliveryModes();
                 yield return Finish();
             }
             finally
@@ -258,6 +259,12 @@ namespace Haugbui.SelfTest
             yield return null;
             _t.Check("clicking a suggestion adds a delivery row and hides the list",
                 DeliveryPanel.RowCount == 1 && !DeliveryPanel.SuggestionsVisible);
+            string keepLabel = Localization.instance.Localize("$haugbui_delivery_keep_amount");
+            _t.Check("keep amount starts off", DeliveryPanel.KeepToggle("Wood") != null && !DeliveryPanel.KeepChecked("Wood"));
+            _t.Check("keep amount is labelled", DeliveryPanel.KeepLabel("Wood") == keepLabel, DeliveryPanel.KeepLabel("Wood"));
+            _t.Check("keep amount has no column header",
+                DeliveryPanel.HeaderText.Contains(Localization.instance.Localize("$haugbui_delivery_col_requested"))
+                && !DeliveryPanel.HeaderText.Contains(keepLabel), DeliveryPanel.HeaderText);
             _t.Check("the search text stays", DeliveryPanel.SearchText == "Wo", DeliveryPanel.SearchText);
             _t.Check("a new row shows the amount already in the chest", DeliveryPanel.ShownAmount("Wood") == CountPrefab(_deliveryA, "Wood"),
                 DeliveryPanel.ShownAmount("Wood").ToString());
@@ -266,7 +273,8 @@ namespace Haugbui.SelfTest
             DeliveryPanel.SetAmount("Wood", "4");
             _t.Check("Save turns on when every amount is filled", DeliveryPanel.CanSave && DeliveryPanel.SaveButton.interactable);
             DeliveryPanel.SaveButton.onClick.Invoke();
-            _t.Check("Save writes the request", chest.Ledger.Remaining("Wood") == 4, Lines(chest));
+            DeliveryRequest saved = chest.Ledger.Lines.SingleOrDefault(l => l.ItemPrefab == "Wood");
+            _t.Check("Save writes the request", chest.Ledger.Remaining("Wood") == 4 && saved != null && !saved.KeepAmount, Lines(chest));
             _t.Check("Save closes the request editor", !DeliveryPanel.IsOpen);
             DeliveryPanel.Open(chest);
             DeliveryPanel.TypeSearch("");
@@ -331,12 +339,13 @@ namespace Haugbui.SelfTest
                 onlyWood.onClick.Invoke();
                 _t.Check("copy request stays off while an amount is empty", !DeliveryPanel.CopyButton.interactable);
                 DeliveryPanel.SetAmount("Wood", "4");
+                DeliveryPanel.SetKeep("Wood", true);
                 DeliveryPanel.CopyButton.onClick.Invoke();
                 DeliveryPanel.Open(other);
                 DeliveryPanel.PasteButton.onClick.Invoke();
                 DeliveryRequest wood = other.Ledger.Lines.FirstOrDefault(line => line.ItemPrefab == "Wood");
-                _t.Check("paste request keeps what was already delivered",
-                    other.Ledger.Lines.Count == 1 && wood != null && wood.Delivered == 6 && wood.Requested == 6, Lines(other));
+                _t.Check("paste request starts the quota over and keeps the checkbox",
+                    other.Ledger.Lines.Count == 1 && wood != null && wood.Delivered == 0 && wood.Requested == 4 && wood.KeepAmount, Lines(other));
             }
             else _t.Skip("paste request keeps delivered", "Wood is not in the suggestion list");
 
@@ -388,11 +397,19 @@ namespace Haugbui.SelfTest
             yield return null;
             _t.Check("editor closes", !DeliveryPanel.IsOpen);
 
+            chest.Edit(l =>
+            {
+                int index = -1;
+                for (int i = 0; i < l.Lines.Count; i++)
+                    if (l.Lines[i].ItemPrefab == "Wood") index = i;
+                return index >= 0 && l.SetRequested(index, 120, true) == RequestEditResult.Ok;
+            });
             GameObject reloaded = null;
             yield return _t.Reload(_deliveryA.gameObject, go => reloaded = go);
             _deliveryA = reloaded != null ? reloaded.GetComponentInChildren<Container>() : null;
             DeliveryChest back = _deliveryA != null ? _deliveryA.GetComponent<DeliveryChest>() : null;
-            _t.Check("requests survive reload", back != null && back.Ledger.Lines.Count == 4 && back.Ledger.Remaining("Wood") == 120,
+            _t.Check("requests survive reload", back != null && back.Ledger.Lines.Count == 4 && back.Ledger.Remaining("Wood") == 120
+                && back.Ledger.Lines.Any(l => l.ItemPrefab == "Wood" && l.KeepAmount && l.Delivered == 0),
                 back != null ? Lines(back) : "chest missing");
             if (back != null) back.Edit(l =>
             {
@@ -450,7 +467,8 @@ namespace Haugbui.SelfTest
             int maxWood = 0;
             bool sawDeliver = false;
             float end = Time.time + 180f;
-            while (Time.time < end && !(Delivered(a, "Wood") == 15 && Delivered(a, "Stone") == 11 && Delivered(b, "Resin") == 3
+            while (Time.time < end && !(CountPrefab(_deliveryA, "Wood") == 15 && !HasLine(a, "Wood")
+                                        && Delivered(a, "Stone") == 10 && CountPrefab(_deliveryB, "Resin") == 3 && !HasLine(b, "Resin")
                                         && _tomb.Worker.Plan == null && _tomb.Carried.IsEmpty))
             {
                 maxWood = Mathf.Max(maxWood, CountPrefab(_deliveryA, "Wood"));
@@ -464,13 +482,13 @@ namespace Haugbui.SelfTest
                 maxWood = Mathf.Max(maxWood, CountPrefab(_deliveryA, "Wood"));
                 yield return null;
             }
-            _t.Check("delivers the requested wood", sawDeliver && Delivered(a, "Wood") == 15 && CountPrefab(_deliveryA, "Wood") == 15,
-                $"ledger {Delivered(a, "Wood")}, chest {CountPrefab(_deliveryA, "Wood")}");
-            _t.Check("never delivers more than requested", maxWood == 15 && Delivered(a, "Wood") == 15, $"max {maxWood} in the chest");
+            _t.Check("delivers the requested wood", sawDeliver && CountPrefab(_deliveryA, "Wood") == 15 && !HasLine(a, "Wood"),
+                $"chest {CountPrefab(_deliveryA, "Wood")}, {Lines(a)}");
+            _t.Check("never delivers more than requested", maxWood == 15 && !HasLine(a, "Wood"), $"max {maxWood} in the chest");
             // Eleven stone in an ordinary chest: one stays, ten are delivered, the line stays open.
             _t.Check("short stock: delivers what exists, line stays open",
                 Delivered(a, "Stone") == 10 && a.Ledger.Remaining("Stone") == 20 && CountPrefab(_stone, "Stone") == 1, Lines(a));
-            _t.Check("two Delivery Chests served independently", Delivered(b, "Resin") == 3 && CountPrefab(_deliveryB, "Resin") == 3
+            _t.Check("two Delivery Chests served independently", CountPrefab(_deliveryB, "Resin") == 3 && !HasLine(b, "Resin")
                                                                    && CountPrefab(_deliveryA, "Resin") == 0, Lines(b));
             _t.Check("Collection Chest is a delivery source", CountPrefab(_collection, "Resin") == 2, CountPrefab(_collection, "Resin").ToString());
             _t.Check("totals conserved after delivery", Same(expected, WorldTotals()), $"{Format(expected)} → {Format(WorldTotals())}");
@@ -479,14 +497,15 @@ namespace Haugbui.SelfTest
             yield return _t.Reload(_deliveryA.gameObject, go => reloaded = go);
             _deliveryA = reloaded != null ? reloaded.GetComponentInChildren<Container>() : null;
             a = _deliveryA != null ? _deliveryA.GetComponent<DeliveryChest>() : null;
-            if (!_t.Check("delivered counts survive reload", a != null && Delivered(a, "Wood") == 15 && Delivered(a, "Stone") == 10, a != null ? Lines(a) : "chest missing"))
+            if (!_t.Check("an unfinished quota survives reload and a finished one stays gone",
+                a != null && !HasLine(a, "Wood") && CountPrefab(_deliveryA, "Wood") == 15 && Delivered(a, "Stone") == 10, a != null ? Lines(a) : "chest missing"))
                 yield break;
             ReplaceChest(_deliveryA);
 
             ItemBridge.RemoveFrom(_deliveryA.GetInventory(), Stack("Wood", 0), 15);
             ItemBridge.RemoveFrom(_deliveryA.GetInventory(), CheatedTag(), 15);
             yield return SelfTestContext.WaitFor(() => CountPrefab(_deliveryA, "Wood") > 0, 8f);
-            _t.Check("taking items out does not reduce delivered", Delivered(a, "Wood") == 15 && CountPrefab(_deliveryA, "Wood") == 0, Lines(a));
+            _t.Check("taking items out of a finished quota does not bring more", !HasLine(a, "Wood") && CountPrefab(_deliveryA, "Wood") == 0, Lines(a));
 
             Add(_deliveryB, "Stone", 500);
             Add(_wood, "Wood", 10);
@@ -497,8 +516,145 @@ namespace Haugbui.SelfTest
             b.Edit(l => l.Cancel(l.Lines.ToList().FindIndex(x => x.ItemPrefab == "Wood")) == RequestEditResult.Ok);
         }
 
+        /// <summary>Quota edits forget delivered. Keep amount follows the chest and leaves a surplus where it is.</summary>
+        private IEnumerator DeliveryModes()
+        {
+            DeliveryChest a = _deliveryA.GetComponent<DeliveryChest>();
+            DeliveryChest b = _deliveryB.GetComponent<DeliveryChest>();
+            yield return SelfTestContext.WaitFor(() => _tomb.Worker.Plan == null && _tomb.Carried.IsEmpty, 20f);
+            a.Edit(l =>
+            {
+                while (l.Lines.Count > 0) l.Cancel(0);
+                return true;
+            });
+            Add(_wood, "Wood", 60);
+            Dictionary<string, int> expected = WorldTotals();
+
+            a.Edit(l => l.Request("Wood", 10) == RequestEditResult.Ok);
+            _tomb.Worker.PlanNow();
+            yield return SelfTestContext.WaitFor(() => CountPrefab(_deliveryA, "Wood") == 10 && !HasLine(a, "Wood") && _tomb.Carried.IsEmpty, 90f);
+            _t.Check("a finished quota of 10 is removed", CountPrefab(_deliveryA, "Wood") == 10 && !HasLine(a, "Wood"), Lines(a));
+
+            if (GUIManager.IsHeadless() || GUIManager.CustomGUIFront == null)
+            {
+                a.Edit(l => l.Request("Wood", 20) == RequestEditResult.Ok);
+            }
+            else
+            {
+                DeliveryPanel.Open(a);
+                RequestEditResult? edited = DeliveryPanel.Submit("Wood", 20);
+                DeliveryPanel.Close();
+                DeliveryRequest fresh = a.Ledger.Lines.FirstOrDefault(l => l.ItemPrefab == "Wood");
+                _t.Check("changing 10 into 20 saves a fresh quota",
+                    edited == RequestEditResult.Ok && fresh != null && fresh.Requested == 20 && fresh.Delivered == 0 && !fresh.KeepAmount,
+                    Lines(a));
+            }
+            _tomb.Worker.PlanNow();
+            yield return SelfTestContext.WaitFor(() => CountPrefab(_deliveryA, "Wood") == 30 && !HasLine(a, "Wood") && _tomb.Carried.IsEmpty, 90f);
+            _t.Check("the new 20 arrives on top of the first 10", CountPrefab(_deliveryA, "Wood") == 30 && !HasLine(a, "Wood"),
+                $"chest {CountPrefab(_deliveryA, "Wood")}, {Lines(a)}");
+
+            yield return SelfTestContext.WaitFor(() => _tomb.Worker.Plan == null && _tomb.Carried.IsEmpty, 20f);
+            _tomb.Worker.Paused = true;
+            a.Edit(l => l.Request("Wood", 10) == RequestEditResult.Ok && l.RecordDelivered("Wood", 6) == 6);
+            _t.Check("a partial quota is still listed", Delivered(a, "Wood") == 6 && a.Ledger.Remaining("Wood") == 4, Lines(a));
+            if (GUIManager.IsHeadless() || GUIManager.CustomGUIFront == null)
+            {
+                a.Edit(l => l.Replace(new RequestDraft[0]) == RequestEditResult.Ok && l.Request("Wood", 10) == RequestEditResult.Ok);
+            }
+            else
+            {
+                DeliveryPanel.Open(a);
+                DeliveryPanel.ClearButton.onClick.Invoke();
+                DeliveryPanel.SaveButton.onClick.Invoke();
+                _t.Check("clear all drops the partial quota", !HasLine(a, "Wood"), Lines(a));
+                DeliveryPanel.Open(a);
+                RequestEditResult? again = DeliveryPanel.Submit("Wood", 10);
+                DeliveryPanel.Close();
+                _t.Check("a new line after clear all owes 10",
+                    again == RequestEditResult.Ok && Delivered(a, "Wood") == 0 && a.Ledger.Remaining("Wood") == 10, Lines(a));
+            }
+            _tomb.Worker.Paused = false;
+            _tomb.Worker.PlanNow();
+            yield return SelfTestContext.WaitFor(() => CountPrefab(_deliveryA, "Wood") == 40 && !HasLine(a, "Wood") && _tomb.Carried.IsEmpty, 90f);
+            _t.Check("the line after clear all brings 10 more", CountPrefab(_deliveryA, "Wood") == 40 && !HasLine(a, "Wood"),
+                $"chest {CountPrefab(_deliveryA, "Wood")}");
+
+            yield return SelfTestContext.WaitFor(() => _tomb.Worker.Plan == null && _tomb.Carried.IsEmpty, 20f);
+            _tomb.Worker.Paused = true;
+            if (GUIManager.IsHeadless() || GUIManager.CustomGUIFront == null)
+            {
+                a.Edit(l => l.Request("Wood", 8, keepAmount: true) == RequestEditResult.Ok);
+            }
+            else
+            {
+                DeliveryPanel.Open(a);
+                DeliveryPanel.Submit("Wood", 8);
+                DeliveryPanel.SetKeep("Wood", true);
+                DeliveryPanel.SaveButton.onClick.Invoke();
+            }
+            DeliveryRequest kept = a.Ledger.Lines.SingleOrDefault(l => l.ItemPrefab == "Wood");
+            _t.Check("keep amount is saved on the line", kept != null && kept.KeepAmount && kept.Requested == 8 && kept.Delivered == 0, Lines(a));
+            _tomb.Worker.Paused = false;
+            float settle = Time.time + 3f * HaugbuiPlugin.Instance.Settings.PlanningIntervalSeconds.Value + 1f;
+            while (Time.time < settle) yield return null;
+            DeliveryRequest standing = a.Ledger.Lines.FirstOrDefault(l => l.ItemPrefab == "Wood");
+            _t.Check("keep amount leaves a surplus in the chest", CountPrefab(_deliveryA, "Wood") == 40 && standing != null && standing.KeepAmount,
+                $"chest {CountPrefab(_deliveryA, "Wood")}, {Lines(a)}");
+
+            MovePrefab(_deliveryA, _wood, "Wood", 3);
+            _tomb.Worker.PlanNow();
+            yield return SelfTestContext.WaitFor(() => CountPrefab(_deliveryA, "Wood") == 8 && _tomb.Carried.IsEmpty, 90f);
+            _t.Check("keep amount refills what was taken", CountPrefab(_deliveryA, "Wood") == 8 && HasLine(a, "Wood"),
+                $"chest {CountPrefab(_deliveryA, "Wood")}, {Lines(a)}");
+
+            int surplus = ItemBridge.RemoveFrom(_wood.GetInventory(), Stack("Wood", 0), 4);
+            if (surplus > 0) Add(_deliveryA, "Wood", surplus);
+            int held = CountPrefab(_deliveryA, "Wood");
+            settle = Time.time + 3f * HaugbuiPlugin.Instance.Settings.PlanningIntervalSeconds.Value + 1f;
+            while (Time.time < settle) yield return null;
+            _t.Check("keep amount does not remove a surplus", CountPrefab(_deliveryA, "Wood") == held && HasLine(a, "Wood"),
+                $"chest {CountPrefab(_deliveryA, "Wood")}, held {held}");
+
+            Add(_deliveryB, "Stone", 500);
+            b.Edit(l => l.Request("Wood", 5, keepAmount: true) == RequestEditResult.Ok);
+            yield return SelfTestContext.WaitFor(() => CountPrefab(_deliveryB, "Wood") > 0, 10f);
+            DeliveryRequest blocked = b.Ledger.Lines.FirstOrDefault(l => l.ItemPrefab == "Wood");
+            _t.Check("a full chest stops a keep-amount line and the line stays",
+                CountPrefab(_deliveryB, "Wood") == 0 && blocked != null && blocked.KeepAmount, Lines(b));
+            ItemBridge.RemoveFrom(_deliveryB.GetInventory(), Stack("Stone", 0), 500);
+            b.Edit(l =>
+            {
+                while (l.Lines.Count > 0) l.Cancel(0);
+                return true;
+            });
+            a.Edit(l =>
+            {
+                while (l.Lines.Count > 0) l.Cancel(0);
+                return true;
+            });
+            yield return SelfTestContext.WaitFor(() => _tomb.Worker.Plan == null && _tomb.Carried.IsEmpty, 20f);
+            _t.Check("totals conserved across quota and keep amount", Same(expected, WorldTotals()), $"{Format(expected)} → {Format(WorldTotals())}");
+        }
+
+        private static void MovePrefab(Container from, Container to, string prefab, int leave)
+        {
+            int extra = CountPrefab(from, prefab) - leave;
+            if (extra <= 0) return;
+            int clean = ItemBridge.RemoveFrom(from.GetInventory(), Stack(prefab, 0), extra);
+            if (clean > 0) Add(to, prefab, clean);
+            extra -= clean;
+            if (extra <= 0) return;
+            int cheated = ItemBridge.RemoveFrom(from.GetInventory(), CheatedTag(), extra);
+            if (cheated <= 0) return;
+            ItemStack back = CheatedTag();
+            back.Amount = cheated;
+            ItemBridge.AddTo(to.GetInventory(), back);
+        }
+
         private IEnumerator Finish()
         {
+            _tomb.Worker.Paused = false;
             Dictionary<string, int> expected = WorldTotals();
             yield return SetTime(FakeTime.Noon);
             yield return SelfTestContext.WaitFor(() => _tomb.Machine.State == HaugbuiState.Dormant, 30f);
@@ -517,8 +673,11 @@ namespace Haugbui.SelfTest
         private static int Delivered(DeliveryChest chest, string prefab) =>
             chest.Ledger.Lines.Where(l => l.ItemPrefab == prefab).Sum(l => l.Delivered);
 
+        private static bool HasLine(DeliveryChest chest, string prefab) =>
+            chest != null && chest.Ledger.Lines.Any(l => l.ItemPrefab == prefab);
+
         private static string Lines(DeliveryChest chest) =>
-            string.Join(", ", chest.Ledger.Lines.Select(l => $"{l.ItemPrefab} {l.Delivered}/{l.Requested}"));
+            chest == null ? "missing" : string.Join(", ", chest.Ledger.Lines.Select(l => $"{l.ItemPrefab} {l.Delivered}/{l.Requested}{(l.KeepAmount ? " keep" : "")}"));
 
         private static bool IsTransportable(string prefab) => ItemBridge.IsTransportable(new ItemStack { Prefab = prefab });
 

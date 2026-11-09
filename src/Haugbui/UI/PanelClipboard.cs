@@ -10,7 +10,7 @@ namespace Haugbui.UI
     internal static class PanelClipboard
     {
         private static List<ChestFilterLine> _filters;
-        private static List<(string Prefab, int Requested)> _requests;
+        private static List<RequestDraft> _requests;
 
         internal static bool HasFilters { get; private set; }
         internal static bool HasRequests { get; private set; }
@@ -38,16 +38,16 @@ namespace Haugbui.UI
             return copy;
         }
 
-        internal static void CopyRequests(IEnumerable<(string Prefab, int Requested)> lines)
+        internal static void CopyRequests(IEnumerable<RequestDraft> lines)
         {
-            _requests = new List<(string Prefab, int Requested)>();
+            _requests = new List<RequestDraft>();
             if (lines != null)
-                foreach ((string prefab, int requested) in lines)
-                    _requests.Add((prefab, requested));
+                foreach (RequestDraft line in lines)
+                    _requests.Add(line);
             HasRequests = true;
         }
 
-        internal static IReadOnlyList<(string Prefab, int Requested)> Requests =>
-            _requests ?? (IReadOnlyList<(string Prefab, int Requested)>)System.Array.Empty<(string, int)>();
+        internal static IReadOnlyList<RequestDraft> Requests =>
+            _requests ?? (IReadOnlyList<RequestDraft>)System.Array.Empty<RequestDraft>();
     }
 }

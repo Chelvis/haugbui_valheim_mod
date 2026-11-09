@@ -87,6 +87,7 @@
   "haugbui_delivery_none": "Nada a entregar",
   "haugbui_delivery_col_item": "Item",
   "haugbui_delivery_col_requested": "Pedido",
+  "haugbui_delivery_keep_amount": "Manter quantidade",
   "haugbui_delivery_keep_extra": "* O Haugbui não retira o que passar do pedido",
   "haugbui_msg_max_tombs": "Todos os seus Haugbuis já têm um túmulo.",
   "haugbui_msg_offer_failed": "Você não tem isso para oferecer.",

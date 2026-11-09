@@ -173,7 +173,9 @@ namespace Haugbui.Brain
                 foreach (Core.Persistence.DeliveryRequest line in chest.Ledger.OpenLines.ToList())
                 {
                     if (!Creature.ItemBridge.IsTransportable(new ItemStack { Prefab = line.ItemPrefab })) continue;
-                    lines.Add((line.ItemPrefab, line.Remaining));
+                    int owed = DeliveryLedger.Owed(line, snapshot.CountPrefab(line.ItemPrefab));
+                    if (owed <= 0) continue;
+                    lines.Add((line.ItemPrefab, owed));
                 }
                 if (lines.Count == 0) continue;
                 DeliveryTrip trip = DeliveryPlanner.Combine(lines, snapshot, context.Carried,

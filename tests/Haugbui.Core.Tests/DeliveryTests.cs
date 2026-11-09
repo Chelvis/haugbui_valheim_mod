@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Core.Creature;
@@ -30,22 +31,61 @@ namespace Haugbui.Core.Tests
             Assert.That(ledger.RecordDelivered("Wood", 7), Is.EqualTo(7));
             Assert.That(ledger.RecordDelivered("Wood", 7), Is.EqualTo(3));
             Assert.That(ledger.Remaining("Wood"), Is.EqualTo(0));
-            Assert.That(DeliveryLedger.IsComplete(ledger.Lines.Single()));
+            Assert.That(ledger.Lines, Is.Empty, "a fulfilled quota leaves the list");
             Assert.That(ledger.RecordDelivered("Wood", 1), Is.EqualTo(0));
-            Assert.That(ledger.Lines.Single().Delivered, Is.EqualTo(10));
         }
 
         [Test]
-        public void Editing_below_delivered_completes_the_line()
+        public void Saving_a_new_amount_starts_the_quota_over()
         {
             var ledger = new DeliveryLedger();
-            ledger.Request("Stone", 200);
-            ledger.RecordDelivered("Stone", 80);
-            Assert.That(ledger.SetRequested(0, 50), Is.EqualTo(RequestEditResult.Ok));
+            ledger.Request("Wood", 10);
+            ledger.RecordDelivered("Wood", 10);
+            Assert.That(ledger.Lines, Is.Empty);
+            Assert.That(ledger.Request("Wood", 20), Is.EqualTo(RequestEditResult.Ok));
             DeliveryRequest line = ledger.Lines.Single();
-            Assert.That(line.Requested == 80 && line.Delivered == 80 && DeliveryLedger.IsComplete(line));
-            Assert.That(ledger.SetRequested(0, 120), Is.EqualTo(RequestEditResult.Ok));
-            Assert.That(ledger.Remaining("Stone"), Is.EqualTo(40), "raising it reopens the line");
+            Assert.That(line.Delivered, Is.EqualTo(0));
+            Assert.That(line.Requested, Is.EqualTo(20));
+            Assert.That(ledger.Remaining("Wood"), Is.EqualTo(20));
+
+            ledger.RecordDelivered("Wood", 4);
+            Assert.That(ledger.SetRequested(0, 20), Is.EqualTo(RequestEditResult.Ok));
+            Assert.That(ledger.Lines.Single().Delivered, Is.EqualTo(0));
+            Assert.That(ledger.Remaining("Wood"), Is.EqualTo(20), "the new 20 is not reduced by the old delivery");
+        }
+
+        [Test]
+        public void Deleting_a_line_forgets_what_it_had_delivered()
+        {
+            var ledger = new DeliveryLedger();
+            ledger.Request("Wood", 10);
+            ledger.RecordDelivered("Wood", 4);
+            Assert.That(ledger.Replace(new RequestDraft[0]), Is.EqualTo(RequestEditResult.Ok));
+            Assert.That(ledger.Request("Wood", 10), Is.EqualTo(RequestEditResult.Ok));
+            Assert.That(ledger.Lines.Single().Delivered, Is.EqualTo(0));
+            Assert.That(ledger.Remaining("Wood"), Is.EqualTo(10));
+
+            ledger.RecordDelivered("Wood", 6);
+            Assert.That(ledger.Replace(new[] { new RequestDraft("Wood", 10) }), Is.EqualTo(RequestEditResult.Ok));
+            Assert.That(ledger.Lines.Single().Delivered, Is.EqualTo(0));
+            Assert.That(ledger.Remaining("Wood"), Is.EqualTo(10));
+        }
+
+        [Test]
+        public void Keep_amount_follows_the_chest_and_ignores_delivered()
+        {
+            var ledger = new DeliveryLedger();
+            Assert.That(ledger.Request("Wood", 10, keepAmount: true), Is.EqualTo(RequestEditResult.Ok));
+            DeliveryRequest line = ledger.Lines.Single();
+            Assert.That(line.KeepAmount, Is.True);
+            Assert.That(DeliveryLedger.Owed(line, 0), Is.EqualTo(10));
+            Assert.That(DeliveryLedger.Owed(line, 4), Is.EqualTo(6));
+            Assert.That(DeliveryLedger.Owed(line, 10), Is.EqualTo(0));
+            Assert.That(DeliveryLedger.Owed(line, 12), Is.EqualTo(0), "a surplus is not a debt, and it is not removed here");
+            Assert.That(ledger.RecordDelivered("Wood", 6), Is.EqualTo(6));
+            Assert.That(ledger.Lines.Single().Delivered, Is.EqualTo(0));
+            Assert.That(DeliveryLedger.Owed(ledger.Lines.Single(), 0), Is.EqualTo(10), "history does not reduce a keep-amount line");
+            Assert.That(ledger.Lines.Count, Is.EqualTo(1));
         }
 
         [Test]
@@ -53,45 +93,53 @@ namespace Haugbui.Core.Tests
         {
             var ledger = new DeliveryLedger();
             ledger.Request("Wood", 10);
+            ledger.RecordDelivered("Wood", 3);
             ledger.Request("Wood", 25);
             Assert.That(ledger.Lines.Count, Is.EqualTo(1));
             Assert.That(ledger.Lines[0].Requested, Is.EqualTo(25));
+            Assert.That(ledger.Lines[0].Delivered, Is.EqualTo(0));
         }
 
         [Test]
-        public void Completed_line_stays_until_cleared_and_a_new_one_can_be_opened()
+        public void A_fulfilled_quota_is_removed_and_the_next_line_starts_at_zero()
         {
             var ledger = new DeliveryLedger();
             ledger.Request("Wood", 5);
             ledger.RecordDelivered("Wood", 5);
+            Assert.That(ledger.Lines, Is.Empty);
             ledger.Request("Wood", 3);
-            Assert.That(ledger.Lines.Count, Is.EqualTo(2));
-            Assert.That(ledger.ClearCompleted(), Is.EqualTo(1));
+            Assert.That(ledger.Lines.Count, Is.EqualTo(1));
+            Assert.That(ledger.Lines.Single().Delivered, Is.EqualTo(0));
             Assert.That(ledger.Lines.Single().Remaining, Is.EqualTo(3));
+            Assert.That(ledger.ClearCompleted(), Is.EqualTo(0));
         }
 
         [Test]
-        public void Replace_keeps_what_was_delivered_and_drops_the_rest()
+        public void Replace_starts_over_and_drops_lines_left_out()
         {
             var ledger = new DeliveryLedger();
             ledger.Request("Wood", 100);
             ledger.RecordDelivered("Wood", 40);
             ledger.Request("Stone", 10);
-            Assert.That(ledger.Replace(new[] { ("Wood", 0) }), Is.EqualTo(RequestEditResult.InvalidAmount));
+            Assert.That(ledger.Replace(new[] { new RequestDraft("Wood", 0) }), Is.EqualTo(RequestEditResult.InvalidAmount));
             Assert.That(ledger.Lines.Select(l => l.ItemPrefab), Is.EqualTo(new[] { "Wood", "Stone" }));
+            Assert.That(ledger.Lines.Single(l => l.ItemPrefab == "Wood").Delivered, Is.EqualTo(40), "a refused edit keeps the old count");
 
-            Assert.That(ledger.Replace(new[] { ("Wood", 30), ("Resin", 5) }), Is.EqualTo(RequestEditResult.Ok));
+            Assert.That(ledger.Replace(new[] { new RequestDraft("Wood", 30), new RequestDraft("Resin", 5, keepAmount: true) }), Is.EqualTo(RequestEditResult.Ok));
             DeliveryRequest wood = ledger.Lines.Single(l => l.ItemPrefab == "Wood");
-            Assert.That(wood.Delivered, Is.EqualTo(40));
-            Assert.That(wood.Requested, Is.EqualTo(40));
+            Assert.That(wood.Delivered, Is.EqualTo(0));
+            Assert.That(wood.Requested, Is.EqualTo(30));
+            Assert.That(wood.KeepAmount, Is.False);
             Assert.That(ledger.Lines.Any(l => l.ItemPrefab == "Stone"), Is.False);
-            Assert.That(ledger.Lines.Single(l => l.ItemPrefab == "Resin").Requested, Is.EqualTo(5));
+            DeliveryRequest resin = ledger.Lines.Single(l => l.ItemPrefab == "Resin");
+            Assert.That(resin.Requested, Is.EqualTo(5));
+            Assert.That(resin.KeepAmount, Is.True);
 
-            Assert.That(ledger.Replace(new (string, int)[0]), Is.EqualTo(RequestEditResult.Ok));
+            Assert.That(ledger.Replace(new RequestDraft[0]), Is.EqualTo(RequestEditResult.Ok));
             Assert.That(ledger.Lines, Is.Empty);
 
-            var tooMany = new List<(string, int)>();
-            for (int i = 0; i < DeliveryLedger.MaxLines + 1; i++) tooMany.Add(("Item" + i, 1));
+            var tooMany = new List<RequestDraft>();
+            for (int i = 0; i < DeliveryLedger.MaxLines + 1; i++) tooMany.Add(new RequestDraft("Item" + i, 1));
             ledger.Request("Wood", 1);
             Assert.That(ledger.Replace(tooMany), Is.EqualTo(RequestEditResult.TooManyLines));
             Assert.That(ledger.Lines.Single().ItemPrefab, Is.EqualTo("Wood"));
@@ -116,10 +164,14 @@ namespace Haugbui.Core.Tests
             var ledger = new DeliveryLedger();
             ledger.Request("Wood", 100);
             ledger.RecordDelivered("Wood", 40);
+            ledger.Request("Resin", 8, keepAmount: true);
             byte[] blob = DeliveryRequestsSerializer.Instance.Serialize(ledger.ToList());
             Assert.That(DeliveryRequestsSerializer.Instance.TryDeserialize(blob, out List<DeliveryRequest> read), Is.EqualTo(BlobReadStatus.Ok));
             var back = new DeliveryLedger(read);
             Assert.That(back.Remaining("Wood"), Is.EqualTo(60));
+            DeliveryRequest resin = back.Lines.Single(l => l.ItemPrefab == "Resin");
+            Assert.That(resin.KeepAmount, Is.True);
+            Assert.That(DeliveryLedger.Owed(resin, 3), Is.EqualTo(5));
         }
 
         [Test]
@@ -132,8 +184,14 @@ namespace Haugbui.Core.Tests
             b.Request("Wood", 5);
             b.Request("Stone", 2);
             b.RecordDelivered("Stone", 2);
-            Dictionary<string, int> reserved = DeliveryLedger.Reserved(new[] { a, b });
+            b.Request("Resin", 9, keepAmount: true);
+            Dictionary<string, int> reserved = DeliveryLedger.Reserved(new[]
+            {
+                (a, (Func<string, int>)null),
+                (b, (Func<string, int>)(prefab => prefab == "Resin" ? 4 : 0)),
+            });
             Assert.That(reserved["Wood"], Is.EqualTo(75));
+            Assert.That(reserved["Resin"], Is.EqualTo(5));
             Assert.That(reserved.ContainsKey("Stone"), Is.False);
         }
     }

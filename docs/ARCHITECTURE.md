@@ -254,8 +254,10 @@ destination first). Drops that do not fit are remembered for 5 minutes and colle
   the radius by role (`ContainerUse`): storage destination, storage source (plain chests and Collection Chests) and
   delivery target (Delivery Chests only). A delivery trip (`DeliveryPlanner`, Core) takes no more than the line's
   remaining amount, the chest's room and the carry limits, takes carried items of that item first, then the nearest
-  sources; each Put into the Delivery Chest counts the moved amount in its ledger (`haugbui_requests`, owner writes
-  only). Leftovers of an aborted trip are deposited like any carried item. The Collection Chest check repeats every
+  sources. A quota's remaining is requested minus what that saved line has received, and the line is removed when the
+  quota is met. A keep-amount line's remaining is requested minus what the chest holds now. Saving a line starts its
+  delivered count over. Each Put into the Delivery Chest counts the moved amount on a quota line (`haugbui_requests`,
+  owner writes only). Leftovers of an aborted trip are deposited like any carried item. The Collection Chest check repeats every
   `CollectionIntervalSeconds` of world time while it finds nothing, every planning tick while it has work.
 - M4 keys: sorting a tomb storage reserves `take:<container ZDOID>` (only its own tomb uses it, the key makes that
   explicit). Deposits reserve nothing: the destination's room is re-read when the item is put, and what does not fit
@@ -334,7 +336,7 @@ All keys are namespaced `haugbui_*` and versioned. Blobs are `ZPackage` byte arr
 | Any Haugbui host | `haugbui_kind` (int, `StructureKind`: Tomb 1, Offering 10, PersonalTreasure 11, SilverBracelets 12, Longsword 13, Altar 14, CollectionChest 20, DeliveryChest 21), `haugbui_ver` (int), `haugbui_guid` (string) |
 | Tomb | `haugbui_tomb` (versioned blob `TombState` v3: guid, owner playerID, toggles bitmask, health, death time, level cache, creature state, position, health time; v3 adds servant slot index, tribute balance, cheated part of the balance, last paid shift, start time), `haugbui_carried` / `haugbui_overflow` (`ItemStack` lists) |
 | Upgrade | `haugbui_tomb_guid` (binding, written on placement), upgrade kind in `haugbui_kind` |
-| Delivery chest | `haugbui_requests` (byte[]: list of {itemPrefab, requested, delivered}) |
+| Delivery chest | `haugbui_requests` (byte[]: list of {itemPrefab, requested, delivered, keepAmount}; schema 2, schema 1 loads as a quota) |
 | Vanilla station | `haugbui_job` (byte[]: {enabled, recipe input/output prefab, mode finite/infinite, target, supplied, produced, tombGuid}) |
 | World | global key `haugbui <schemaVersion>` (schema 1) and `haugbui_tombs <count>` (tomb ZDOs from `ZDOMan.m_objectsByID`, not servant slots); servant slots `haugbui_slot_<ownerId>_<n> <lower-case hex of ServantSlot blob>` (written directly to `ZoneSystem.m_globalKeys`/`m_globalKeysValues`: `SetGlobalKey` would route an RPC and add every new text to the player profile's known keys; the world load lower-cases the whole key text, hence hex for slots and plain numbers for the marker; not synced to other peers yet) |
 

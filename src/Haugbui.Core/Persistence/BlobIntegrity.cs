@@ -58,7 +58,10 @@ namespace Haugbui.Core.Persistence
             return changed;
         }
 
-        /// <summary>A line that claims more delivered than requested is closed by raising the request, so nothing further is owed.</summary>
+        /// <summary>
+        /// A one-time quota that is already met is removed, so a later line for that item cannot inherit it.
+        /// A keep-amount line stays; its delivered count is not a quota.
+        /// </summary>
         public static bool RepairRequests(List<DeliveryRequest> lines)
         {
             if (lines == null) return false;
@@ -82,12 +85,7 @@ namespace Haugbui.Core.Persistence
                     line.Delivered = 0;
                     changed = true;
                 }
-                if (line.Delivered > line.Requested)
-                {
-                    line.Requested = line.Delivered;
-                    changed = true;
-                }
-                if (line.Requested == 0 && line.Delivered == 0)
+                if (line.Requested == 0 || (!line.KeepAmount && line.Delivered >= line.Requested))
                 {
                     lines.RemoveAt(i);
                     changed = true;

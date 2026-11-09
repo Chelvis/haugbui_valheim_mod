@@ -87,6 +87,7 @@
   "haugbui_delivery_none": "No items to deliver",
   "haugbui_delivery_col_item": "Item",
   "haugbui_delivery_col_requested": "Requested",
+  "haugbui_delivery_keep_amount": "Keep amount",
   "haugbui_delivery_keep_extra": "* Haugbui will not remove exceeding items",
   "haugbui_msg_max_tombs": "Every Haugbui of yours already has a tomb.",
   "haugbui_msg_offer_failed": "You have none of that to offer.",

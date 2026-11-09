@@ -60,11 +60,11 @@ namespace Haugbui.UI
 
         private static void CopyRequests(DeliveryChest chest)
         {
-            var lines = new List<(string Prefab, int Requested)>();
+            var lines = new List<RequestDraft>();
             foreach (DeliveryRequest line in chest.Ledger.Lines)
             {
                 if (line.Requested <= 0 || line.Requested > DeliveryLedger.MaxRequested) return;
-                lines.Add((line.ItemPrefab, line.Requested));
+                lines.Add(new RequestDraft(line.ItemPrefab, line.Requested, line.KeepAmount));
             }
             PanelClipboard.CopyRequests(lines);
         }

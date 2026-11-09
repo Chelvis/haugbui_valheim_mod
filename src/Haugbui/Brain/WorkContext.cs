@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Core.Coordination;
@@ -90,7 +91,9 @@ namespace Haugbui.Brain
         /// <summary>HB-087: what open Delivery Chest lines still wait for, by item prefab.</summary>
         public int Reserved(string prefab)
         {
-            if (_reserved == null) _reserved = DeliveryLedger.Reserved(DeliveryChests.Select(d => d.Chest.Ledger));
+            if (_reserved == null)
+                _reserved = DeliveryLedger.Reserved(DeliveryChests.Select(d =>
+                    (d.Chest.Ledger, (Func<string, int>)(prefab => d.Snapshot.CountPrefab(prefab)))));
             return _reserved.TryGetValue(prefab, out int n) ? n : 0;
         }
 
