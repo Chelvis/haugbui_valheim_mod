@@ -37,6 +37,17 @@ namespace Haugbui.Creature
                     into.Add(tomb.transform.position);
         }
 
+        /// <summary>A loaded tomb already knows its Altar, so a far unload can keep that without another world walk.</summary>
+        internal static void NoteAwayAltars(HashSet<string> fullTime)
+        {
+            foreach (TombController tomb in Instances)
+            {
+                if (tomb == null || tomb.State == null || !tomb.State.Has(TombToggles.AwayMode)) continue;
+                if (tomb.FullTime) fullTime.Add(tomb.State.Guid);
+                else fullTime.Remove(tomb.State.Guid);
+            }
+        }
+
         /// <summary>
         /// The checkbox only pins the area while he is allowed out. A flight home still counts: dropping the area
         /// then would despawn him before the bag is deposited.
@@ -233,7 +244,6 @@ namespace Haugbui.Creature
         private void OnDestroy()
         {
             Instances.Remove(this);
-            KeepLoaded.Invalidate();
             HaugbuiPlugin.Instance?.Scheduler?.Unregister(_planTick);
             Worker?.ReleaseAll();
             // Zone unload or logout: the creature goes with the tomb; the saved state resumes it on the next load.

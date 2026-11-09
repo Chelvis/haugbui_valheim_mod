@@ -22,8 +22,10 @@ namespace Haugbui.Integration
         private static readonly List<ZDO> Distant = new List<ZDO>();
         private static readonly List<ZDO> Spawn = new List<ZDO>();
         private static readonly List<ZDO> Empty = new List<ZDO>();
+        private static readonly List<ZDO> Altars = new List<ZDO>();
 
-        private static float _scanAt = -1f;
+        private static ZDOMan _scannedWorld;
+        private static bool _scanDone;
         private static int _listedFrame = -1;
 
         internal static bool Active =>
@@ -35,10 +37,13 @@ namespace Haugbui.Integration
         {
             if (zdo == null) return;
             zdo.Set(ZdoKeys.KeepLoaded, on ? 1 : 0);
-            _scanAt = -1f;
+            if (on)
+            {
+                if (!Kept.Contains(zdo.m_uid)) Kept.Add(zdo.m_uid);
+            }
+            else
+                Kept.Remove(zdo.m_uid);
         }
-
-        internal static void Invalidate() => _scanAt = -1f;
 
         /// <summary>True when this point sits in an opted-in tomb's simulation bubble. Uses the last anchor list.</summary>
         internal static bool Inside(Vector3 point)
@@ -52,7 +57,7 @@ namespace Haugbui.Integration
         internal static bool Anchored(Vector3 point)
         {
             if (!Active || ZDOMan.instance == null) return false;
-            RefreshAnchors(true);
+            RefreshAnchors();
             for (int i = 0; i < Anchors.Count; i++)
                 if ((Anchors[i] - point).sqrMagnitude < 4f) return true;
             return false;
@@ -119,19 +124,16 @@ namespace Haugbui.Integration
         private static bool Refresh()
         {
             if (!Active || ZNet.instance == null || ZoneSystem.instance == null || ZDOMan.instance == null) return false;
-            RefreshAnchors(false);
+            RefreshAnchors();
             return Anchors.Count > 0;
         }
 
-        private static void RefreshAnchors(bool forceScan)
+        private static void RefreshAnchors()
         {
             Anchors.Clear();
             TombController.CollectAwayAnchors(Anchors);
-            if (forceScan || Time.time >= _scanAt)
-            {
-                _scanAt = Time.time + 2f;
-                ScanKept();
-            }
+            EnsureScanned();
+            TombController.NoteAwayAltars(FullTimeTombs);
             for (int i = 0; i < Kept.Count; i++)
             {
                 ZDO zdo = ZDOMan.instance.GetZDO(Kept[i]);
@@ -144,29 +146,51 @@ namespace Haugbui.Integration
             }
         }
 
-        private static void ScanKept()
+        /// <summary>
+        /// One walk of the world per load. Repeating it hitches: every ZDO is visited, and the keep flag only
+        /// changes through Stamp. A live tomb reports its Altar afterwards, so a later build does not need another walk.
+        /// </summary>
+        private static void EnsureScanned()
+        {
+            ZDOMan world = ZDOMan.instance;
+            if (world == null) return;
+            if (world != _scannedWorld)
+            {
+                _scannedWorld = world;
+                _scanDone = false;
+                Kept.Clear();
+                FullTimeTombs.Clear();
+            }
+            // The player exists only after the world has loaded its ZDOs.
+            if (_scanDone || Player.m_localPlayer == null || world.m_objectsByID.Count == 0) return;
+            _scanDone = true;
+            ScanKept(world);
+        }
+
+        private static void ScanKept(ZDOMan world)
         {
             Kept.Clear();
-            FullTimeTombs.Clear();
-            foreach (ZDO zdo in ZDOMan.instance.m_objectsByID.Values)
+            Altars.Clear();
+            foreach (ZDO zdo in world.m_objectsByID.Values)
             {
                 if (zdo == null) continue;
                 if (zdo.GetInt(ZdoKeys.KeepLoaded) != 0) Kept.Add(zdo.m_uid);
+                else if (zdo.GetInt(ZdoKeys.Kind) == (int)StructureKind.Altar) Altars.Add(zdo);
             }
             float range = StructureRegistry.UpgradeRange;
-            foreach (ZDO zdo in ZDOMan.instance.m_objectsByID.Values)
+            for (int a = 0; a < Altars.Count; a++)
             {
-                if (zdo == null || zdo.GetInt(ZdoKeys.Kind) != (int)StructureKind.Altar) continue;
-                string bound = zdo.GetString(ZdoKeys.TombGuid);
+                string bound = Altars[a].GetString(ZdoKeys.TombGuid);
                 if (string.IsNullOrEmpty(bound)) continue;
-                Vector3 altar = zdo.GetPosition();
+                Vector3 altar = Altars[a].GetPosition();
                 for (int i = 0; i < Kept.Count; i++)
                 {
-                    ZDO tomb = ZDOMan.instance.GetZDO(Kept[i]);
+                    ZDO tomb = world.GetZDO(Kept[i]);
                     if (tomb == null || tomb.GetString(ZdoKeys.Guid) != bound) continue;
                     if (Vector3.Distance(altar, tomb.GetPosition()) <= range) FullTimeTombs.Add(bound);
                 }
             }
+            Altars.Clear();
         }
 
         /// <summary>

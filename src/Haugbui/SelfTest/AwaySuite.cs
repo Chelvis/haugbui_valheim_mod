@@ -67,7 +67,6 @@ namespace Haugbui.SelfTest
                 Discard(_plainId);
                 Discard(_optedId);
                 Pin(_home, true);
-                KeepLoaded.Invalidate();
             }
         }
 
@@ -193,7 +192,6 @@ namespace Haugbui.SelfTest
                 $"tomb {Count(Box(_optedId), "Wood")}, chest {Count(Box(_chestId), "Wood")}, creature {(back != null && back.Creature != null)}");
 
             enabled.Value = false;
-            KeepLoaded.Invalidate();
             float off = Time.time + 5f;
             bool optedGone = false;
             while (Time.time < off && !optedGone)
