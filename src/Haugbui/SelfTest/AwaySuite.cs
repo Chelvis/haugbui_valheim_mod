@@ -12,8 +12,8 @@ using UnityEngine;
 namespace Haugbui.SelfTest
 {
     /// <summary>
-    /// Moves the player outside the simulation bubble. An unchecked tomb unloads. A checked one unloads by day,
-    /// reloads when the night starts, and its Haugbui emerges and empties the tomb from there.
+    /// Moves the player outside the simulation bubble. An unchecked tomb unloads. A checked one keeps a zone the
+    /// player already loaded and works from there at night. It does not generate that zone again after it unloads.
     /// </summary>
     internal sealed class AwaySuite
     {
@@ -118,6 +118,9 @@ namespace Haugbui.SelfTest
             Add(_chest, "Wood", 1);
             Add(_tombStorage, "Wood", 8);
             _ready = _t.Check("wood is waiting in the tomb", Count(_tombStorage, "Wood") == 8 && Count(_chest, "Wood") == 1);
+            if (!_ready) yield break;
+            _time.Fraction = FakeTime.Night;
+            _opted.TickNow();
         }
 
         private IEnumerator PlacePlainFar()
@@ -138,15 +141,7 @@ namespace Haugbui.SelfTest
                 _t.Check("far tomb stays unchecked",
                     controller != null && !controller.State.Has(TombToggles.AwayMode) && plain.Zdo.GetInt(ZdoKeys.KeepLoaded) == 0
                     && !KeepLoaded.Anchored(_plainPos));
-                float until = Time.time + 8f;
-                bool unloaded = !Alive(_optedId);
-                while (Time.time < until && !unloaded)
-                {
-                    Pin(target, false);
-                    if (!Alive(_optedId)) unloaded = true;
-                    yield return null;
-                }
-                _t.Check("opted-in tomb unloads by day while the player is away", unloaded);
+                _t.Check("opted-in tomb stays loaded at night while the player is away", Alive(_optedId));
                 yield break;
             }
             _t.Fail("place an unchecked tomb outside the bubble", "no dry ground far enough from the opted-in tomb");
@@ -157,16 +152,15 @@ namespace Haugbui.SelfTest
             _lookout = _optedPos + new Vector3(0f, 0f, _span);
             if (Vector3.Distance(_lookout, _plainPos) < _span * 0.8f)
                 _lookout = _optedPos + new Vector3(0f, 0f, -_span);
-            if (!_t.Check("opted-in tomb is unloaded before the night", !Alive(_optedId))) yield break;
+            if (!_t.Check("opted-in tomb is still loaded before the work", Alive(_optedId))) yield break;
             Pin(_lookout, false);
-            _time.Fraction = FakeTime.Night;
 
             bool sawWood = false;
             bool viewGone = false;
             bool zoneGone = false;
             bool sorted = false;
             float end = Time.time + 45f;
-            while (Time.time < end && !(sawWood && viewGone && zoneGone && sorted))
+            while (Time.time < end && !(viewGone && zoneGone && sorted))
             {
                 Pin(_lookout, false);
                 float away = Vector3.Distance(_t.Player.transform.position, _optedPos);
@@ -177,7 +171,7 @@ namespace Haugbui.SelfTest
                 if (far && left > 0) sawWood = true;
                 if (!Alive(_plainId)) viewGone = true;
                 if (!ZoneSystem.instance.IsZoneLoaded(_plainPos)) zoneGone = true;
-                if (far && sawWood && left == 0 && stored == 9 && live != null && live.Creature != null) sorted = true;
+                if (far && left == 0 && stored == 9 && live != null && live.Creature != null) sorted = true;
                 yield return null;
             }
 
@@ -186,7 +180,7 @@ namespace Haugbui.SelfTest
                 meters > _span * 0.75f && !ZNetScene.InActiveArea(_optedPos, _t.Player.transform.position), $"{meters:0} m");
             _t.Check("unchecked tomb unloads while the player is away", viewGone);
             _t.Check("unchecked tomb's zone unloads", zoneGone);
-            _t.Check("the job was still open after the player left", sawWood);
+            _t.Check("the wood was still in the tomb after the player left, or already moved", sawWood || sorted);
             TombController back = Live();
             _t.Check("sorted the tomb while the player was away", sorted,
                 $"tomb {Count(Box(_optedId), "Wood")}, chest {Count(Box(_chestId), "Wood")}, creature {(back != null && back.Creature != null)}");
@@ -201,6 +195,28 @@ namespace Haugbui.SelfTest
                 yield return null;
             }
             _t.Check("master switch unloads the tomb while the player is away", optedGone);
+
+            // The zone unloads a few seconds after its objects. The switch stays off until then.
+            // Turning it on while the zone is still loaded, at night, spawns him again on ground the player already loaded.
+            float down = Time.time + 12f;
+            bool zoneDown = false;
+            while (Time.time < down && !zoneDown)
+            {
+                Pin(_lookout, false);
+                if (!Alive(_optedId) && !ZoneSystem.instance.IsZoneLoaded(_optedPos)) zoneDown = true;
+                yield return null;
+            }
+            enabled.Value = true;
+            _time.Fraction = FakeTime.Night;
+            float hold = Time.time + 5f;
+            while (Time.time < hold)
+            {
+                Pin(_lookout, false);
+                yield return null;
+            }
+            _t.Check("an unloaded zone is not generated from far away",
+                zoneDown && !Alive(_optedId) && !ZoneSystem.instance.IsZoneLoaded(_optedPos),
+                $"zone unloaded {zoneDown}, alive {Alive(_optedId)}, zone loaded {ZoneSystem.instance.IsZoneLoaded(_optedPos)}");
         }
 
         private IEnumerator Arrive(Vector3 flat)

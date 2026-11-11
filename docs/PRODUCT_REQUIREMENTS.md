@@ -343,8 +343,10 @@ early.] Night-only work (without the Altar) already limits throughput.
 ### 13.4 Away mode (working while the player is elsewhere)
 
 - **HB-125** While the game is running, a tomb whose checkbox is on keeps its area loaded only while that Haugbui
-  may be out. Rest, a revive wait, and daytime without the Altar do not keep it loaded. While he may be out, the
-  existing Haugbui keeps flying and working. A tomb with the checkbox off does not keep its area loaded.
+  may be out, and only for zones the player has already loaded. It does not generate a zone. Rest, a revive wait,
+  and daytime without the Altar do not keep it loaded. While he may be out and the ground is already loaded, the
+  existing Haugbui keeps flying and working. A tomb with the checkbox off does not keep its area loaded. Logging in
+  already far from that tomb leaves the area unloaded until the player walks there.
 - **HB-126** The same rules as when the player is there, because it is the same Haugbui: night or Altar, toggles,
   the existing-item rule, wards, `StrictItemData`, leave-one, delivery reservations, territories, the bag and
   tribute. There is no second budget.
@@ -633,5 +635,6 @@ navigation, compatibility patches for other logistics mods (documented only), ad
 | 2026-11-07 | Away area only while he may be out (HB-125, confirmed) | The checkbox does not keep the area loaded while Rest is on, while he is dead and the revive wait has not finished, or by day when the tomb has no Altar. It loads again when he is allowed out: night, or day with the Altar, once the wait is over |
 | 2026-11-07 | Away area through the work window (HB-125) — **to confirm** | The area stays loaded for the whole time he is allowed out, including while he is inside because there is nothing to do or tribute is unpaid, so a job can still appear. It also stays loaded while he flies home, and drops once he has entered. At dusk the zones stream back in over a few seconds. The warning is "Keeps this Haugbui's area loaded while he can be out and you are away. Uses more CPU and can slow the game." / "Mantém a área deste Haugbui carregada enquanto ele pode estar fora e você está longe. Usa mais CPU e pode deixar o jogo lento." |
 | 2026-11-08 | Delivery keep amount (HB-083, HB-085, HB-088, confirmed) | Next to Requested, each row has a checkbox with no column header, labelled "Keep amount" / "Manter quantidade", default off, saved with the line. The row X, Clear all, Copy, Paste and Save stay, and the surplus footnote stays. Off: the requested amount is a one-time quota; the Haugbui brings that many and the line is then removed. On: the requested amount is how many should be in the chest now; remaining is that minus the chest count; taking items out brings more; the line stays; a full chest stops it; a surplus is left. Saving a line, Clear all, deleting the row, or saving a new amount drops what that line had delivered. A later line for the same item starts at zero. Keep amount ignores that history and looks at the chest. Copy and paste carry the checkbox and also start delivered at zero. An old save is a quota. A quota that was already fulfilled is dropped on load so it cannot stick |
+| 2026-11-10 | Away mode does not generate terrain (HB-125, confirmed) | A checked tomb refreshes only zones the player has already loaded. It does not generate a zone, and it does not spawn pieces while a saved ground edit in that zone has no live terrain compiler. Logging in already far leaves the base unloaded until the player walks there. Generating it from the tomb builds a fresh heightmap, then pieces support-check that ground |
 
 Open: every row marked **to confirm**.

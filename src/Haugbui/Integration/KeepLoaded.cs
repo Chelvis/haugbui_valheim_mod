@@ -23,6 +23,7 @@ namespace Haugbui.Integration
         private static readonly List<ZDO> Spawn = new List<ZDO>();
         private static readonly List<ZDO> Empty = new List<ZDO>();
         private static readonly List<ZDO> Altars = new List<ZDO>();
+        private static readonly HashSet<Vector2s> UnappliedTerrain = new HashSet<Vector2s>();
 
         private static ZDOMan _scannedWorld;
         private static bool _scanDone;
@@ -73,9 +74,14 @@ namespace Haugbui.Integration
         internal static void SpawnMissing(ZNetScene scene)
         {
             if (scene == null || !ListObjects()) return;
+            MarkUnappliedTerrain();
             Spawn.Clear();
             for (int i = 0; i < Near.Count; i++)
-                if (Near[i] != null && !Near[i].Created) Spawn.Add(Near[i]);
+            {
+                ZDO zdo = Near[i];
+                if (zdo == null || zdo.Created || !CanSpawn(zdo)) continue;
+                Spawn.Add(zdo);
+            }
             if (Spawn.Count == 0) return;
             scene.CreateObjects(Spawn, Empty);
         }
@@ -85,7 +91,6 @@ namespace Haugbui.Integration
             if (zones == null || !Refresh()) return;
             SimulationDistance distance = ZNet.instance.GetSyncedSimulationDistance();
             int near = distance.NearSimulationDistance;
-            bool spawned = false;
             for (int a = 0; a < Anchors.Count; a++)
             {
                 Vector2s center = ZoneSystem.GetZone(Anchors[a]);
@@ -95,14 +100,9 @@ namespace Haugbui.Integration
                     {
                         var id = new Vector2s(x, y);
                         if (!distance.IsClassic && !zones.ZonesWithinRadius(center, id, near)) continue;
-                        if (!zones.IsZoneLoaded(id))
-                        {
-                            // One new zone per tick, matching CreateLocalZones, so a far login does not hitch.
-                            if (spawned) continue;
-                            if (zones.PokeLocalZone(id)) spawned = true;
-                            continue;
-                        }
-                        zones.PokeLocalZone(id);
+                        // SpawnZone builds the heightmap before the saved TerrainComp exists. Pieces
+                        // then support-check that fresh ground. Only refresh a zone the player already loaded.
+                        if (zones.IsZoneLoaded(id)) zones.PokeLocalZone(id);
                     }
                 }
             }
@@ -191,6 +191,36 @@ namespace Haugbui.Integration
                 }
             }
             Altars.Clear();
+        }
+
+        /// <summary>
+        /// A saved ground edit lives on a TerrainComp. The heightmap applies it only after that object exists.
+        /// Spawning a piece before then support-checks the fresh ground.
+        /// </summary>
+        private static void MarkUnappliedTerrain()
+        {
+            UnappliedTerrain.Clear();
+            MarkUnapplied(Near);
+            MarkUnapplied(Distant);
+        }
+
+        private static void MarkUnapplied(List<ZDO> list)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                ZDO zdo = list[i];
+                if (zdo == null) continue;
+                byte[] data = zdo.GetByteArray(ZDOVars.s_TCData);
+                if (data == null || data.Length == 0) continue;
+                if (TerrainComp.FindTerrainCompiler(zdo.GetPosition()) != null) continue;
+                UnappliedTerrain.Add(ZoneSystem.GetZone(zdo.GetPosition()));
+            }
+        }
+
+        private static bool CanSpawn(ZDO zdo)
+        {
+            if (ZoneSystem.instance == null || !ZoneSystem.instance.IsZoneLoaded(zdo.GetPosition())) return false;
+            return !UnappliedTerrain.Contains(ZoneSystem.GetZone(zdo.GetPosition()));
         }
 
         /// <summary>
