@@ -3540,6 +3540,114 @@
             "HB-177",
             "HB-045"
           ]
+        },
+        {
+          "id": "HB-T-122",
+          "title": "Finite amount on the Frigid kiln",
+          "description": "The Frigid kiln is fuel-only because it has no ore queue, so the panel forces Infinite. It does produce a counted product. Allow Finite and Infinite, and a target, as on the charcoal kiln. Finite stops adding fuel once this job has produced the target, so the fuel is not emptied from storage. The hot tub and the shield generator stay infinite-only.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-067"
+          ],
+          "acceptance_criteria": [
+            "The mode dropdown and the amount field are usable on the Frigid kiln",
+            "A finite job of 3 stops after 3 products",
+            "Fuel left in chests is not taken after that",
+            "The hot tub and the shield generator still have no finite mode"
+          ],
+          "components": [
+            "UI",
+            "Production"
+          ],
+          "testing": {
+            "automated": [
+              "A finite fuel-product job stops at the target"
+            ],
+            "self_test": [
+              "Frigid kiln finite 3: fuel added only until 3 products, leftover fuel stays in the chest; hot tub stays infinite"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-181"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "V1.1",
+      "name": "Shift billing",
+      "goal": "After v1.0, version 1.1.0. Pick one of the two options in docs/briefs/SHIFT_BILLING_1.1.md with Kelvin. Do not choose ahead of that session.",
+      "tickets": [
+        {
+          "id": "HB-T-121",
+          "title": "Charge a shift for the time he actually works",
+          "description": "Not part of M13 or of v1. v1 still charges the full shift cost whenever he starts during that shift. At the start of the 1.1 session, present both options in docs/briefs/SHIFT_BILLING_1.1.md and wait for Kelvin. Option 1: without the Altar he emerges only at dusk; with the Altar a shift lasts half a game day from the moment he leaves. Option 2: a late start pays cost times remaining over the full shift, rounded down; an emerge on the shift boundary pays the full cost, with and without the Altar.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-101"
+          ],
+          "acceptance_criteria": [
+            "Kelvin has chosen one option before any code for this ticket",
+            "A late start no longer costs the same as a full shift, under the chosen option"
+          ],
+          "components": [
+            "Tribute",
+            "Creature"
+          ],
+          "testing": {
+            "automated": [
+              "The chosen charge matches the start time"
+            ],
+            "self_test": [
+              "Without the Altar and with it, a start at dusk and a start near dawn"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-179",
+            "HB-167"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "V1.2",
+      "name": "Task schedules",
+      "goal": "After v1.0, version 1.2.0. One schedule at a time: collect a batch, then deliver it. See docs/briefs/TASK_SCHEDULES_1.2.md. Do not build this in M13.",
+      "tickets": [
+        {
+          "id": "HB-T-123",
+          "title": "Schedules instead of one chore at a time",
+          "description": "Not part of M13 or of v1. Replace one-chore planning, the 80% bag rule and the 3-minute forced unload with three schedule kinds. Default order is Delivery, Production, Collection, stored as data so a later setting can reorder them. Combat and emptying the tomb on emerge stay fixed ahead of that list. A schedule runs to the end, then priority is chosen again. Combat pauses it and resumes the same list, skipping stops already satisfied. Entering the tomb stores the bag and drops the schedule. Delivery: if the requested weight fits, collect it all, fill leftover capacity from the ground, deliver, then store the surplus. If it does not fit, fill the bag with requested items, deliver, and repeat. Production: same batching, ground and Collection Chests first. Skip production when unmet demand is under the cutoff. Collection: Collection Chests, then ground, then storage. Within a trip, order stops by a short route so two kilns are visited before returning to the chest when the bag already holds both loads. Confirm the production cutoff with Kelvin before coding it. The recommendation is the greater of 20 weight and 20% of carry capacity, and a station over half full does not count.",
+          "priority": "P1",
+          "dependencies": [
+            "HB-T-045",
+            "HB-T-053",
+            "HB-T-061"
+          ],
+          "acceptance_criteria": [
+            "Two charcoal kilns beside each other are fed in one trip when both loads fit",
+            "A schedule is not dropped for a higher chore until it finishes, except for combat",
+            "After combat he continues the saved schedule",
+            "Entering the tomb clears the schedule",
+            "The kind order is data, not a hard-coded branch"
+          ],
+          "components": [
+            "Brain"
+          ],
+          "testing": {
+            "automated": [
+              "Batch packing, route order, cutoff, resume after combat"
+            ],
+            "self_test": [
+              "Two kilns, one wood chest: one collection, both kilns, no return between them when the bag holds both"
+            ],
+            "manual": []
+          },
+          "requirements": [
+            "HB-182"
+          ]
         }
       ]
     }

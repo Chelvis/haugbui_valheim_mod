@@ -51,6 +51,7 @@ namespace Haugbui.Brain
             {
                 new DepositProvider(),
                 new ProductionProvider(),
+                new KeepLitProvider(),
                 new DeliveryProvider(),
                 new OwnDropsProvider(),
                 new HarvestProvider(),
@@ -116,6 +117,7 @@ namespace Haugbui.Brain
                         case TaskKinds.ProductionFeed: return "$haugbui_activity_supplying";
                         case TaskKinds.ProductionOutputs: return "$haugbui_activity_collecting_outputs";
                         case TaskKinds.ProductionOperate: return "$haugbui_activity_tending";
+                        case TaskKinds.KeepLit: return "$haugbui_activity_keep_lit";
                         default: return "$haugbui_activity_sorting";
                     }
                 }
@@ -234,9 +236,15 @@ namespace Haugbui.Brain
                 }
                 if (!machine.TryEnter(HaugbuiState.Traveling)) return true;
                 creature.MaxSpeed = _tomb.Attributes.MaxSpeed;
-                Collider collider = MainCollider(_target);
-                if (collider != null) creature.MoveTo(collider);
-                else creature.MoveTo(_target.transform.position);
+                // A lit fire burns whatever stands in it. Tend it from outside that volume; the fuel RPC has no range.
+                if (step.Kind == StepKind.Refuel)
+                    creature.MoveTo(StandOff(_target.transform.position, creature.transform.position, 6f));
+                else
+                {
+                    Collider collider = MainCollider(_target);
+                    if (collider != null) creature.MoveTo(collider);
+                    else creature.MoveTo(_target.transform.position);
+                }
                 float distance = Vector3.Distance(creature.transform.position, _target.transform.position);
                 _travelDeadline = Time.time + Mathf.Max(MinTravelTimeout, 3f * distance / Mathf.Max(0.5f, creature.MaxSpeed));
                 return true;
@@ -339,6 +347,14 @@ namespace Haugbui.Brain
             return Plan != null;
         }
 
+        private static Vector3 StandOff(Vector3 target, Vector3 from, float distance)
+        {
+            Vector3 away = from - target;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.25f) away = Vector3.forward;
+            return target + away.normalized * distance + Vector3.up * 0.5f;
+        }
+
         /// <summary>A point within reach of the target, on the side the Haugbui comes from.</summary>
         private static Vector3 ReachPoint(MonoBehaviour target, Vector3 from)
         {
@@ -365,6 +381,10 @@ namespace Haugbui.Brain
                     return OperateStation(step, target);
                 case StepKind.Harvest:
                     return Harvest(target);
+                case StepKind.Dismantle:
+                    return PileGateway.Dismantle(target.GetComponent<Piece>() ?? target.GetComponentInParent<Piece>(), _tomb.Carried);
+                case StepKind.Refuel:
+                    return Refuel(step, target.GetComponent<Fireplace>() ?? target.GetComponentInParent<Fireplace>());
                 default:
                     return Transfer(step, new ContainerEndpoint((Container)target));
             }
@@ -432,6 +452,24 @@ namespace Haugbui.Brain
                     return true;
                 });
             }
+            _tomb.Creature?.Visuals?.Pulse();
+            return true;
+        }
+
+        private bool Refuel(TaskStep step, Fireplace fire)
+        {
+            if (fire == null || string.IsNullOrEmpty(step.Item?.Prefab)) return false;
+            int done = 0;
+            for (int i = 0; i < step.Amount; i++)
+            {
+                ItemStack unit = _tomb.Carried.Stacks.FirstOrDefault(s => s.Prefab == step.Item.Prefab && !s.Cheated);
+                if (unit == null) break;
+                if (!KeepLit.AddOne(fire)) break;
+                _tomb.Carried.Remove(unit, 1);
+                done++;
+            }
+            if (done <= 0) return false;
+            Fuelled += done;
             _tomb.Creature?.Visuals?.Pulse();
             return true;
         }
@@ -552,7 +590,11 @@ namespace Haugbui.Brain
             {
                 case Container container: return container.m_nview;
                 case ItemDrop drop: return drop.m_nview;
-                default: return StationAdapterRegistry.For(target)?.View(target) ?? HarvestGateway.ViewOf(target);
+                default:
+                    return StationAdapterRegistry.For(target)?.View(target)
+                        ?? HarvestGateway.ViewOf(target)
+                        ?? target.GetComponent<ZNetView>()
+                        ?? target.GetComponentInParent<ZNetView>();
             }
         }
 

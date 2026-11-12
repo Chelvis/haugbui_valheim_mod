@@ -206,6 +206,63 @@ namespace Haugbui.SelfTest
         internal const float FixtureMargin = 48f;
 
         /// <summary>
+        /// Dry ground as far from the player as the active area allows. A networked piece past that
+        /// edge loses its ZDO on the next frame, so a bed spawned there cannot take an owner.
+        /// </summary>
+        public static Vector3 IsolatedArena(Vector3 preferred, float isolation)
+        {
+            Player player = Player.m_localPlayer;
+            Vector3 origin = player != null ? player.transform.position : preferred;
+            Vector3 away = preferred - origin;
+            away.y = 0f;
+            if (away.sqrMagnitude < 1f) away = player != null ? player.transform.forward : Vector3.forward;
+            away.y = 0f;
+            away.Normalize();
+
+            const float fixtureMargin = 16f;
+            Vector3 best = default;
+            float bestDistance = -1f;
+            foreach (Vector3 direction in AwayDirections(away))
+            {
+                for (float dist = 32f; dist <= isolation + 64f; dist += 8f)
+                {
+                    Vector3 probe = origin + direction * dist;
+                    if (!InsideActive(probe, origin, fixtureMargin)) break;
+                    if (!TryFindDry(probe, 10f, out Vector3 spot) || !InsideActive(spot, origin, fixtureMargin)) continue;
+                    float distance = Vector3.Distance(origin, spot);
+                    if (distance <= bestDistance) continue;
+                    best = spot;
+                    bestDistance = distance;
+                    if (distance >= isolation) return spot;
+                }
+            }
+            return bestDistance >= 0f ? best : FindDryArena(preferred, 10f);
+        }
+
+        private static Vector3[] AwayDirections(Vector3 away)
+        {
+            Vector3 side = new Vector3(-away.z, 0f, away.x);
+            return new[]
+            {
+                away,
+                (away + side).normalized,
+                (away - side).normalized,
+                side,
+                -side
+            };
+        }
+
+        private static bool InsideActive(Vector3 point, Vector3 origin, float margin)
+        {
+            if (ZNet.instance == null || !ZNetScene.InActiveArea(point, origin)) return false;
+            if (margin <= 0f) return true;
+            return ZNetScene.InActiveArea(point + new Vector3(margin, 0f, 0f), origin)
+                && ZNetScene.InActiveArea(point + new Vector3(-margin, 0f, 0f), origin)
+                && ZNetScene.InActiveArea(point + new Vector3(0f, 0f, margin), origin)
+                && ZNetScene.InActiveArea(point + new Vector3(0f, 0f, -margin), origin);
+        }
+
+        /// <summary>
         /// A dry, flat, loaded spot far enough from the player that his bed and any Haugbui already working
         /// stay outside the placement rules. He stands still; the fixtures move.
         /// </summary>

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.13
+
+A tomb checkbox, off by default, lets the Haugbui take a material from a player-built pile when chests have none of
+it available. Chests always come first. The whole pile is dismantled, and what does not fit the bag is a normal
+ground drop. Shift+E on a fireplace toggles keep-lit; at 0 or 1 shown fuel he fills it, and he may open a wood pile
+for that when the checkbox is on. The Frigid kiln can be finite or infinite. Finite stops adding fuel once this job
+has made the requested number of products. The hot tub and the shield generator stay infinite-only. The production
+panel title sits lower so it clears the wood border.
+
 ## 0.0.12
 
 A tomb checkbox, off by default, keeps that Haugbui's area loaded while he can be out and you are away, so the

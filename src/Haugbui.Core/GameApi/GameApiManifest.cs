@@ -17,6 +17,7 @@ namespace Haugbui.Core.GameApi
         public const string DayNight = "DayNight";
         public const string Containers = "Containers";
         public const string Smelters = "Production.Smelter";
+        public const string Fires = "Fires";
         public const string Fermenters = "Production.Fermenter";
         public const string Cooking = "Production.Cooking";
         public const string Harvest = "Harvest";
@@ -94,6 +95,7 @@ namespace Haugbui.Core.GameApi
 
             M(Valheim, "Smelter", "RPC_AddOre", MemberKind.Method, Features.Smelters),
             M(Valheim, "Smelter", "RPC_AddFuel", MemberKind.Method, Features.Smelters),
+            M(Valheim, "Fireplace", "RPC_AddFuel", MemberKind.Method, Features.Fires),
             M(Valheim, "Smelter", "RPC_EmptyProcessed", MemberKind.Method, Features.Smelters),
             M(Valheim, "Smelter", "m_conversion", MemberKind.Field, Features.Smelters),
             M(Valheim, "Smelter", "m_maxOre", MemberKind.Field, Features.Smelters),

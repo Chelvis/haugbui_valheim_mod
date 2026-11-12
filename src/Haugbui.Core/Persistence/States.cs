@@ -14,6 +14,7 @@ namespace Haugbui.Core.Persistence
         Resting = 1 << 4,
         CombatAcknowledged = 1 << 5,
         AwayMode = 1 << 6,
+        MaterialPiles = 1 << 7,
 
         Defaults = GroundItems | Harvesting | Production
     }

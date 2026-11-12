@@ -16,7 +16,7 @@ harvest your fields and keep your smelters running — while you go adventuring.
 </div>
 
 > [!NOTE]
-> Version **0.0.12** is the last tagged build.
+> Version **0.0.13** passed its self-test and is not tagged yet. Tag `v0.0.12` stays where it is.
 > Leia em português: [README.pt-BR.md](README.pt-BR.md).
 
 ---
@@ -121,7 +121,9 @@ same moment and duplicate or lose it. Give those mods a different set of chests,
 | M10 | Tomb panel, hovers, chest filter, localization, structure looks and build-menu icons | ✅ (0.0.10) |
 | M11 | Carry cycle, timed bag emptying, chest-list copy, object damage ignored | ✅ (0.0.11) |
 | M12 | Away mode: an opted-in tomb keeps its area loaded | ✅ (0.0.12) |
-| M13 | Material piles and keep-lit fires | ⏳ |
+| M13 | Material piles, keep-lit fires, finite Frigid kiln | ✅ (0.0.13, self-test 2026-11-12) |
+| 1.1 | Shift billing: emerge only on the boundary, or pay for the time left | ⏳ after v1.0 |
+| 1.2 | Task schedules: collect a batch, then deliver it | ⏳ after v1.0 |
 
 The full plan lives in [`docs/`](docs):
 [requirements](docs/PRODUCT_REQUIREMENTS.md) ·

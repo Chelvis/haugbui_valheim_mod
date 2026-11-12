@@ -18,6 +18,7 @@ namespace Haugbui.Brain
         public const string ProductionOutputs = "production_outputs";
         public const string ProductionFeed = "production_feed";
         public const string ProductionOperate = "production_operate";
+        public const string KeepLit = "keep_lit";
 
         // Fill the bag first. Unload (feed, then deposit) waits until it is at least 80% full or nothing else fits.
         // Done food on an oven, cooking station or frost foundry burns if left, so taking it off beats everything else.
@@ -179,14 +180,17 @@ namespace Haugbui.Brain
                 }
                 if (lines.Count == 0) continue;
                 DeliveryTrip trip = DeliveryPlanner.Combine(lines, snapshot, context.Carried,
-                    context.Sources.Where(s => s.Id != snapshot.Id), context.From);
+                    context.Sources.Where(s => s.Id != snapshot.Id), context.From, context.Piles);
                 if (trip.Total <= 0) continue;
-                var steps = trip.Takes.Select(t => new TaskStep(StepKind.Take, t.Source, t.Item, t.Item.Amount))
-                    .Concat(trip.Puts.Select(p => new TaskStep(StepKind.Put, snapshot.Id, p, p.Amount)))
-                    .ToList();
-                string firstTarget = steps[0].Target;
-                ContainerSnapshot first = firstTarget == snapshot.Id ? snapshot : context.Sources.First(s => s.Id == firstTarget);
+                var steps = new List<TaskStep>();
                 var keys = new List<string>();
+                SupplySteps.AppendTakes(context, trip.Takes, null, steps, keys);
+                steps.AddRange(trip.Puts.Select(p => new TaskStep(StepKind.Put, snapshot.Id, p, p.Amount)));
+                string firstTarget = steps[0].Target;
+                MaterialPile pile = context.Piles.FirstOrDefault(p => p.Id == firstTarget);
+                Vec3 firstPosition = pile != null ? pile.Position
+                    : firstTarget == snapshot.Id ? snapshot.Position
+                    : context.Sources.First(s => s.Id == firstTarget).Position;
                 foreach (ItemStack put in trip.Puts)
                 {
                     string key = $"deliver:{snapshot.Id}:{put.Prefab}";
@@ -196,7 +200,7 @@ namespace Haugbui.Brain
                 {
                     Kind = TaskKinds.Deliver,
                     Priority = TaskKinds.DeliverPriority,
-                    Distance = Vec3.Distance(context.From, first.Position),
+                    Distance = Vec3.Distance(context.From, firstPosition),
                     Keys = keys,
                     Build = () => new TaskPlan(TaskKinds.Deliver, steps),
                 });

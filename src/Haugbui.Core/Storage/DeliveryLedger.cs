@@ -193,16 +193,24 @@ namespace Haugbui.Core.Storage
 
     public readonly struct PlannedTake
     {
-        public PlannedTake(string source, ItemStack item)
+        public PlannedTake(string source, ItemStack item) : this(source, item, 0)
+        {
+        }
+
+        public PlannedTake(string source, ItemStack item, int dropped)
         {
             Source = source;
             Item = item;
+            Dropped = dropped;
         }
 
         public string Source { get; }
 
-        /// <summary>Item data and amount (Item.Amount).</summary>
+        /// <summary>Item data and amount (Item.Amount). For a pile, the part that fits in the bag.</summary>
         public ItemStack Item { get; }
+
+        /// <summary>The rest of a dismantled pile, which becomes a ground drop. Zero for chests and drops.</summary>
+        public int Dropped { get; }
     }
 
     public sealed class DeliveryTrip
@@ -223,7 +231,7 @@ namespace Haugbui.Core.Storage
     public static class DeliveryPlanner
     {
         public static DeliveryTrip Plan(string prefab, int remaining, ContainerSnapshot chest, CarriedInventory carried,
-            IEnumerable<ContainerSnapshot> sources, Vec3 from)
+            IEnumerable<ContainerSnapshot> sources, Vec3 from, IEnumerable<MaterialPile> piles = null)
         {
             var trip = new DeliveryTrip();
             if (remaining <= 0 || chest == null) return trip;
@@ -260,12 +268,27 @@ namespace Haugbui.Core.Storage
                     left -= n;
                 }
             }
+
+            var opened = new HashSet<string>();
+            while (left > 0)
+            {
+                MaterialPile next = PileSource.Nearest(piles, prefab, null, from, opened);
+                if (next == null || room.RoomFor(next.Refund) <= 0) break;
+                PlannedTake? pile = PileSource.Open(piles, prefab, null, simulated, from, opened);
+                if (pile == null) break;
+                int n = Math.Min(left, Math.Min(pile.Value.Item.Amount, room.RoomFor(pile.Value.Item)));
+                if (n <= 0) break;
+                room.Accept(pile.Value.Item, n);
+                trip.Takes.Add(pile.Value);
+                AddPut(trip, pile.Value.Item, n);
+                left -= n;
+            }
             return trip;
         }
 
         /// <summary>One walk: takes for every line that still fits, then the puts into the same chest.</summary>
         public static DeliveryTrip Combine(IEnumerable<(string Prefab, int Remaining)> lines, ContainerSnapshot chest,
-            CarriedInventory carried, IEnumerable<ContainerSnapshot> sources, Vec3 from)
+            CarriedInventory carried, IEnumerable<ContainerSnapshot> sources, Vec3 from, IEnumerable<MaterialPile> piles = null)
         {
             var combined = new DeliveryTrip();
             if (chest == null || lines == null) return combined;
@@ -280,7 +303,7 @@ namespace Haugbui.Core.Storage
             {
                 if (remaining <= 0 || string.IsNullOrEmpty(prefab)) continue;
                 int inBag = sim.CountPrefab(prefab);
-                DeliveryTrip trip = Plan(prefab, remaining, room, sim, stock, from);
+                DeliveryTrip trip = Plan(prefab, remaining, room, sim, stock, from, piles);
                 if (trip.Total <= 0) continue;
                 int fromBag = Math.Min(trip.Puts.Where(p => p.Prefab == prefab).Sum(p => p.Amount), inBag);
                 if (fromBag > 0) ReserveCommitted(sim, prefab, fromBag);

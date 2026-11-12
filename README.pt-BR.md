@@ -3,7 +3,7 @@
 Um servo morto-vivo que cuida do serviço chato da base. Construa um túmulo perto da sua cama e ele organiza baús,
 busca o que você pedir, colhe a plantação e alimenta as forjas enquanto você sai pelo mundo.
 
-A versão marcada no git é a **0.0.12**. O texto em inglês, com a instalação e o desenvolvimento, está no
+A versão **0.0.13** passou no self-test e ainda não tem tag. A tag `v0.0.12` continua no commit anterior. O texto em inglês, com a instalação e o desenvolvimento, está no
 [README.md](README.md).
 
 ## O que ele faz

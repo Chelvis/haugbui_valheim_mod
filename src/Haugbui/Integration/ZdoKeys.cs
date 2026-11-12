@@ -21,5 +21,8 @@ namespace Haugbui.Integration
 
         /// <summary>1 while this tomb asked to keep its area loaded. The checkbox is the source of truth; this is how a far tomb is found.</summary>
         public const string KeepLoaded = "haugbui_keep";
+
+        /// <summary>1 while this fireplace should be refilled at 0 or 1 fuel.</summary>
+        public const string KeepLit = "haugbui_keep_lit";
     }
 }

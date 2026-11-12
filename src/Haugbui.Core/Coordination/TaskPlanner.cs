@@ -26,7 +26,13 @@ namespace Haugbui.Core.Coordination
         Fuel,
 
         /// <summary>A station's own ready action: tap a fermenter, take a done item off a cooking station.</summary>
-        Operate
+        Operate,
+
+        /// <summary>Refund a material pile into the bag, drop what does not fit, then remove the piece.</summary>
+        Dismantle,
+
+        /// <summary>Add carried fuel to a fireplace through its own RPC, one unit at a time.</summary>
+        Refuel
     }
 
     /// <summary>One atomic interaction; the executor first flies within reach of <see cref="Target"/>.</summary>

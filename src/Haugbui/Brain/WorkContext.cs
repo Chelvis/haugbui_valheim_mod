@@ -24,6 +24,7 @@ namespace Haugbui.Brain
     {
         private readonly List<Container> _query = new List<Container>();
         private readonly List<MonoBehaviour> _stationQuery = new List<MonoBehaviour>();
+        private readonly List<Piece> _pieces = new List<Piece>();
         private Dictionary<string, int> _reserved;
         private readonly List<(string Guid, Vec3 Position, float Radius)> _territories = new List<(string, Vec3, float)>();
 
@@ -73,6 +74,11 @@ namespace Haugbui.Brain
         /// <summary>HB-T-069: the Production toggle is on and the tomb has the unlock level.</summary>
         public bool Production;
 
+        /// <summary>The tomb may dismantle a one-stack material pile when chests are short.</summary>
+        public bool MaterialPiles;
+
+        public readonly List<MaterialPile> Piles = new List<MaterialPile>();
+
         /// <summary>
         /// HB-121: world seconds left before the Haugbui must head home (the dawn return lead); infinite with the Altar.
         /// </summary>
@@ -112,6 +118,7 @@ namespace Haugbui.Brain
             Center = tomb.transform.position;
             Radius = tomb.Attributes.Radius;
             GroundItems = tomb.State.Has(TombToggles.GroundItems);
+            MaterialPiles = tomb.State.Has(TombToggles.MaterialPiles);
             Harvesting = tomb.State.Has(TombToggles.Harvesting);
             Config.HaugbuiConfig settings = HaugbuiPlugin.Instance.Settings;
             HarvestOptions = new HarvestOptions
@@ -135,6 +142,7 @@ namespace Haugbui.Brain
             SupplyDropsReady = false;
             ClaimedDrops.Clear();
             Stations.Clear();
+            Piles.Clear();
             _reserved = null;
             FindTerritories(tomb);
 
@@ -171,10 +179,26 @@ namespace Haugbui.Brain
                 if (source && collection) CollectionChests.Add(snapshot);
             }
 
+            if (MaterialPiles) FindPiles();
+
             ShiftTimer timer = tomb.Timer;
             WorkSecondsLeft = tomb.FullTime ? double.PositiveInfinity : timer.InShift ? timer.Seconds : 0;
             Production = ProductionGate.Enabled(tomb);
             if (Production) FindStations();
+        }
+
+        private void FindPiles()
+        {
+            _pieces.Clear();
+            Piece.GetAllPiecesInRadius(Center, Radius, _pieces);
+            foreach (Piece piece in _pieces)
+            {
+                if (!PileGateway.Eligible(piece, OwnerId, Policy, Mine)) continue;
+                if (!PileGateway.TrySnapshot(piece, out MaterialPile pile)) continue;
+                if (Piles.Exists(p => p.Id == pile.Id)) continue;
+                Piles.Add(pile);
+                Targets[pile.Id] = piece;
+            }
         }
 
         private void FindStations()

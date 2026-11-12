@@ -6,8 +6,10 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 
 ## 1. Where we are
 
-- **Version 0.0.12** (tag `v0.0.12` on `main`). Tag `v0.0.11` stays on `533acdc`. Tag `v0.0.10` stays on `7d553e1`.
-  Milestones **M1–M12 done**. Away suite 2026-11-07, Valheim 1.0.21: 22 passed, 0 failed, player 515 m from the tomb.
+- **Version 0.0.13** passed its self-test (material piles, keep-lit fires, finite Frigid kiln) and is not tagged yet.
+  Tag `v0.0.12` stays `7990e7b`. Tag `v0.0.11` is `66f781d`. Tag `v0.0.10` stays on `7d553e1`.
+  Milestones **M1–M13 done**. Self-test 2026-11-12, Valheim 1.0.21, `piles` and `stations`: 50 passed, 0 failed. Away suite 2026-11-07: 22 passed, 0 failed, player 515 m from the tomb.
+  A later commit, `8fd981a`, scans the world once per load. It is not in the tag.
   Full self-test 2026-11-05 (0.0.11): 709 passed, 0 failed.
   M9 self-test 2026-10-21: `world backup integrity torture`, 33 passed, 0 failed. The on-disk missing-mod round trip
   (DLL removed) is still the product owner's observation; the protection table in `TECHNICAL_FEASIBILITY.md` §9.3
@@ -30,6 +32,7 @@ decisions log (§23) and `docs/history/PLANNING_LOG.md` (detailed session log, M
 | M10 | Tomb panel, hovers, chest filter, rename, localization, kitbash looks, build-menu icons | 0.0.10 |
 | M11 | Carry cycle, timed bag emptying, chest-list copy, object damage ignored | 0.0.11 |
 | M12 | Opt-in keep-loaded area; the existing Haugbui keeps working. The game closed still pauses the world | 0.0.12 |
+| M13 | Material piles (chests first), keep-lit fires, finite Frigid kiln | 0.0.13 |
 
 ## 2. What is next
 
@@ -37,7 +40,9 @@ Remaining milestones (tickets in `docs/IMPLEMENTATION_BACKLOG.json`):
 
 | Milestone | Tickets | Notes |
 |---|---|---|
-| **M13 Material piles and fires** (next) | HB-T-118, HB-T-119 | Piles off by default. Keep-lit on a refillable Fireplace, also off by default. |
+| **M13 Material piles and fires** | HB-T-118, HB-T-119, HB-T-122 | Self-test passed 2026-11-12 (50/0). Tag `v0.0.13` waits for the commit. |
+| 1.1 Shift billing | HB-T-121 | After v1.0. Two options, not chosen. See `docs/briefs/SHIFT_BILLING_1.1.md`. |
+| 1.2 Task schedules | HB-T-123 | After v1.0. Collect a batch, then deliver it. Cutoff not chosen. See `docs/briefs/TASK_SCHEDULES_1.2.md`. |
 
 ## 3. Known gaps carried forward
 
@@ -121,6 +126,6 @@ Remaining milestones (tickets in `docs/IMPLEMENTATION_BACKLOG.json`):
 - Unit tests: `dotnet test tests/Haugbui.Core.Tests` (incl. the manifest check when
   `.reference/Managed` or the game install exists).
 - In game (Debug build, `devcommands`): `haugbui_selftest [basics structures flight transfers haugbui storage chests
-  harvest tribute territory production stations sleep combat world backup integrity torture] [and_exit]`; diagnostics `haugbui_status`, `haugbui_dump_tomb`,
+  harvest tribute territory production stations piles sleep combat world backup integrity torture] [and_exit]`; diagnostics `haugbui_status`, `haugbui_dump_tomb`,
   `haugbui_dump_prefabs`, `haugbui_reservations`, `haugbui_ledger`, `haugbui_registry`.
 - Config: `BepInEx/config/com.kelvinmarques.haugbui.cfg`.

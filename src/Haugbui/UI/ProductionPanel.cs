@@ -52,7 +52,7 @@ namespace Haugbui.UI
             int selected = job != null ? Shown.FindIndex(r => r.Input == job.InputPrefab && r.Output == job.OutputPrefab) : -1;
             _recipes.value = Math.Max(0, selected);
             _recipes.RefreshShownValue();
-            _mode.value = job != null && job.Mode == JobMode.Infinite || FuelOnly ? 1 : 0;
+            _mode.value = job != null && job.Mode == JobMode.Infinite || InfiniteOnly ? 1 : 0;
             _mode.RefreshShownValue();
             _target.text = job != null && job.Mode == JobMode.Finite ? job.Target.ToString() : "";
             Refresh();
@@ -84,13 +84,20 @@ namespace Haugbui.UI
             if (Time.frameCount % 15 == 0) Refresh();
         }
 
-        private static bool FuelOnly => _station != null && StationAdapterRegistry.For(_station)?.Kind(_station) == StationKind.FuelOnly;
+        /// <summary>Hot tub and shield generator have no counted product, so the amount stays locked.</summary>
+        private static bool InfiniteOnly =>
+            _station != null && (StationAdapterRegistry.For(_station)?.Recipes(_station).All(r => string.IsNullOrEmpty(r.Output)) ?? true);
+
+        internal static bool ModeFieldEnabled => _mode != null && _mode.interactable;
+        internal static bool TargetFieldEnabled => _target != null && _target.interactable;
+        internal static float TitleCenterY => _title != null ? ((RectTransform)_title.transform).anchoredPosition.y : 0f;
+        internal static float RecipeRowY => _recipes != null ? ((RectTransform)_recipes.transform).anchoredPosition.y : 0f;
 
         /// <summary>Self-test hook: the same path as the Save button. Null when nothing was saved.</summary>
         internal static bool Apply(bool enabled, StationRecipe recipe, JobMode mode, int target)
         {
             if (_station == null || recipe == null) return false;
-            if (FuelOnly) mode = JobMode.Infinite;
+            if (InfiniteOnly) mode = JobMode.Infinite;
             if (mode == JobMode.Finite && target <= 0) return false;
             bool saved = StationJobs.Edit(_station, job =>
             {
@@ -122,9 +129,9 @@ namespace Haugbui.UI
             GUIManager gui = GUIManager.Instance;
             _root = gui.CreateWoodpanel(GUIManager.CustomGUIFront.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Width, Height, draggable: false);
-            _title = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -35f),
+            _title = gui.CreateText("", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -64f),
                 gui.AveriaSerifBold, 26, gui.ValheimOrange, true, Color.black, Width - 100f, 40f, false).GetComponent<Text>();
-            _owner = Line(gui, -72f, 15, new Color(0.8f, 0.8f, 0.8f));
+            _owner = Line(gui, -96f, 15, new Color(0.8f, 0.8f, 0.8f));
 
             Label(gui, "$haugbui_job_recipe", -115f);
             _recipes = gui.CreateDropDown(_root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(330f, -115f), 16, 300f, 32f)
@@ -199,8 +206,8 @@ namespace Haugbui.UI
             bool enabled = job != null && job.Enabled;
             _enableLabel.text = Localization.instance.Localize(enabled ? "$haugbui_job_disable" : "$haugbui_job_enable");
             _reset.interactable = job != null && (job.Supplied > 0 || job.Produced > 0);
-            _target.interactable = !FuelOnly;
-            _mode.interactable = !FuelOnly;
+            _target.interactable = !InfiniteOnly;
+            _mode.interactable = !InfiniteOnly;
             _owner.text = Localization.instance.Localize(OwnerText(job));
             _progress.text = job != null && job.Enabled ? ProgressText(job) : "";
             // HB-121: items still cooking when it goes home may burn, as for a player.

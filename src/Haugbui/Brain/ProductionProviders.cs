@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Haugbui.Core.Coordination;
@@ -148,18 +149,23 @@ namespace Haugbui.Brain
             {
                 wanted = StationFill.Inputs(state.Queued, state.MaxQueue, ProductionJob.InputsWanted(job, yield));
                 inputs = SupplyPlanner.Pick(work.Recipe.Input, wanted, state.RequiredCheated, carry, context.Sources, context.From,
-                    context.Reserved(work.Recipe.Input), ground, bagOnly);
+                    context.Reserved(work.Recipe.Input), ground, bagOnly, context.Piles);
             }
 
             SupplyPick fuel = new SupplyPick();
             string fuelPrefab = null;
-            int fuelWanted = StationFill.Fuel(state.Fuel, state.MaxFuel, state.Queued + inputs.Total, state.FuelPerProduct);
+            bool countedFuel = work.Adapter.Kind(work.Station) == StationKind.FuelOnly && !string.IsNullOrEmpty(work.Recipe.Output);
+            int fuelBasis = countedFuel && job.Mode == JobMode.Finite
+                ? ProductionJob.Remaining(job)
+                : state.Queued + inputs.Total;
+            float fuelPer = countedFuel && job.Mode == JobMode.Infinite ? 0f : state.FuelPerProduct;
+            int fuelWanted = StationFill.Fuel(state.Fuel, state.MaxFuel, fuelBasis, fuelPer);
             if (fuelWanted > 0)
             {
                 // Fuel is consumed without a flag (RPC_AddFuel), so cheated fuel would come back clean (HB-061).
                 foreach (string prefab in state.FuelPrefabs)
                 {
-                    fuel = SupplyPlanner.Pick(prefab, fuelWanted, false, carry, context.Sources, context.From, context.Reserved(prefab), ground, bagOnly);
+                    fuel = SupplyPlanner.Pick(prefab, fuelWanted, false, carry, context.Sources, context.From, context.Reserved(prefab), ground, bagOnly, context.Piles);
                     fuelPrefab = prefab;
                     if (fuel.Total > 0) break;
                 }
@@ -182,24 +188,18 @@ namespace Haugbui.Brain
             if (ground != null) foreach (GroundItem drop in ground) dropIds.Add(drop.Id);
             var steps = new List<TaskStep>();
             var keys = new List<string> { "station:" + work.Id };
-            foreach (PlannedTake take in inputs.Takes.Concat(fuel.Takes))
-            {
-                bool drop = dropIds.Contains(take.Source);
-                steps.Add(new TaskStep(drop ? StepKind.PickUp : StepKind.Take, take.Source, take.Item, take.Item.Amount));
-                if (!drop) continue;
-                context.ClaimedDrops.Add(take.Source);
-                keys.Add(GatherKeys.Drop(take.Source));
-                if (context.SupplyDropTargets.TryGetValue(take.Source, out ItemDrop item)) context.Targets[take.Source] = item;
-            }
+            SupplySteps.AppendTakes(context, inputs.Takes.Concat(fuel.Takes), dropIds, steps, keys);
             if (fuel.Total > 0)
-                steps.Add(new TaskStep(StepKind.Fuel, work.Id, new ItemStack { Prefab = fuelPrefab, Cheated = false }, fuel.Total));
-            if (inputs.Total > 0)
-                steps.Add(new TaskStep(StepKind.Feed, work.Id, new ItemStack { Prefab = work.Recipe.Input, Cheated = inputs.Cheated }, inputs.Total));
+                steps.Add(new TaskStep(StepKind.Fuel, work.Id, new ItemStack { Prefab = fuelPrefab, Cheated = false }, Math.Min(fuelWanted, fuel.Total)));
+            if (inputs.Total > 0 && wanted > 0)
+                steps.Add(new TaskStep(StepKind.Feed, work.Id, new ItemStack { Prefab = work.Recipe.Input, Cheated = inputs.Cheated }, Math.Min(wanted, inputs.Total)));
             context.Targets[work.Id] = work.Station;
             if (!context.Probe) ProductionStatus.Set(work.Id, manual ? "$haugbui_job_manual_use" : "$haugbui_job_working");
 
             string first = steps[0].Target;
+            MaterialPile firstPile = context.Piles.FirstOrDefault(p => p.Id == first);
             Vec3 firstPosition = first == work.Id ? work.Position
+                : firstPile != null ? firstPile.Position
                 : dropIds.Contains(first) ? ground.First(d => d.Id == first).Position
                 : context.Sources.First(s => s.Id == first).Position;
             string station = work.Id;

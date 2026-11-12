@@ -14,6 +14,10 @@ namespace Haugbui.Integration.StationAdapters
 
         public bool CanHandle(MonoBehaviour station) => station is Smelter;
 
+        private static bool CountsFuelProduct(Smelter smelter) =>
+            smelter.m_maxOre <= 0 && smelter.m_conversion != null
+            && smelter.m_conversion.Any(c => c != null && c.m_from == null && c.m_to != null);
+
         public StationKind Kind(MonoBehaviour station) => ((Smelter)station).m_maxOre <= 0 ? StationKind.FuelOnly : StationKind.Smelter;
 
         public ZNetView View(MonoBehaviour station) => ((Smelter)station).m_nview;
@@ -51,7 +55,8 @@ namespace Haugbui.Integration.StationAdapters
                 MaxQueue = smelter.m_maxOre,
                 Fuel = zdo.GetFloat(ZDOVars.s_fuel),
                 MaxFuel = smelter.m_fuelItem != null ? smelter.m_maxFuel : 0,
-                FuelPerProduct = smelter.m_maxOre > 0 ? smelter.m_fuelPerProduct : 0,
+                // A kiln with no ore queue still burns a measured amount of fuel per product.
+                FuelPerProduct = smelter.m_maxOre > 0 || CountsFuelProduct(smelter) ? smelter.m_fuelPerProduct : 0,
                 PendingOutputs = zdo.GetInt(ZDOVars.s_spawnAmount),
             };
             if (smelter.m_fuelItem != null) state.FuelPrefabs.Add(smelter.m_fuelItem.gameObject.name);

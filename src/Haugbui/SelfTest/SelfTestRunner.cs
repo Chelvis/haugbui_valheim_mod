@@ -17,14 +17,14 @@ namespace Haugbui.SelfTest
     /// </summary>
     internal static class SelfTestRunner
     {
-        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute", "production", "territory", "stations", "sleep", "combat", "world", "backup", "integrity", "torture", "perf", "away" };
+        public static readonly string[] Suites = { "basics", "structures", "flight", "transfers", "haugbui", "storage", "chests", "harvest", "tribute", "production", "territory", "stations", "piles", "sleep", "combat", "world", "backup", "integrity", "torture", "perf", "away" };
 
         /// <summary>Seconds each suite took on the 2026-11-03 full run (20 min 44 s). A failure that waits out a timeout is included, so a clean run can be shorter.</summary>
         private static readonly Dictionary<string, int> ExpectedSeconds = new Dictionary<string, int>
         {
             { "basics", 5 }, { "structures", 25 }, { "flight", 5 }, { "transfers", 5 }, { "haugbui", 74 },
             { "storage", 64 }, { "chests", 245 }, { "harvest", 174 }, { "tribute", 19 }, { "production", 159 },
-            { "territory", 50 }, { "stations", 239 }, { "sleep", 9 }, { "combat", 159 },
+            { "territory", 50 }, { "stations", 239 }, { "piles", 180 }, { "sleep", 9 }, { "combat", 159 },
             { "world", 3 }, { "backup", 2 }, { "integrity", 2 }, { "torture", 3 }, { "perf", 2 }, { "away", 120 },
         };
 
@@ -89,6 +89,7 @@ namespace Haugbui.SelfTest
                     case "production": body = new ProductionSuite(context).Run(); break;
                     case "territory": body = new TerritorySuite(context).Run(); break;
                     case "stations": body = new StationsSuite(context).Run(); break;
+                    case "piles": body = new PilesSuite(context).Run(); break;
                     case "sleep": body = new SleepSuite(context).Run(); break;
                     case "combat": body = new CombatSuite(context).Run(); break;
                     case "world": body = new WorldSuite(context).Run(); break;

@@ -18,7 +18,7 @@ namespace Haugbui.UI
     internal static class TombPanel
     {
         private const float Width = 480f;
-        private const float Height = 822f;
+        private const float Height = 856f;
         private const float Inset = 24f;
         private const float ContentWidth = Width - Inset * 2f;
         private const int OfferRows = 3;
@@ -29,6 +29,7 @@ namespace Haugbui.UI
             (TombToggles.Harvesting, "$haugbui_panel_harvest"),
             (TombToggles.Combat, "$haugbui_panel_combat"),
             (TombToggles.Production, "$haugbui_panel_production"),
+            (TombToggles.MaterialPiles, "$haugbui_panel_piles"),
             (TombToggles.Resting, "$haugbui_panel_rest"),
             (TombToggles.AwayMode, "$haugbui_panel_away"),
         };
@@ -182,14 +183,14 @@ namespace Haugbui.UI
                 if (flag == TombToggles.AwayMode) AddAwayWarning(gui, text, y);
             }
 
-            _tribute = Block(gui, Inset, 534f, ContentWidth, 44f);
+            _tribute = Block(gui, Inset, 568f, ContentWidth, 44f);
             Offers.Clear();
             IReadOnlyList<KeyValuePair<string, int>> valuables = HaugbuiPlugin.Instance.Settings.TributeTable.Values;
             int columns = (valuables.Count + OfferRows - 1) / OfferRows;
             if (columns < 1) columns = 1;
             const float offerGap = 12f;
             float buttonWidth = (ContentWidth - offerGap * (columns - 1)) / columns;
-            const float offerTop = 594f;
+            const float offerTop = 628f;
             for (int i = 0; i < valuables.Count; i++)
             {
                 string prefab = valuables[i].Key;

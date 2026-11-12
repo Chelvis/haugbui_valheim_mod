@@ -299,6 +299,22 @@ namespace Haugbui.Core.Tests
 
             ContainerSnapshot emptied = Items.Chest("collection", 5, 10, Items.Make("Wood", 3));
             Assert.That(DeliveryPlanner.Plan("Wood", 30, Target(10), new CarriedInventory(8, 1000), new[] { emptied }, Vec3.Zero).Total, Is.EqualTo(3));
+
+            var pile = new MaterialPile
+            {
+                Id = "pile",
+                Position = new Vec3(3, 0, 0),
+                Refund = Items.Make("Wood", 50),
+            };
+            ContainerSnapshot stocked = Items.Chest("stocked", 1, 10, Items.Make("Wood", 20));
+            stocked.KeepSeed = true;
+            DeliveryTrip fromChest = DeliveryPlanner.Plan("Wood", 10, Target(10), new CarriedInventory(8, 1000), new[] { stocked }, Vec3.Zero, new[] { pile });
+            Assert.That(fromChest.Takes.Select(t => t.Source), Does.Not.Contain("pile"));
+            DeliveryTrip fromPile = DeliveryPlanner.Plan("Wood", 10, Target(10), new CarriedInventory(8, 1000), new[] { last }, Vec3.Zero, new[] { pile });
+            Assert.That(fromPile.Total, Is.EqualTo(10));
+            Assert.That(fromPile.Takes.Single().Source, Is.EqualTo("pile"));
+            Assert.That(fromPile.Takes.Single().Item.Amount, Is.EqualTo(50));
+            Assert.That(fromPile.Takes.Single().Dropped, Is.EqualTo(0));
         }
 
         [Test]

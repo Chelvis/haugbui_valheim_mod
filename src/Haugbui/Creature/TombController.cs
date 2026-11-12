@@ -163,7 +163,20 @@ namespace Haugbui.Creature
         internal bool CanWork => !_destroyed && State != null && IsOwner && Creature != null && Machine.IsOut;
         internal TombState State => _tomb != null ? _tomb.TombState : null;
         internal bool IsOwner => _tomb != null && _tomb.View != null && _tomb.View.IsValid() && _tomb.View.IsOwner();
-        internal HaugbuiAttributes Attributes => HaugbuiPlugin.Instance.Settings.ProgressionTable.ForLevel(_tomb.Progress.Level);
+        internal HaugbuiAttributes Attributes
+        {
+            get
+            {
+                HaugbuiAttributes attributes = HaugbuiPlugin.Instance.Settings.ProgressionTable.ForLevel(_tomb.Progress.Level);
+#if DEBUG
+                // The pile suite stands close to a lived-in base. A short radius keeps that base out of the scan.
+                if (RadiusOverride is float radius)
+                    attributes = new HaugbuiAttributes(attributes.Level, attributes.CarryCapacity, attributes.MaxSpeed, radius,
+                        attributes.Slots, attributes.MaxHealth, attributes.OffenceMultiplier, attributes.DefenceMultiplier);
+#endif
+                return attributes;
+            }
+        }
         internal bool FullTime => _tomb.Progress.Has(TombAbilities.FullTime);
         internal bool DarkAura => FullTime;
         internal Vector3 Home => transform.position + Vector3.up * 0.8f;
@@ -182,6 +195,9 @@ namespace Haugbui.Creature
 #if DEBUG
         /// <summary>Self-test: behave as if the game were skipping time (sleeping).</summary>
         internal static bool SkippingForTests { get; set; }
+
+        /// <summary>Self-test: operational radius, in metres, instead of the level table.</summary>
+        internal static float? RadiusOverride { get; set; }
 #else
         private const bool SkippingForTests = false;
 #endif

@@ -42,6 +42,21 @@ namespace Haugbui.Core.Tests
         }
 
         [Test]
+        public void A_fuel_only_job_counts_products_up_to_the_target()
+        {
+            var job = new StationJobState
+            {
+                Enabled = true, InputPrefab = "", OutputPrefab = "FrozenFuel", Mode = JobMode.Finite, Target = 3
+            };
+            Assert.That(ProductionJob.RecordProduced(job, 2, 1), Is.EqualTo(2));
+            Assert.That(ProductionJob.Phase(job, 1, false), Is.EqualTo(JobPhase.Feeding));
+            Assert.That(ProductionJob.RecordProduced(job, 5, 1), Is.EqualTo(1));
+            Assert.That(job.Produced, Is.EqualTo(3));
+            Assert.That(ProductionJob.Phase(job, 1, false), Is.EqualTo(JobPhase.Complete));
+            Assert.That(ProductionJob.Remaining(job), Is.EqualTo(0));
+        }
+
+        [Test]
         public void Produced_never_exceeds_what_the_inputs_can_make()
         {
             StationJobState job = Finite(10);
@@ -298,6 +313,75 @@ namespace Haugbui.Core.Tests
             Assert.That(pick.FromCarried, Is.EqualTo(3));
             Assert.That(pick.Takes, Is.Empty);
             Assert.That(pick.Total, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void Piles_are_used_only_after_chests_fall_short_and_the_whole_stack_is_opened()
+        {
+            ContainerSnapshot chest = Chest("chest", 1, Ore(10));
+            chest.KeepSeed = true;
+            MaterialPile pile = Pile("pile", 4, 30);
+            SupplyPick covered = SupplyPlanner.Pick("IronOre", 6, null, Carry(), new[] { chest }, Vec3.Zero, 0, null, false, new[] { pile });
+            Assert.That(covered.Takes.Select(t => t.Source), Is.EqualTo(new[] { "chest" }));
+
+            ContainerSnapshot seed = Chest("seed", 1, Ore(1));
+            seed.KeepSeed = true;
+            CarriedInventory wide = new CarriedInventory(4, 300);
+            SupplyPick opened = SupplyPlanner.Pick("IronOre", 6, null, wide, new[] { seed }, Vec3.Zero, 0, null, false, new[] { pile });
+            Assert.That(opened.Takes.Select(t => (t.Source, t.Item.Amount, t.Dropped)), Is.EqualTo(new[] { ("pile", 30, 0) }));
+            Assert.That(wide.CountPrefab("IronOre"), Is.EqualTo(30));
+
+            CarriedInventory tight = new CarriedInventory(1, 12);
+            SupplyPick overflow = SupplyPlanner.Pick("IronOre", 6, null, tight, new[] { seed }, Vec3.Zero, 0, null, false, new[] { pile });
+            Assert.That(overflow.Takes.Single().Item.Amount, Is.EqualTo(12));
+            Assert.That(overflow.Takes.Single().Dropped, Is.EqualTo(18));
+
+            SupplyPick stone = SupplyPlanner.Pick("Stone", 6, null, Carry(), new[] { seed }, Vec3.Zero, 0, null, false, new[] { pile });
+            Assert.That(stone.Takes, Is.Empty);
+
+            SupplyPick off = SupplyPlanner.Pick("IronOre", 6, null, Carry(), new[] { seed }, Vec3.Zero, 0);
+            Assert.That(off.Takes, Is.Empty);
+        }
+
+        private static MaterialPile Pile(string id, float x, int amount) => new MaterialPile
+        {
+            Id = id,
+            Position = new Vec3(x, 0, 0),
+            Refund = Ore(amount),
+        };
+    }
+
+    public class PileRulesTests
+    {
+        [Test]
+        public void A_pile_is_one_full_stack_of_one_material()
+        {
+            Assert.That(PileRules.IsPile(true, 1, true, true, 50, 50), Is.True);
+            Assert.That(PileRules.IsPile(true, 1, true, true, 30, 30), Is.True);
+            Assert.That(PileRules.IsPile(false, 1, true, true, 50, 50), Is.False);
+            Assert.That(PileRules.IsPile(true, 2, true, true, 50, 50), Is.False);
+            Assert.That(PileRules.IsPile(true, 1, true, true, 2, 50), Is.False);
+            Assert.That(PileRules.IsPile(true, 1, true, false, 50, 50), Is.False);
+            Assert.That(PileRules.IsPile(true, 1, false, true, 50, 50), Is.False);
+        }
+    }
+
+    public class FireFuelTests
+    {
+        [Test]
+        public void Refuel_starts_at_one_and_at_zero_and_stops_above_one()
+        {
+            Assert.That(FireFuel.NeedsRefill(0f), Is.True);
+            Assert.That(FireFuel.NeedsRefill(1f), Is.True);
+            Assert.That(FireFuel.NeedsRefill(0.4f), Is.True);
+            Assert.That(FireFuel.NeedsRefill(1.1f), Is.False);
+            Assert.That(FireFuel.UnitsToFill(0f, 10), Is.EqualTo(10));
+            Assert.That(FireFuel.UnitsToFill(1f, 10), Is.EqualTo(9));
+            Assert.That(FireFuel.UnitsToFill(0.4f, 10), Is.EqualTo(9));
+            Assert.That(FireFuel.UnitsToFill(2f, 10), Is.EqualTo(0));
+            Assert.That(StationFill.Fuel(0f, 20, 3, 2f), Is.EqualTo(6));
+            Assert.That(StationFill.Fuel(6f, 20, 3, 2f), Is.EqualTo(0));
+            Assert.That(StationFill.Fuel(0f, 20, 0, 2f), Is.EqualTo(0));
         }
     }
 }
